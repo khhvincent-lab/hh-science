@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Cropper } from "react-cropper";
 import katex from "katex";
-import html2canvas from "html2canvas";
+import { toPng } from "html-to-image";
 import ThemeToggle from "@/components/theme-toggle";
 import "cropperjs/dist/cropper.css";
 import "katex/dist/katex.min.css";
@@ -547,7 +547,7 @@ export default function Home() {
       await document.fonts.ready;
     }
 
-    // Safari 對大型 data URL 圖片在 html2canvas 裡偶爾會漏圖。
+    // Safari 對大型 data URL 圖片在 DOM 匯出時偶爾會漏圖。
     // 匯出前先重新畫成標準 PNG，再讓匯出卡片使用這張 PNG。
     const normalizedQuestionImage = await normalizeQuestionImageForExport(image);
 
@@ -563,31 +563,31 @@ export default function Home() {
 
     await waitForExportImages(exportCardRef.current);
 
-    // iPhone / iPad 記憶體較吃緊，稍微降低 scale 可大幅提升成功率，
-    // 桌機仍維持 2x。
+    // iPhone / iPad 記憶體較吃緊，稍微降低輸出倍率可大幅提升成功率，
+    // 桌機仍維持較高解析度。
     const isMobileSafari =
       /iPhone|iPad|iPod/i.test(navigator.userAgent) ||
       (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
 
-    const canvas = await html2canvas(exportCardRef.current, {
-      scale: isMobileSafari ? 1.5 : 2,
+    const pixelRatio = isMobileSafari ? 1.35 : 1.8;
+
+    const dataUrl = await toPng(exportCardRef.current, {
       backgroundColor: "#f8f7f2",
-      useCORS: true,
-      allowTaint: false,
-      logging: false,
-      imageTimeout: 20000,
-      foreignObjectRendering: false,
-      removeContainer: true,
-      onclone: (clonedDocument) => {
-        clonedDocument.documentElement.setAttribute("data-theme", "light");
+      pixelRatio,
+      cacheBust: true,
+      skipAutoScale: true,
+      canvasWidth: Math.round(exportCardRef.current.scrollWidth * pixelRatio),
+      canvasHeight: Math.round(exportCardRef.current.scrollHeight * pixelRatio),
+      style: {
+        background: "#f8f7f2",
+        color: "#27332d",
       },
     });
 
-    const blob: Blob | null = await new Promise((resolve) => {
-      canvas.toBlob(resolve, "image/png", 1);
-    });
+    const response = await fetch(dataUrl);
+    const blob = await response.blob();
 
-    if (!blob) {
+    if (!blob || blob.size === 0) {
       throw new Error("解析圖片建立失敗");
     }
 
@@ -890,7 +890,7 @@ export default function Home() {
 
             <div className="student-two-actions student-solve-actions">
               <button type="button" onClick={handleStartSolve} disabled={isSolving || limitReached} className="hh-button-primary student-solve-button">
-                {limitReached ? "今日額度已使用完畢" : isSolving ? "分析題目中…" : "開始 AI 解題"}
+                {limitReached ? "今日額度已使用完畢" : isSolving ? "分析題目中…" : "開始解題"}
               </button>
               <button type="button" onClick={clearQuestion} className="hh-button-secondary">清除目前題目</button>
             </div>
@@ -1355,14 +1355,10 @@ export default function Home() {
 
         .student-solve-button,
         .student-primary-action {
-          background:
-            linear-gradient(
-              135deg,
-              color-mix(in srgb, var(--primary) 92%, var(--student-blue) 8%),
-              color-mix(in srgb, var(--primary) 90%, var(--student-gold) 10%)
-            );
+          background: linear-gradient(135deg, #315b55 0%, #54745d 100%);
+          color: #ffffff;
           box-shadow:
-            inset 0 1px 0 rgba(255,255,255,.08),
+            inset 0 1px 0 rgba(255,255,255,.10),
             0 10px 24px rgba(34, 62, 49, .10);
         }
 
@@ -1440,6 +1436,13 @@ export default function Home() {
               rgba(39, 53, 45, .90),
               rgba(31, 42, 36, .97)
             );
+        }
+
+        html[data-theme="light"] .student-solve-button,
+        html[data-theme="light"] .student-primary-action {
+          background: linear-gradient(135deg, #315b55 0%, #54745d 100%);
+          color: #ffffff;
+          border-color: transparent;
         }
 
         html[data-theme="dark"] .student-solve-button,
