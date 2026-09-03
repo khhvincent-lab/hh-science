@@ -467,40 +467,73 @@ export default function Home() {
 
   async function handleSaveImage() {
     if (!exportCardRef.current || !solveData) return;
+
     setIsSaving(true);
 
     try {
+      // 等待網頁字型完成載入，避免 Safari 在截圖時抓到尚未完成的字型狀態。
+      if ("fonts" in document) {
+        await document.fonts.ready;
+      }
+
       const canvas = await html2canvas(exportCardRef.current, {
         scale: 2,
         backgroundColor: "#f8f7f2",
         useCORS: true,
+        allowTaint: false,
         logging: false,
+        imageTimeout: 15000,
+        foreignObjectRendering: false,
+        onclone: (clonedDocument) => {
+          // 匯出的解析圖片固定使用淺色版，避免深色模式影響儲存圖片。
+          clonedDocument.documentElement.setAttribute("data-theme", "light");
+        },
       });
 
-      const blob: Blob | null = await new Promise((resolve) => canvas.toBlob(resolve, "image/png", 1));
-      if (!blob) throw new Error("圖片建立失敗");
+      const blob: Blob | null = await new Promise((resolve) => {
+        canvas.toBlob(resolve, "image/png", 1);
+      });
 
-      const safeStudent = student ? student.name.replace(/[\\/:*?"<>|]/g, "") : "學生";
-      const fileName = `HH-Science-${safeStudent}-${Date.now()}.png`;
-      const file = new File([blob], fileName, { type: "image/png" });
-
-      if (navigator.share && navigator.canShare?.({ files: [file] })) {
-        await navigator.share({ title: "H.H. Science Lab 解題解析", text: "題目與完整解析", files: [file] });
-        return;
+      if (!blob) {
+        throw new Error("圖片建立失敗");
       }
 
+      const safeStudent = student
+        ? student.name.replace(/[\\/:*?"<>|]/g, "")
+        : "學生";
+
+      const fileName = `HH-Science-${safeStudent}-${Date.now()}.png`;
       const url = URL.createObjectURL(blob);
+
+      // 直接使用瀏覽器下載，不先呼叫 navigator.share。
+      //
+      // Safari / iOS Safari 在等待 html2canvas 完成後，
+      // Web Share API 的「使用者手勢」可能已經失效，
+      // 會拋出 NotAllowedError，導致原本桌機與手機都顯示儲存失敗。
       const anchor = document.createElement("a");
       anchor.href = url;
       anchor.download = fileName;
+      anchor.rel = "noopener";
+      anchor.style.display = "none";
+
       document.body.appendChild(anchor);
       anchor.click();
       anchor.remove();
-      URL.revokeObjectURL(url);
+
+      // Safari 需要一點時間開始讀取 blob URL，
+      // 不要在 click 後立刻 revoke。
+      window.setTimeout(() => {
+        URL.revokeObjectURL(url);
+      }, 60000);
     } catch (error) {
-      if (error instanceof DOMException && error.name === "AbortError") return;
-      console.error(error);
-      alert("解析圖片儲存失敗，請重新嘗試。");
+      console.error("Save solution image failed:", error);
+
+      const message =
+        error instanceof Error
+          ? `${error.name}: ${error.message}`
+          : "未知錯誤";
+
+      alert(`解析圖片儲存失敗。\n\n${message}`);
     } finally {
       setIsSaving(false);
     }
