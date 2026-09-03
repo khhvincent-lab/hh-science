@@ -1143,7 +1143,7 @@ function DashboardSection({
   loading: boolean;
   error: string;
 }) {
-  const [costAlertThreshold, setCostAlertThreshold] = useState("20");
+  const [costAlertThreshold, setCostAlertThreshold] = useState("650");
   const [costAlertLoading, setCostAlertLoading] = useState(true);
   const [costAlertSaving, setCostAlertSaving] = useState(false);
   const [costAlertMessage, setCostAlertMessage] = useState("");
@@ -1163,7 +1163,7 @@ function DashboardSection({
         }
 
         if (active) {
-          setCostAlertThreshold(String(data.monthlyThresholdUsd ?? 20));
+          setCostAlertThreshold(String(data.monthlyThresholdTwd ?? 650));
         }
       } catch (loadError) {
         if (active) {
@@ -1189,7 +1189,7 @@ function DashboardSection({
     const value = Number(costAlertThreshold);
 
     if (!Number.isFinite(value) || value <= 0 || value > 100000) {
-      setCostAlertMessage("警示金額必須大於 0，且不超過 100000 美元。");
+      setCostAlertMessage("警示金額必須大於 0，且不超過 NT$1,000,000。");
       return;
     }
 
@@ -1203,7 +1203,7 @@ function DashboardSection({
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          monthlyThresholdUsd: value,
+          monthlyThresholdTwd: value,
         }),
       });
 
@@ -1213,7 +1213,7 @@ function DashboardSection({
         throw new Error(data.error || "儲存 API 成本警示設定失敗。");
       }
 
-      setCostAlertThreshold(String(data.monthlyThresholdUsd));
+      setCostAlertThreshold(String(data.monthlyThresholdTwd));
       setCostAlertMessage("API 成本警示金額已更新。");
     } catch (saveError) {
       setCostAlertMessage(
@@ -1227,11 +1227,13 @@ function DashboardSection({
   }
 
   const costAlertValue = Number(costAlertThreshold || 0);
+  const usdToTwd = 32.5;
+  const monthCostTwd = dashboard ? dashboard.month.cost * usdToTwd : 0;
   const isCostAlert =
     Boolean(dashboard) &&
     Number.isFinite(costAlertValue) &&
     costAlertValue > 0 &&
-    dashboard!.month.cost >= costAlertValue;
+    monthCostTwd >= costAlertValue;
 
   if (loading && !dashboard) {
     return <div className="hh-card admin-state-card">正在讀取管理資料…</div>;
@@ -1286,25 +1288,25 @@ function DashboardSection({
             <div className="hh-eyebrow">API COST ALERT</div>
             <strong>
               {isCostAlert
-                ? `本月成本已達 $${dashboard.month.cost.toFixed(4)}`
-                : `本月成本 $${dashboard.month.cost.toFixed(4)}`}
+                ? `本月成本約 NT$${Math.round(monthCostTwd).toLocaleString("zh-TW")}`
+                : `本月成本約 NT$${Math.round(monthCostTwd).toLocaleString("zh-TW")}`}
             </strong>
             <span>
               {isCostAlert
-                ? `已達到你設定的 $${costAlertValue.toFixed(2)} 警示門檻`
-                : `達到設定金額時會顯示警示`}
+                ? `已達到你設定的 NT$${Math.round(costAlertValue).toLocaleString("zh-TW")} 警示門檻`
+                : `以 1 USD ≈ NT$${usdToTwd.toFixed(1)} 估算`}
             </span>
           </div>
 
           <div className="admin-cost-alert-controls">
             <label>
-              <span>警示金額（USD）</span>
+              <span>警示金額（TWD）</span>
               <input
                 className="hh-input"
                 type="number"
                 min="0.01"
-                max="100000"
-                step="0.01"
+                max="1000000"
+                step="10"
                 value={costAlertThreshold}
                 disabled={costAlertLoading || costAlertSaving}
                 onChange={(event) => setCostAlertThreshold(event.target.value)}
@@ -1395,22 +1397,23 @@ function StudentsSection(props: {
   viewStudentHistory: (student: StudentRow) => void;
 }) {
   const todayTotal = props.allStudents.reduce((sum, student) => sum + student.todayCount, 0);
+  const todayActive = props.allStudents.filter((student) => student.todayCount > 0).length;
 
   return (
-    <div className="admin-stack">
-      <section className="admin-kpi-grid">
+    <div className="admin-stack admin-students-stack">
+      <section className="admin-kpi-grid admin-student-summary-grid">
         <KpiCard label="學生總數" value={props.total} suffix="人" />
         <KpiCard label="啟用中" value={props.active} suffix="人" tone="blue" />
-        <KpiCard label="已停用" value={props.inactive} suffix="人" tone="red" />
-        <KpiCard label="今日已解題" value={todayTotal} suffix="題" tone="gold" />
+        <KpiCard label="今日活躍" value={todayActive} suffix="人" tone="purple" />
+        <KpiCard label="今日解題" value={todayTotal} suffix="題" tone="gold" />
       </section>
 
-      <section className="hh-card admin-panel admin-add-student">
+      <section className="hh-card admin-panel admin-add-student admin-student-tool-panel">
         <div>
           <PanelHeader
             eyebrow="NEW STUDENT"
             title="新增學生"
-            subtitle="新增後會套用共用初始密碼；學生第一次登入時必須設定自己的個人密碼"
+            subtitle="新增學生後，首次登入會要求設定個人密碼"
           />
         </div>
 
@@ -1456,7 +1459,7 @@ function StudentsSection(props: {
         </div>
       )}
 
-      <section className="hh-card admin-panel">
+      <section className="hh-card admin-panel admin-student-directory-panel">
         <PanelHeader
           eyebrow="STUDENT DIRECTORY"
           title="學生名單"
@@ -2161,9 +2164,9 @@ function AISection(props: {
     return (
       <section className="hh-card admin-panel">
         <PanelHeader
-          eyebrow="AI ROUTER"
+          eyebrow="AI SETTINGS"
           title="AI 解題設定"
-          subtitle="正在讀取 v1.1 AI Router 設定…"
+          subtitle="正在讀取 AI Router 設定…"
         />
         <div className="admin-empty">載入中…</div>
       </section>
@@ -2207,15 +2210,51 @@ function AISection(props: {
   }
 
   return (
-    <div className="admin-stack">
-      <section className="hh-card admin-panel">
+    <div className="admin-stack admin-ai-settings-stack">
+      <section className="hh-card admin-panel admin-ai-compact-section">
         <PanelHeader
-          eyebrow="ROUTING MODE"
-          title="AI 解題模式"
-          subtitle="單模型適合測試；智慧多模型會依標準答案與驗算結果決定是否啟動仲裁模型"
+          eyebrow="01 · DAILY QUOTA"
+          title="每日解題額度"
+          subtitle="修改後立即生效"
         />
 
-        <div className="admin-segmented">
+        <div className="admin-ai-inline-setting">
+          <div>
+            <strong>每位學生每日可解題數</strong>
+            <span>考前可暫時調高，之後再調回即可。</span>
+          </div>
+
+          <div className="admin-number-control">
+            <input
+              className="hh-input"
+              type="number"
+              min={1}
+              max={100}
+              step={1}
+              value={settings.dailyLimit}
+              onChange={(event) => {
+                const value = Number(event.target.value);
+                patchSettings((current) => ({
+                  ...current,
+                  dailyLimit: Number.isFinite(value)
+                    ? Math.max(1, Math.min(100, Math.round(value)))
+                    : 10,
+                }));
+              }}
+            />
+            <span>題／日</span>
+          </div>
+        </div>
+      </section>
+
+      <section className="hh-card admin-panel admin-ai-compact-section">
+        <PanelHeader
+          eyebrow="02 · ROUTING MODE"
+          title="AI 解題模式"
+          subtitle="一般使用建議維持智慧多模型"
+        />
+
+        <div className="admin-segmented admin-ai-mode-segmented">
           <button
             type="button"
             className={settings.mode === "single" ? "active" : ""}
@@ -2226,8 +2265,8 @@ function AISection(props: {
               }))
             }
           >
-            <strong>單模型解題</strong>
-            <span>只使用主要解題模型</span>
+            <strong>單模型</strong>
+            <span>只跑 Primary</span>
           </button>
 
           <button
@@ -2246,55 +2285,55 @@ function AISection(props: {
         </div>
       </section>
 
-      <section className="hh-card admin-panel">
+      <section className="hh-card admin-panel admin-ai-compact-section">
         <PanelHeader
-          eyebrow="MODEL ROUTER"
+          eyebrow="03 · MODEL ROUTER"
           title="模型角色"
-          subtitle="每個角色都可以獨立選擇 OpenAI 或 Gemini 模型與推理強度"
+          subtitle="四個角色集中管理，不需要逐張卡片往下找"
         />
 
-        <div className="admin-router-grid">
+        <div className="admin-router-compact-list">
           <ModelSlotEditor
-            title="主要解題模型"
+            title="主要解題"
             eyebrow="PRIMARY"
-            description="每一題都會先由這個模型完整解題。"
+            description="每題完整解題"
             slot={settings.primary}
             models={props.models}
             onChange={(patch) => patchSlot("primary", patch)}
           />
 
           <ModelSlotEditor
-            title="無標準答案驗算模型"
+            title="驗算"
             eyebrow="VERIFIER"
-            description="只有學生沒有輸入標準答案時才啟動，負責檢查重大錯誤。"
+            description="無標準答案時檢查重大錯誤"
             slot={settings.verifier}
             models={props.models}
             onChange={(patch) => patchSlot("verifier", patch)}
           />
 
           <ModelSlotEditor
-            title="衝突／爭議模型"
+            title="仲裁"
             eyebrow="ARBITER"
-            description="Primary 與標準答案衝突，或 Verifier 高信心判重大錯誤時才啟動。"
+            description="答案衝突或重大錯誤時啟動"
             slot={settings.arbiter}
             models={props.models}
             onChange={(patch) => patchSlot("arbiter", patch)}
           />
 
           <ModelSlotEditor
-            title="自然科辨識模型"
+            title="自然科辨識"
             eyebrow="SCIENCE GATE"
-            description="扣除每日額度前，先判斷整組圖片是否屬於自然科。"
+            description="扣額度前先判斷是否為自然科"
             slot={settings.scienceGate}
             models={props.models}
             onChange={(patch) => patchSlot("scienceGate", patch)}
           />
         </div>
 
-        <div className="admin-router-threshold">
+        <div className="admin-router-threshold admin-router-threshold-compact">
           <div>
             <strong>Verifier 仲裁門檻</strong>
-            <span>建議 85%，避免弱疑慮造成不必要的 Arbiter 成本。</span>
+            <span>建議 85%</span>
           </div>
 
           <div className="admin-number-control">
@@ -2323,107 +2362,68 @@ function AISection(props: {
         </div>
       </section>
 
-      <section className="hh-card admin-panel">
+      <section className="hh-card admin-panel admin-ai-compact-section">
         <PanelHeader
-          eyebrow="FOLLOW-UP"
+          eyebrow="04 · FOLLOW-UP"
           title="學生追問"
-          subtitle="追問不重新跑完整解題 Router，也不扣每日題數"
+          subtitle="不重跑完整 Router，也不扣每日題數"
         />
 
-        <button
-          type="button"
-          className={`admin-toggle-button ${
-            settings.followup.enabled ? "active" : ""
-          }`}
-          onClick={() =>
-            patchSettings((current) => ({
-              ...current,
-              followup: {
-                ...current.followup,
-                enabled: !current.followup.enabled,
-              },
-            }))
-          }
-        >
-          {settings.followup.enabled ? "追問功能：開啟" : "追問功能：關閉"}
-        </button>
+        <div className="admin-followup-compact-head">
+          <button
+            type="button"
+            className={`admin-toggle-button ${
+              settings.followup.enabled ? "active" : ""
+            }`}
+            onClick={() =>
+              patchSettings((current) => ({
+                ...current,
+                followup: {
+                  ...current.followup,
+                  enabled: !current.followup.enabled,
+                },
+              }))
+            }
+          >
+            {settings.followup.enabled ? "追問功能：開啟" : "追問功能：關閉"}
+          </button>
 
-        <div className="admin-followup-grid">
+          <label className="admin-followup-limit-inline">
+            <span>每題上限</span>
+            <input
+              className="hh-input"
+              type="number"
+              min={1}
+              max={10}
+              value={settings.followup.maxPerQuestion}
+              disabled={!settings.followup.enabled}
+              onChange={(event) => {
+                const value = Number(event.target.value);
+                patchSettings((current) => ({
+                  ...current,
+                  followup: {
+                    ...current.followup,
+                    maxPerQuestion: Number.isFinite(value)
+                      ? Math.max(1, Math.min(10, Math.round(value)))
+                      : 3,
+                  },
+                }));
+              }}
+            />
+            <b>次</b>
+          </label>
+        </div>
+
+        <div className="admin-router-compact-list admin-followup-model-row">
           <ModelSlotEditor
             title="追問模型"
-            eyebrow="FOLLOW-UP MODEL"
-            description="建議使用低成本模型，只傳必要文字上下文。"
+            eyebrow="FOLLOW-UP"
+            description="建議使用低成本模型"
             slot={settings.followup.model}
             models={props.models}
             disabled={!settings.followup.enabled}
             onChange={patchFollowupModel}
           />
-
-          <div className="admin-simple-setting">
-            <div className="hh-eyebrow">FOLLOW-UP LIMIT</div>
-            <h3 className="hh-display">每題追問上限</h3>
-            <p>目前規劃預設每一題最多 3 次追問。</p>
-
-            <div className="admin-number-control">
-              <input
-                className="hh-input"
-                type="number"
-                min={1}
-                max={10}
-                value={settings.followup.maxPerQuestion}
-                disabled={!settings.followup.enabled}
-                onChange={(event) => {
-                  const value = Number(event.target.value);
-                  patchSettings((current) => ({
-                    ...current,
-                    followup: {
-                      ...current.followup,
-                      maxPerQuestion: Number.isFinite(value)
-                        ? Math.max(1, Math.min(10, Math.round(value)))
-                        : 3,
-                    },
-                  }));
-                }}
-              />
-              <span>次／題</span>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section className="hh-card admin-panel">
-        <PanelHeader
-          eyebrow="DAILY QUOTA"
-          title="每日解題額度"
-          subtitle="修改後立即生效，不需要重新部署"
-        />
-
-        <div className="admin-quota-control">
-          <div>
-            <strong>每位學生每日可解題數</strong>
-            <span>考前可暫時調成 20、30 題，之後再調回即可。</span>
-          </div>
-
-          <div className="admin-number-control">
-            <input
-              className="hh-input"
-              type="number"
-              min={1}
-              max={100}
-              step={1}
-              value={settings.dailyLimit}
-              onChange={(event) => {
-                const value = Number(event.target.value);
-                patchSettings((current) => ({
-                  ...current,
-                  dailyLimit: Number.isFinite(value)
-                    ? Math.max(1, Math.min(100, Math.round(value)))
-                    : 10,
-                }));
-              }}
-            />
-            <span>題／日</span>
-          </div>
         </div>
       </section>
 
@@ -2433,14 +2433,14 @@ function AISection(props: {
         </div>
       )}
 
-      <div className="admin-save-row">
+      <div className="admin-save-row admin-save-row-sticky">
         <button
           type="button"
           className="hh-button-primary"
           disabled={props.saving}
           onClick={() => void props.onSave()}
         >
-          {props.saving ? "儲存中…" : "儲存 v1.1 AI 設定"}
+          {props.saving ? "儲存中…" : "儲存 AI 設定"}
         </button>
       </div>
     </div>
@@ -2763,34 +2763,21 @@ function AnalyticsSection() {
         </section>
       ) : data ? (
         <>
-          <section className="admin-analytics-kpi-grid">
-            <AnalyticsKpi
-              eyebrow="SOLVED"
-              label="解題數"
-              value={formatInteger(data.totals.solvedQuestions)}
-              note="分母：此區間成功建立的 solve_history 題數"
+          <section className="hh-card admin-panel">
+            <PanelHeader
+              eyebrow="SUMMARY"
+              title="整體摘要"
+              subtitle="此區間的解題量與 API 成本"
             />
-
-            <AnalyticsKpi
-              eyebrow="API CALLS"
-              label="模型呼叫"
-              value={formatInteger(data.totals.apiCalls)}
-              note="Science Gate、Primary、Verifier、Arbiter、Follow-up 合計"
-            />
-
-            <AnalyticsKpi
-              eyebrow="TOTAL COST"
-              label="估算總成本"
-              value={formatUsd(data.totals.totalCostUsd)}
-              note="依 api_usage.estimated_cost_usd 加總"
-            />
-
-            <AnalyticsKpi
-              eyebrow="AVG / SOLVE"
-              label="平均每題成本"
-              value={formatUsd(data.totals.averageCostPerSolveUsd)}
-              note={`分母：${formatInteger(data.totals.solvedQuestions)} 題解題`}
-            />
+            <div className="admin-analytics-summary-table">
+              <div className="admin-analytics-table-head">
+                <span>指標</span><span>數值</span><span>說明</span>
+              </div>
+              <div><span>解題數</span><strong>{formatInteger(data.totals.solvedQuestions)} 題</strong><small>成功建立的解題紀錄</small></div>
+              <div><span>模型呼叫</span><strong>{formatInteger(data.totals.apiCalls)} 次</strong><small>所有 AI 角色合計</small></div>
+              <div><span>估算總成本</span><strong>{formatUsd(data.totals.totalCostUsd)}</strong><small>API 使用成本加總</small></div>
+              <div><span>平均每題成本</span><strong>{formatUsd(data.totals.averageCostPerSolveUsd)}</strong><small>分母 {formatInteger(data.totals.solvedQuestions)} 題</small></div>
+            </div>
           </section>
 
           <section className="hh-card admin-panel">
@@ -2800,32 +2787,13 @@ function AnalyticsSection() {
               subtitle="一題可能同時產生多次模型呼叫；這裡拆開看每個 Router 角色實際消耗"
             />
 
-            <div className="admin-analytics-role-grid">
-              <AnalyticsRoleCard
-                label="Science Gate"
-                metric={gate}
-                note="解題前自然科辨識"
-              />
-              <AnalyticsRoleCard
-                label="Primary"
-                metric={primary}
-                note="主要完整解題"
-              />
-              <AnalyticsRoleCard
-                label="Verifier"
-                metric={verifier}
-                note="無標準答案時驗算"
-              />
-              <AnalyticsRoleCard
-                label="Arbiter"
-                metric={arbiter}
-                note="衝突或重大錯誤仲裁"
-              />
-              <AnalyticsRoleCard
-                label="Follow-up"
-                metric={followup}
-                note="學生題後追問"
-              />
+            <div className="admin-analytics-data-table">
+              <div className="admin-analytics-table-head"><span>角色</span><span>呼叫</span><span>成本</span></div>
+              <div><span>Science Gate<small>自然科辨識</small></span><strong>{formatInteger(gate.calls)} 次</strong><b>{formatUsd(gate.costUsd)}</b></div>
+              <div><span>Primary<small>主要完整解題</small></span><strong>{formatInteger(primary.calls)} 次</strong><b>{formatUsd(primary.costUsd)}</b></div>
+              <div><span>Verifier<small>無標準答案驗算</small></span><strong>{formatInteger(verifier.calls)} 次</strong><b>{formatUsd(verifier.costUsd)}</b></div>
+              <div><span>Arbiter<small>衝突仲裁</small></span><strong>{formatInteger(arbiter.calls)} 次</strong><b>{formatUsd(arbiter.costUsd)}</b></div>
+              <div><span>Follow-up<small>學生追問</small></span><strong>{formatInteger(followup.calls)} 次</strong><b>{formatUsd(followup.costUsd)}</b></div>
             </div>
           </section>
 
@@ -2836,42 +2804,12 @@ function AnalyticsSection() {
               subtitle="不同指標使用不同母體；下方每張卡片都直接標示分母"
             />
 
-            <div className="admin-quality-grid">
-              <QualityMetricCard
-                eyebrow="PRIMARY ↔ REFERENCE"
-                title="Primary 與標準答案一致率"
-                rate={data.quality.primaryReferenceConsistencyRate}
-                numerator={data.quality.primaryReferenceMatches}
-                denominator={data.quality.referenceCases}
-                denominatorLabel="有輸入標準答案的題目"
-              />
-
-              <QualityMetricCard
-                eyebrow="VERIFIER ACTIVATION"
-                title="Verifier 啟動率"
-                rate={data.quality.verifierActivationRate}
-                numerator={data.quality.verifierQuestions}
-                denominator={data.quality.noReferenceCases}
-                denominatorLabel="沒有標準答案的題目"
-              />
-
-              <QualityMetricCard
-                eyebrow="VERIFIER DISAGREEMENT"
-                title="Verifier 重大錯誤判定率"
-                rate={data.quality.verifierDisagreementRate}
-                numerator={data.quality.verifierMajorErrors}
-                denominator={data.quality.verifierQuestions}
-                denominatorLabel="實際啟動 Verifier 的題目"
-              />
-
-              <QualityMetricCard
-                eyebrow="ARBITER ACTIVATION"
-                title="Arbiter 啟動率"
-                rate={data.quality.arbiterActivationRate}
-                numerator={data.quality.arbiterQuestions}
-                denominator={data.totals.solvedQuestions}
-                denominatorLabel="全部解題"
-              />
+            <div className="admin-analytics-quality-table">
+              <div className="admin-analytics-table-head"><span>品質指標</span><span>比例</span><span>分子 / 分母</span></div>
+              <div><span>Primary 與標準答案一致率</span><strong>{formatPercent(data.quality.primaryReferenceConsistencyRate)}</strong><small>{data.quality.primaryReferenceMatches} / {data.quality.referenceCases}</small></div>
+              <div><span>Verifier 啟動率</span><strong>{formatPercent(data.quality.verifierActivationRate)}</strong><small>{data.quality.verifierQuestions} / {data.quality.noReferenceCases}</small></div>
+              <div><span>Verifier 重大錯誤判定率</span><strong>{formatPercent(data.quality.verifierDisagreementRate)}</strong><small>{data.quality.verifierMajorErrors} / {data.quality.verifierQuestions}</small></div>
+              <div><span>Arbiter 啟動率</span><strong>{formatPercent(data.quality.arbiterActivationRate)}</strong><small>{data.quality.arbiterQuestions} / {data.totals.solvedQuestions}</small></div>
             </div>
           </section>
 
@@ -2882,67 +2820,14 @@ function AnalyticsSection() {
               subtitle="有標準答案的衝突題可以明確判斷 Arbiter 最後支持哪一側；無標準答案的仲裁另外列出"
             />
 
-            <div className="admin-arbitration-summary">
-              <article>
-                <span>標準答案衝突仲裁</span>
-                <strong>
-                  {formatInteger(data.quality.referenceMismatchArbitrations)}
-                </strong>
-                <small>分母：Primary 與標準答案不一致而啟動 Arbiter 的題目</small>
-              </article>
-
-              <article className="good">
-                <span>仲裁後支持標準答案</span>
-                <strong>
-                  {formatInteger(data.quality.referenceArbiterSupportsReference)}
-                </strong>
-                <small>
-                  {formatFractionPercent(
-                    data.quality.referenceArbiterSupportsReference,
-                    data.quality.referenceMismatchArbitrations,
-                  )}
-                </small>
-              </article>
-
-              <article>
-                <span>仲裁後支持 Primary</span>
-                <strong>
-                  {formatInteger(data.quality.referenceArbiterSupportsPrimary)}
-                </strong>
-                <small>
-                  {formatFractionPercent(
-                    data.quality.referenceArbiterSupportsPrimary,
-                    data.quality.referenceMismatchArbitrations,
-                  )}
-                </small>
-              </article>
-
-              <article className="warning">
-                <span>仲裁後仍不一致</span>
-                <strong>
-                  {formatInteger(data.quality.referenceArbiterStillInconsistent)}
-                </strong>
-                <small>
-                  {formatFractionPercent(
-                    data.quality.referenceArbiterStillInconsistent,
-                    data.quality.referenceMismatchArbitrations,
-                  )}
-                </small>
-              </article>
-
-              <article>
-                <span>Verifier 觸發仲裁</span>
-                <strong>
-                  {formatInteger(data.quality.verifierTriggeredArbitrations)}
-                </strong>
-                <small>無標準答案，Verifier 高信心判定重大錯誤後啟動</small>
-              </article>
-
-              <article className="warning">
-                <span>目前標記仍有爭議</span>
-                <strong>{formatInteger(data.quality.disputedQuestions)}</strong>
-                <small>solve_history.dispute_status = disputed</small>
-              </article>
+            <div className="admin-analytics-quality-table">
+              <div className="admin-analytics-table-head"><span>仲裁結果</span><span>題數</span><span>比例 / 說明</span></div>
+              <div><span>標準答案衝突仲裁</span><strong>{formatInteger(data.quality.referenceMismatchArbitrations)}</strong><small>Primary 與標準答案不一致</small></div>
+              <div><span>支持標準答案</span><strong>{formatInteger(data.quality.referenceArbiterSupportsReference)}</strong><small>{formatFractionPercent(data.quality.referenceArbiterSupportsReference, data.quality.referenceMismatchArbitrations)}</small></div>
+              <div><span>支持 Primary</span><strong>{formatInteger(data.quality.referenceArbiterSupportsPrimary)}</strong><small>{formatFractionPercent(data.quality.referenceArbiterSupportsPrimary, data.quality.referenceMismatchArbitrations)}</small></div>
+              <div><span>仍不一致</span><strong>{formatInteger(data.quality.referenceArbiterStillInconsistent)}</strong><small>{formatFractionPercent(data.quality.referenceArbiterStillInconsistent, data.quality.referenceMismatchArbitrations)}</small></div>
+              <div><span>Verifier 觸發仲裁</span><strong>{formatInteger(data.quality.verifierTriggeredArbitrations)}</strong><small>重大錯誤高信心觸發</small></div>
+              <div><span>目前仍有爭議</span><strong>{formatInteger(data.quality.disputedQuestions)}</strong><small>dispute_status = disputed</small></div>
             </div>
           </section>
 
@@ -7526,6 +7411,809 @@ const adminStyles = `
 
     .admin-cost-alert-strip {
       grid-template-columns: 1fr 104px;
+    }
+  }
+
+
+  /* =========================================================
+     ADMIN MOBILE READABILITY PASS 3
+     ========================================================= */
+
+  .admin-analytics-summary-table,
+  .admin-analytics-data-table,
+  .admin-analytics-quality-table {
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--surface);
+  }
+
+  .admin-analytics-summary-table > div,
+  .admin-analytics-data-table > div,
+  .admin-analytics-quality-table > div {
+    display: grid;
+    grid-template-columns: minmax(150px, 1.4fr) minmax(90px, .65fr) minmax(130px, 1fr);
+    gap: 12px;
+    align-items: center;
+    min-height: 48px;
+    padding: 9px 12px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .admin-analytics-summary-table > div:last-child,
+  .admin-analytics-data-table > div:last-child,
+  .admin-analytics-quality-table > div:last-child {
+    border-bottom: 0;
+  }
+
+  .admin-analytics-table-head {
+    min-height: 36px !important;
+    background: var(--surface-soft);
+    color: var(--text-secondary);
+    font-size: 9px;
+    font-weight: 850;
+  }
+
+  .admin-analytics-summary-table span,
+  .admin-analytics-data-table span,
+  .admin-analytics-quality-table span {
+    min-width: 0;
+    font-size: 11px;
+    font-weight: 800;
+  }
+
+  .admin-analytics-data-table span small {
+    display: block;
+    margin-top: 2px;
+    color: var(--text-secondary);
+    font-size: 8px;
+    font-weight: 600;
+  }
+
+  .admin-analytics-summary-table strong,
+  .admin-analytics-data-table strong,
+  .admin-analytics-quality-table strong {
+    font-size: 12px;
+  }
+
+  .admin-analytics-data-table b {
+    color: var(--primary);
+    font-size: 11px;
+  }
+
+  .admin-analytics-summary-table small,
+  .admin-analytics-quality-table small {
+    color: var(--text-secondary);
+    font-size: 8px;
+  }
+
+  @media (max-width: 760px) {
+    /* Remove the invisible topbar that was creating blank space */
+    .admin-topbar {
+      display: none !important;
+    }
+
+    .admin-main {
+      padding-top: 0 !important;
+      margin-top: 0 !important;
+    }
+
+    .admin-content {
+      width: min(100% - 16px, 1180px) !important;
+      margin-top: 0 !important;
+      padding-top: 8px !important;
+    }
+
+    /* Fixed header + drawer: drawer begins BELOW header */
+    .admin-mobile-header {
+      z-index: 150 !important;
+    }
+
+    .admin-mobile-backdrop {
+      top: calc(max(8px, env(safe-area-inset-top)) + 64px) !important;
+      z-index: 138 !important;
+    }
+
+    .admin-sidebar {
+      top: calc(max(8px, env(safe-area-inset-top)) + 64px) !important;
+      bottom: 8px !important;
+      z-index: 145 !important;
+      min-height: 0 !important;
+      height: auto !important;
+      border-radius: 18px 0 0 18px;
+      padding-top: 12px !important;
+    }
+
+    .admin-sidebar-brand {
+      padding: 4px 6px 10px !important;
+    }
+
+    /* Dashboard: a little larger than v2, still dense */
+    .admin-overview-hero .hh-eyebrow,
+    .admin-section-head .hh-eyebrow,
+    .admin-panel-header .hh-eyebrow {
+      font-size: 9px !important;
+    }
+
+    .admin-overview-hero h2,
+    .admin-section-head h2,
+    .admin-panel-header h2 {
+      font-size: 17px !important;
+      line-height: 1.25 !important;
+    }
+
+    .admin-period-card > span {
+      font-size: 10px !important;
+    }
+
+    .admin-period-card > strong {
+      font-size: 19px !important;
+    }
+
+    .admin-period-card > small {
+      font-size: 9px !important;
+      line-height: 1.3;
+    }
+
+    .admin-cost-alert-status strong {
+      font-size: 12px !important;
+    }
+
+    .admin-cost-alert-controls label > span {
+      font-size: 8px !important;
+    }
+
+    /* Analytics = table first, no card duplication */
+    .admin-analytics-summary-table > div,
+    .admin-analytics-data-table > div,
+    .admin-analytics-quality-table > div {
+      grid-template-columns: minmax(0, 1.25fr) 78px minmax(0, .95fr);
+      gap: 7px;
+      min-height: 42px;
+      padding: 7px 8px;
+    }
+
+    .admin-analytics-table-head {
+      min-height: 32px !important;
+    }
+
+    .admin-analytics-summary-table span,
+    .admin-analytics-data-table span,
+    .admin-analytics-quality-table span {
+      font-size: 10px;
+    }
+
+    .admin-analytics-summary-table strong,
+    .admin-analytics-data-table strong,
+    .admin-analytics-quality-table strong,
+    .admin-analytics-data-table b {
+      font-size: 10px;
+      text-align: left;
+    }
+
+    .admin-analytics-summary-table small,
+    .admin-analytics-quality-table small,
+    .admin-analytics-data-table span small {
+      font-size: 7.5px;
+      line-height: 1.2;
+    }
+
+    /* Model table stays a table on mobile */
+    .admin-analytics-table-wrap {
+      display: block !important;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .admin-analytics-table {
+      min-width: 720px;
+    }
+
+    .admin-model-mobile-list {
+      display: none !important;
+    }
+
+    .admin-analytics-table th,
+    .admin-analytics-table td {
+      padding: 8px 7px;
+      font-size: 9px;
+    }
+
+    /* Student summary: 4 readable cards */
+    .admin-student-summary-grid {
+      grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+      gap: 6px !important;
+    }
+
+    .admin-student-summary-grid .admin-kpi {
+      min-height: 74px !important;
+      padding: 9px 7px !important;
+    }
+
+    .admin-student-summary-grid .admin-kpi > div {
+      font-size: 9px !important;
+      white-space: nowrap;
+    }
+
+    .admin-student-summary-grid .admin-kpi strong {
+      margin-top: 7px !important;
+      font-size: 18px !important;
+    }
+
+    /* Two student management panels: more readable, less decorative */
+    .admin-student-tool-panel,
+    .admin-student-directory-panel {
+      padding: 12px !important;
+      border-radius: 13px !important;
+    }
+
+    .admin-student-tool-panel .admin-panel-header,
+    .admin-student-directory-panel .admin-panel-header {
+      margin-bottom: 10px !important;
+    }
+
+    .admin-student-tool-panel .admin-panel-header h2,
+    .admin-student-directory-panel .admin-panel-header h2 {
+      font-size: 17px !important;
+    }
+
+    .admin-student-tool-panel .admin-panel-header p,
+    .admin-student-directory-panel .admin-panel-header p {
+      display: block !important;
+      font-size: 10px !important;
+      line-height: 1.4;
+    }
+
+    .admin-add-form {
+      display: grid !important;
+      grid-template-columns: 110px minmax(0, 1fr) !important;
+      gap: 7px !important;
+    }
+
+    .admin-add-form .hh-select,
+    .admin-add-form .hh-input {
+      min-height: 42px !important;
+      height: 42px !important;
+      font-size: 12px !important;
+    }
+
+    .admin-add-form .hh-button-primary {
+      grid-column: 1 / -1;
+      min-height: 42px !important;
+      height: 42px !important;
+      font-size: 12px !important;
+    }
+
+    .admin-student-filter-box {
+      padding: 8px !important;
+      border-radius: 11px !important;
+    }
+
+    .admin-filter-tabs {
+      display: flex !important;
+      gap: 5px !important;
+      overflow-x: auto;
+      padding-bottom: 3px;
+    }
+
+    .admin-filter-pill {
+      flex: 0 0 auto;
+      min-height: 34px !important;
+      padding: 0 9px !important;
+      font-size: 10px !important;
+    }
+
+    .admin-student-search {
+      display: grid !important;
+      grid-template-columns: minmax(0, 1fr) 105px !important;
+      gap: 7px !important;
+      margin-top: 7px;
+    }
+
+    .admin-student-search .hh-input,
+    .admin-student-search .hh-select {
+      min-height: 38px !important;
+      height: 38px !important;
+      font-size: 11px !important;
+    }
+
+    .admin-student-mobile-card {
+      padding: 11px !important;
+    }
+
+    .admin-student-cell strong {
+      font-size: 13px !important;
+    }
+
+    .admin-student-cell span,
+    .admin-student-mobile-usage {
+      font-size: 10px !important;
+    }
+
+    .admin-student-mobile-usage strong {
+      font-size: 12px !important;
+    }
+  }
+
+  @media (max-width: 430px) {
+    .admin-student-summary-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    }
+
+    .admin-add-form {
+      grid-template-columns: 96px minmax(0, 1fr) !important;
+    }
+
+    .admin-analytics-summary-table > div,
+    .admin-analytics-data-table > div,
+    .admin-analytics-quality-table > div {
+      grid-template-columns: minmax(0, 1.15fr) 64px minmax(0, .9fr);
+    }
+  }
+
+
+  /* =========================================================
+     ADMIN MOBILE FINAL INFORMATION ARCHITECTURE
+     ========================================================= */
+
+  .admin-router-compact-list {
+    display: grid;
+    gap: 7px;
+  }
+
+  .admin-router-compact-list .admin-router-card {
+    display: grid;
+    grid-template-columns: minmax(150px, .8fr) minmax(180px, 1fr) minmax(130px, .7fr);
+    gap: 10px 12px;
+    align-items: center;
+    min-height: 78px;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--surface-soft);
+  }
+
+  .admin-router-compact-list .admin-router-card > .hh-eyebrow,
+  .admin-router-compact-list .admin-router-card > h3,
+  .admin-router-compact-list .admin-router-card > p {
+    grid-column: 1;
+  }
+
+  .admin-router-compact-list .admin-router-card > .hh-eyebrow {
+    align-self: end;
+    margin: 0;
+    font-size: 8px;
+  }
+
+  .admin-router-compact-list .admin-router-card > h3 {
+    align-self: center;
+    margin: -4px 0 0;
+    font-size: 14px;
+  }
+
+  .admin-router-compact-list .admin-router-card > p {
+    align-self: start;
+    margin: -5px 0 0;
+    color: var(--text-secondary);
+    font-size: 9px;
+    line-height: 1.3;
+  }
+
+  .admin-router-compact-list .admin-router-field:nth-of-type(1) {
+    grid-column: 2;
+    grid-row: 1 / span 3;
+  }
+
+  .admin-router-compact-list .admin-router-field:nth-of-type(2) {
+    grid-column: 3;
+    grid-row: 1 / span 3;
+  }
+
+  .admin-router-compact-list .admin-router-field {
+    margin: 0;
+  }
+
+  .admin-router-compact-list .admin-router-field > span {
+    font-size: 8px;
+  }
+
+  .admin-router-compact-list .hh-select {
+    min-height: 38px;
+    height: 38px;
+    font-size: 11px;
+  }
+
+  .admin-ai-inline-setting {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    padding: 10px 11px;
+    border-radius: 11px;
+    background: var(--surface-soft);
+  }
+
+  .admin-ai-inline-setting > div:first-child {
+    display: grid;
+    gap: 2px;
+  }
+
+  .admin-ai-inline-setting strong {
+    font-size: 12px;
+  }
+
+  .admin-ai-inline-setting span {
+    color: var(--text-secondary);
+    font-size: 9px;
+  }
+
+  .admin-followup-compact-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 9px;
+    margin-bottom: 8px;
+  }
+
+  .admin-followup-limit-inline {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    color: var(--text-secondary);
+    font-size: 9px;
+    font-weight: 800;
+  }
+
+  .admin-followup-limit-inline .hh-input {
+    width: 62px;
+    min-height: 36px;
+    height: 36px;
+    padding: 0 8px;
+  }
+
+  .admin-followup-limit-inline b {
+    color: var(--text-secondary);
+  }
+
+  @media (max-width: 760px) {
+    /* Header / menu layering */
+    .admin-mobile-header {
+      position: fixed !important;
+      top: max(8px, env(safe-area-inset-top)) !important;
+      left: 10px !important;
+      right: 10px !important;
+      z-index: 200 !important;
+    }
+
+    .admin-main {
+      padding-top: calc(max(8px, env(safe-area-inset-top)) + 70px) !important;
+    }
+
+    .admin-topbar {
+      display: none !important;
+    }
+
+    .admin-content {
+      margin-top: 0 !important;
+      padding-top: 0 !important;
+    }
+
+    .admin-mobile-backdrop {
+      top: calc(max(8px, env(safe-area-inset-top)) + 66px) !important;
+      z-index: 188 !important;
+    }
+
+    .admin-sidebar {
+      top: calc(max(8px, env(safe-area-inset-top)) + 66px) !important;
+      bottom: 8px !important;
+      z-index: 195 !important;
+      min-height: 0 !important;
+      max-height: calc(100dvh - max(8px, env(safe-area-inset-top)) - 74px) !important;
+      overflow-y: auto !important;
+    }
+
+    /* Dashboard font size back up */
+    .admin-overview-hero .hh-eyebrow,
+    .admin-overview-panel .hh-eyebrow {
+      font-size: 9px !important;
+    }
+
+    .admin-overview-hero h2,
+    .admin-overview-panel h2 {
+      font-size: 18px !important;
+    }
+
+    .admin-period-card > span {
+      font-size: 10px !important;
+    }
+
+    .admin-period-card > strong {
+      font-size: 20px !important;
+    }
+
+    .admin-period-card > small {
+      font-size: 9px !important;
+    }
+
+    .admin-campus-identity strong {
+      font-size: 13px !important;
+    }
+
+    .admin-campus-identity span {
+      font-size: 9px !important;
+    }
+
+    .admin-campus-row-metrics .admin-metric span {
+      font-size: 8px !important;
+    }
+
+    .admin-campus-row-metrics .admin-metric strong {
+      font-size: 10.5px !important;
+    }
+
+    /* Analytics tables only */
+    .admin-analytics-kpi-grid,
+    .admin-analytics-role-grid,
+    .admin-quality-grid,
+    .admin-arbitration-summary {
+      display: none !important;
+    }
+
+    .admin-analytics-summary-table,
+    .admin-analytics-data-table,
+    .admin-analytics-quality-table {
+      display: block !important;
+      overflow-x: auto;
+    }
+
+    .admin-model-mobile-list {
+      display: none !important;
+    }
+
+    .admin-analytics-table-wrap {
+      display: block !important;
+      overflow-x: auto;
+    }
+
+    .admin-analytics-summary-table > div,
+    .admin-analytics-data-table > div,
+    .admin-analytics-quality-table > div {
+      grid-template-columns: minmax(130px, 1.25fr) 72px minmax(105px, .9fr) !important;
+      min-width: 360px;
+      min-height: 44px;
+      padding: 7px 8px;
+    }
+
+    .admin-analytics-summary-table span,
+    .admin-analytics-data-table span,
+    .admin-analytics-quality-table span {
+      font-size: 10.5px !important;
+    }
+
+    .admin-analytics-summary-table strong,
+    .admin-analytics-data-table strong,
+    .admin-analytics-quality-table strong,
+    .admin-analytics-data-table b {
+      font-size: 10.5px !important;
+    }
+
+    .admin-analytics-summary-table small,
+    .admin-analytics-quality-table small,
+    .admin-analytics-data-table span small {
+      font-size: 8px !important;
+    }
+
+    /* Students: only four cards, larger and readable */
+    .admin-student-summary-grid {
+      grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+      gap: 6px !important;
+    }
+
+    .admin-student-summary-grid .admin-kpi {
+      min-height: 78px !important;
+      padding: 9px 8px !important;
+    }
+
+    .admin-student-summary-grid .admin-kpi > div {
+      display: block !important;
+      color: var(--text-secondary);
+      font-size: 9px !important;
+      white-space: normal !important;
+      line-height: 1.2;
+    }
+
+    .admin-student-summary-grid .admin-kpi strong {
+      margin-top: 7px !important;
+      font-size: 19px !important;
+    }
+
+    .admin-student-tool-panel,
+    .admin-student-directory-panel {
+      padding: 13px !important;
+    }
+
+    .admin-student-tool-panel .admin-panel-header h2,
+    .admin-student-directory-panel .admin-panel-header h2 {
+      font-size: 18px !important;
+    }
+
+    .admin-student-tool-panel .admin-panel-header p,
+    .admin-student-directory-panel .admin-panel-header p {
+      font-size: 10.5px !important;
+    }
+
+    .admin-add-form .hh-select,
+    .admin-add-form .hh-input,
+    .admin-student-search .hh-input,
+    .admin-student-search .hh-select {
+      font-size: 12px !important;
+    }
+
+    .admin-student-mobile-card {
+      padding: 12px !important;
+      border-radius: 12px !important;
+    }
+
+    .admin-student-cell strong {
+      font-size: 14px !important;
+    }
+
+    .admin-student-cell span {
+      font-size: 10px !important;
+    }
+
+    .admin-student-mobile-usage > div:first-child {
+      font-size: 10.5px !important;
+    }
+
+    .admin-student-mobile-usage strong {
+      font-size: 13px !important;
+    }
+
+    /* AI settings readable but short */
+    .admin-ai-settings-stack {
+      gap: 8px !important;
+    }
+
+    .admin-ai-compact-section {
+      padding: 12px !important;
+    }
+
+    .admin-ai-compact-section .admin-panel-header {
+      margin-bottom: 9px !important;
+    }
+
+    .admin-ai-compact-section .admin-panel-header .hh-eyebrow {
+      font-size: 8.5px !important;
+    }
+
+    .admin-ai-compact-section .admin-panel-header h2 {
+      font-size: 18px !important;
+    }
+
+    .admin-ai-compact-section .admin-panel-header p {
+      display: block !important;
+      font-size: 10px !important;
+    }
+
+    .admin-ai-inline-setting strong {
+      font-size: 13px !important;
+    }
+
+    .admin-ai-inline-setting span {
+      font-size: 10px !important;
+    }
+
+    .admin-ai-mode-segmented {
+      grid-template-columns: 1fr 1fr !important;
+    }
+
+    .admin-ai-mode-segmented button {
+      min-height: 54px !important;
+      padding: 8px !important;
+    }
+
+    .admin-ai-mode-segmented strong {
+      font-size: 12px !important;
+    }
+
+    .admin-ai-mode-segmented span {
+      font-size: 9px !important;
+    }
+
+    .admin-router-compact-list {
+      gap: 6px;
+    }
+
+    .admin-router-compact-list .admin-router-card {
+      grid-template-columns: 100px minmax(0, 1fr) 98px !important;
+      gap: 6px !important;
+      min-height: 68px !important;
+      padding: 8px !important;
+      border-radius: 10px !important;
+    }
+
+    .admin-router-compact-list .admin-router-card > .hh-eyebrow {
+      font-size: 7.5px !important;
+    }
+
+    .admin-router-compact-list .admin-router-card > h3 {
+      font-size: 12px !important;
+    }
+
+    .admin-router-compact-list .admin-router-card > p {
+      font-size: 8px !important;
+    }
+
+    .admin-router-compact-list .admin-router-field > span {
+      font-size: 7.5px !important;
+    }
+
+    .admin-router-compact-list .hh-select {
+      min-height: 36px !important;
+      height: 36px !important;
+      padding-left: 7px !important;
+      padding-right: 20px !important;
+      font-size: 9.5px !important;
+    }
+
+    .admin-router-threshold-compact {
+      margin-top: 7px !important;
+      padding: 8px 9px !important;
+    }
+
+    .admin-router-threshold-compact strong {
+      font-size: 11px !important;
+    }
+
+    .admin-router-threshold-compact span {
+      font-size: 8px !important;
+    }
+
+    .admin-followup-compact-head .admin-toggle-button {
+      min-height: 36px !important;
+      padding: 0 10px !important;
+      font-size: 10px !important;
+    }
+
+    .admin-save-row-sticky {
+      position: sticky;
+      bottom: max(8px, env(safe-area-inset-bottom));
+      z-index: 40;
+      padding: 7px;
+      border: 1px solid var(--border);
+      border-radius: 13px;
+      background: color-mix(in srgb, var(--surface) 92%, transparent);
+      backdrop-filter: blur(12px);
+    }
+
+    .admin-save-row-sticky .hh-button-primary {
+      width: 100%;
+      min-height: 42px !important;
+    }
+  }
+
+  @media (max-width: 430px) {
+    .admin-student-summary-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    }
+
+    .admin-router-compact-list .admin-router-card {
+      grid-template-columns: 84px minmax(0, 1fr) 86px !important;
+    }
+
+    .admin-router-compact-list .admin-router-card > p {
+      display: none;
+    }
+
+    .admin-router-compact-list .admin-router-card > .hh-eyebrow,
+    .admin-router-compact-list .admin-router-card > h3 {
+      grid-column: 1;
+    }
+
+    .admin-router-compact-list .admin-router-field:nth-of-type(1),
+    .admin-router-compact-list .admin-router-field:nth-of-type(2) {
+      grid-row: 1 / span 2;
     }
   }
 

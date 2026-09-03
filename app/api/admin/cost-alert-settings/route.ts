@@ -12,8 +12,11 @@ import {
 } from "@/lib/admin-session";
 
 
-const DEFAULT_MONTHLY_THRESHOLD_USD =
-  20;
+const USD_TO_TWD =
+  32.5;
+
+const DEFAULT_MONTHLY_THRESHOLD_TWD =
+  650;
 
 
 async function requireAdmin(
@@ -89,25 +92,44 @@ export async function GET(
   }
 
 
-  const raw =
+  const value =
+    (data?.value as any) ||
+    {};
+
+  const savedTwd =
     Number(
-      (data?.value as any)
-        ?.monthly_threshold_usd,
+      value.monthly_threshold_twd,
+    );
+
+  const oldUsd =
+    Number(
+      value.monthly_threshold_usd,
     );
 
 
-  const monthlyThresholdUsd =
+  const monthlyThresholdTwd =
     Number.isFinite(
-      raw,
+      savedTwd,
     ) &&
-    raw >
+    savedTwd >
       0
-      ? raw
-      : DEFAULT_MONTHLY_THRESHOLD_USD;
+      ? savedTwd
+      : Number.isFinite(
+            oldUsd,
+          ) &&
+          oldUsd >
+            0
+        ? Math.round(
+            oldUsd *
+              USD_TO_TWD,
+          )
+        : DEFAULT_MONTHLY_THRESHOLD_TWD;
 
 
   return NextResponse.json({
-    monthlyThresholdUsd,
+    monthlyThresholdTwd,
+    usdToTwd:
+      USD_TO_TWD,
   });
 }
 
@@ -136,7 +158,7 @@ export async function POST(
 
 
   let body: {
-    monthlyThresholdUsd?:
+    monthlyThresholdTwd?:
       number;
   };
 
@@ -158,25 +180,25 @@ export async function POST(
   }
 
 
-  const monthlyThresholdUsd =
+  const monthlyThresholdTwd =
     Number(
-      body.monthlyThresholdUsd,
+      body.monthlyThresholdTwd,
     );
 
 
   if (
     !Number.isFinite(
-      monthlyThresholdUsd,
+      monthlyThresholdTwd,
     ) ||
-    monthlyThresholdUsd <=
+    monthlyThresholdTwd <=
       0 ||
-    monthlyThresholdUsd >
-      100000
+    monthlyThresholdTwd >
+      1000000
   ) {
     return NextResponse.json(
       {
         error:
-          "警示金額必須大於 0，且不超過 100000 美元。",
+          "警示金額必須大於 0，且不超過 NT$1,000,000。",
       },
       {
         status:
@@ -187,10 +209,8 @@ export async function POST(
 
 
   const normalized =
-    Number(
-      monthlyThresholdUsd.toFixed(
-        2,
-      ),
+    Math.round(
+      monthlyThresholdTwd,
     );
 
 
@@ -207,8 +227,10 @@ export async function POST(
             "api_cost_alert",
 
           value: {
-            monthly_threshold_usd:
+            monthly_threshold_twd:
               normalized,
+            usd_to_twd:
+              USD_TO_TWD,
           },
         },
         {
@@ -236,7 +258,10 @@ export async function POST(
     success:
       true,
 
-    monthlyThresholdUsd:
+    monthlyThresholdTwd:
       normalized,
+
+    usdToTwd:
+      USD_TO_TWD,
   });
 }
