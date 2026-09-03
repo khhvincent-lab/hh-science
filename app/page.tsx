@@ -2664,12 +2664,16 @@ export default function Home() {
           .student-form-grid, .student-two-actions, .student-result-actions { grid-template-columns: 1fr; }
           .student-image-actions { grid-template-columns: 1fr 1fr; }
           .student-image-actions .student-file-replace { grid-column: 1 / -1; }
-          .student-step-title { font-size: 20px; }
+          .student-step-title {
+            font-size: 16px;
+            line-height: 1.25;
+          }
+
           .student-subject-option {
-            min-height: 42px;
+            min-height: 44px;
             padding: 6px 3px;
-            font-size: 9.5px;
-            letter-spacing: -0.02em;
+            font-size: 11px;
+            letter-spacing: -0.015em;
           }
           .student-quota-row { align-items: flex-start; }
           .student-footer { flex-direction: column; gap: 8px; }
@@ -3372,9 +3376,23 @@ export default function Home() {
           }
 
           .student-usage-pill {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: auto;
+            min-width: 82px;
             min-height: 34px;
-            padding: 0 10px;
+            padding: 0 11px;
+            gap: 3px;
+            border-radius: 999px;
             font-size: 10px;
+            line-height: 1;
+            white-space: nowrap;
+          }
+
+          .student-usage-pill .hh-number {
+            font-size: 14px;
+            line-height: 1;
           }
 
           .student-panel-upload {
@@ -3422,7 +3440,7 @@ export default function Home() {
             gap: 4px;
             padding: 7px 4px;
             border-radius: 10px;
-            font-size: 10px;
+            font-size: 11px;
           }
 
           .student-subject-dot {
@@ -3442,6 +3460,12 @@ export default function Home() {
 
           .student-brand-intro h1 {
             font-size: 25px;
+          }
+
+          .student-result-section-head h3,
+          .student-history-analysis-block .student-result-section-head h3 {
+            font-size: 16px;
+            line-height: 1.25;
           }
 
           .student-image-card {
