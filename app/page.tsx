@@ -229,6 +229,7 @@ export default function Home() {
 
   const [isSaving, setIsSaving] = useState(false);
   const [preparedShareFile, setPreparedShareFile] = useState<File | null>(null);
+  const [exportQuestionImage, setExportQuestionImage] = useState("");
   const resultRef = useRef<HTMLElement | null>(null);
   const exportCardRef = useRef<HTMLDivElement | null>(null);
   const exportQuestionImageRef = useRef<HTMLImageElement | null>(null);
@@ -404,6 +405,7 @@ export default function Home() {
     setSolveData(null);
     setSelectedAnnotation(null);
     setPreparedShareFile(null);
+    setExportQuestionImage("");
     if (student) setupSubject(student);
     else setSubject("");
   }
@@ -417,6 +419,7 @@ export default function Home() {
 
     setIsSolving(true);
     setPreparedShareFile(null);
+    setExportQuestionImage("");
     setSolveData(null);
     setTimeout(() => resultRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
 
@@ -538,6 +541,14 @@ export default function Home() {
     );
   }
 
+  async function waitForNextPaint() {
+    await new Promise<void>((resolve) => {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => resolve());
+      });
+    });
+  }
+
   async function buildSolutionImageFile() {
     if (!exportCardRef.current || !solveData) {
       throw new Error("目前沒有可匯出的解析內容");
@@ -551,17 +562,32 @@ export default function Home() {
     // 匯出前先重新畫成標準 PNG，再讓匯出卡片使用這張 PNG。
     const normalizedQuestionImage = await normalizeQuestionImageForExport(image);
 
-    if (exportQuestionImageRef.current) {
-      exportQuestionImageRef.current.src = normalizedQuestionImage;
+    // html-to-image 會 clone DOM。若只直接改 img.src，React 的原始 JSX src
+    // 有機會在 clone 時仍取到舊值。改用獨立 state，先讓 React 真正完成一次 render。
+    setExportQuestionImage(normalizedQuestionImage);
+    await waitForNextPaint();
 
-      try {
-        await exportQuestionImageRef.current.decode();
-      } catch {
-        await waitForExportImages(exportCardRef.current);
+    if (!exportQuestionImageRef.current) {
+      throw new Error("找不到匯出用題目圖片");
+    }
+
+    if (
+      !exportQuestionImageRef.current.complete ||
+      exportQuestionImageRef.current.naturalWidth <= 0
+    ) {
+      await waitForExportImages(exportCardRef.current);
+    }
+
+    try {
+      await exportQuestionImageRef.current.decode();
+    } catch {
+      // Safari 某些 data URL decode 會 reject，但只要 naturalWidth > 0 仍可正常匯出。
+      if (exportQuestionImageRef.current.naturalWidth <= 0) {
+        throw new Error("匯出用題目圖片尚未完成載入");
       }
     }
 
-    await waitForExportImages(exportCardRef.current);
+    await waitForNextPaint();
 
     // iPhone / iPad 記憶體較吃緊，稍微降低輸出倍率可大幅提升成功率，
     // 桌機仍維持較高解析度。
@@ -1002,7 +1028,19 @@ export default function Home() {
             <div style={{ marginBottom: "22px" }}>
               <div style={{ fontWeight: 700, fontSize: "17px", color: "#30463b", marginBottom: "10px" }}>題目</div>
               <div style={{ padding: "12px", background: "#fff", border: "1px solid #dde1db", borderRadius: "14px" }}>
-                <img ref={exportQuestionImageRef} src={image} alt="題目" crossOrigin="anonymous" style={{ display: "block", maxWidth: "100%", maxHeight: "680px", margin: "0 auto" }} />
+                <img
+                  ref={exportQuestionImageRef}
+                  src={exportQuestionImage || image}
+                  alt="題目"
+                  style={{
+                    display: "block",
+                    width: "100%",
+                    height: "auto",
+                    maxHeight: "680px",
+                    objectFit: "contain",
+                    margin: "0 auto",
+                  }}
+                />
               </div>
             </div>
 
