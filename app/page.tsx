@@ -1592,70 +1592,88 @@ export default function Home() {
               tone="sage"
             />
 
-            <label className={`student-upload-zone ${images.length ? "student-upload-zone-compact" : ""}`}>
-              <div className="student-upload-icon">＋</div>
-              <div className="student-upload-title">
-                {images.length ? "繼續加入圖片" : "選擇題目圖片"}
-              </div>
-              <div className="student-muted">
-                已加入 {images.length} / 5 張 · 選取後會逐張進入裁切與旋轉
-              </div>
-              <div className="student-upload-cta">
-                {images.length ? "加入圖片" : "選擇圖片"}
-              </div>
-              <input
-                type="file"
-                accept="image/*,.heic,.heif"
-                multiple
-                disabled={images.length >= 5 || isCropping}
-                onChange={handleImageUpload}
-                hidden
-              />
-            </label>
+            {images.length === 0 && (
+              <label className="student-upload-zone">
+                <div className="student-upload-icon">＋</div>
+                <div className="student-upload-title">選擇題目圖片</div>
+                <div className="student-muted">
+                  一次可選 1～5 張 · 選取後會逐張進入裁切與旋轉
+                </div>
+                <div className="student-upload-cta">選擇圖片</div>
+                <input
+                  type="file"
+                  accept="image/*,.heic,.heif"
+                  multiple
+                  disabled={isCropping}
+                  onChange={handleImageUpload}
+                  hidden
+                />
+              </label>
+            )}
 
             {images.length > 0 && (
-              <div className="student-image-list">
-                {images.map((item, index) => (
-                  <article key={`${index}-${item.slice(-24)}`} className="student-image-card">
-                    <div className="student-image-order hh-number">
-                      {String(index + 1).padStart(2, "0")}
-                    </div>
+              <>
+                <div className="student-image-list">
+                  {images.map((item, index) => (
+                    <article key={`${index}-${item.slice(-24)}`} className="student-image-card">
+                      <div className="student-image-order hh-number">
+                        {String(index + 1).padStart(2, "0")}
+                      </div>
 
-                    <div className="student-image-card-preview">
-                      <img src={item} alt={`題目圖片 ${index + 1}`} />
-                    </div>
+                      <div className="student-image-card-preview">
+                        <img src={item} alt={`題目圖片 ${index + 1}`} />
+                      </div>
 
-                    <div className="student-image-card-info">
-                      <strong>圖片 {index + 1}</strong>
-                      <span>
-                        {index === 0
-                          ? "主要題目圖片"
-                          : "依此順序提供給 AI 閱讀"}
-                      </span>
-                    </div>
+                      <div className="student-image-card-info">
+                        <strong>圖片 {index + 1}</strong>
+                        <span>
+                          {index === 0
+                            ? "主要題目圖片"
+                            : "依此順序提供給 AI 閱讀"}
+                        </span>
+                      </div>
 
-                    <div className="student-image-card-actions">
-                      <button
-                        type="button"
-                        className="hh-button-secondary"
-                        onClick={() => startEditExisting(index)}
-                        disabled={isCropping}
-                      >
-                        編輯
-                      </button>
+                      <div className="student-image-card-actions">
+                        <button
+                          type="button"
+                          className="hh-button-secondary"
+                          onClick={() => startEditExisting(index)}
+                          disabled={isCropping}
+                        >
+                          編輯
+                        </button>
 
-                      <button
-                        type="button"
-                        className="student-image-delete"
-                        onClick={() => removeImage(index)}
-                        disabled={isCropping}
-                      >
-                        刪除
-                      </button>
-                    </div>
-                  </article>
-                ))}
-              </div>
+                        <button
+                          type="button"
+                          className="student-image-delete"
+                          onClick={() => removeImage(index)}
+                          disabled={isCropping}
+                        >
+                          刪除
+                        </button>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+
+                {images.length < 5 && !isCropping && (
+                  <label className="student-add-more-images">
+                    <span className="student-add-more-plus">＋</span>
+                    <span>
+                      <strong>繼續加入圖片</strong>
+                      <small>已加入 {images.length} / 5 張</small>
+                    </span>
+                    <span className="student-add-more-action">加入圖片</span>
+                    <input
+                      type="file"
+                      accept="image/*,.heic,.heif"
+                      multiple
+                      onChange={handleImageUpload}
+                      hidden
+                    />
+                  </label>
+                )}
+              </>
             )}
 
             {isCropping && editingImage && (
@@ -1763,7 +1781,13 @@ export default function Home() {
 
             <label className="student-field student-note-field">
               <span>補充敘述 <em>選填</em></span>
-              <textarea value={questionNote} onChange={(event) => setQuestionNote(event.target.value)} rows={3} placeholder="例如：想問 C 選項為什麼錯、希望特別解釋某一行計算……" className="hh-textarea" />
+              <textarea
+                value={questionNote}
+                onChange={(event) => setQuestionNote(event.target.value)}
+                rows={1}
+                placeholder="有需要再補充，例如：想特別問 C 選項"
+                className="hh-textarea student-note-textarea"
+              />
             </label>
 
             <div className="student-quota-row">
@@ -2535,18 +2559,26 @@ export default function Home() {
         .student-step-header { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; }
         .student-step-title { margin: 0; font-size: 22px; }
         .student-step-description { margin: 3px 0 0; color: var(--text-muted); font-size: 12px; }
-        .student-upload-zone { min-height: 205px; border: 1px dashed var(--border-strong); border-radius: 16px; background: var(--surface-soft); display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; cursor: pointer; transition: border-color 140ms ease, background-color 140ms ease; }
+        .student-upload-zone { min-height: 158px; padding: 18px 14px; border: 1px dashed var(--border-strong); border-radius: 16px; background: var(--surface-soft); display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; cursor: pointer; transition: border-color 140ms ease, background-color 140ms ease; }
         .student-upload-zone:hover { border-color: var(--student-sage); background: color-mix(in srgb, var(--student-sage-soft) 46%, var(--surface)); }
-        .student-upload-icon { width: 44px; height: 44px; border-radius: 14px; display: grid; place-items: center; background: var(--student-sage-soft); color: var(--student-sage); font-size: 24px; }
-        .student-upload-title { margin-top: 12px; font-weight: 750; }
-        .student-upload-cta { margin-top: 14px; padding: 8px 12px; border-radius: 999px; background: var(--surface); border: 1px solid var(--border-strong); color: var(--text-secondary); font-size: 12px; font-weight: 750; }
+        .student-upload-icon { width: 38px; height: 38px; border-radius: 12px; display: grid; place-items: center; background: var(--student-sage-soft); color: var(--student-sage); font-size: 21px; }
+        .student-upload-title { margin-top: 8px; font-weight: 750; }
+        .student-upload-cta { margin-top: 10px; padding: 7px 11px; border-radius: 999px; background: var(--surface); border: 1px solid var(--border-strong); color: var(--text-secondary); font-size: 11px; font-weight: 750; }
         .student-image-frame { padding: 10px; background: var(--surface-soft); border: 1px solid var(--border); border-radius: 18px; }
         .student-question-image { display: block; max-width: 100%; max-height: 470px; margin: 0 auto; border-radius: 12px; }
         .student-image-actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 9px; margin-top: 10px; }
         .student-file-replace { min-height: 44px; display: grid; place-items: center; border-radius: 12px; background: var(--student-gold-soft); color: var(--student-gold); border: 1px solid color-mix(in srgb, var(--student-gold) 22%, var(--border)); font-size: 13px; font-weight: 750; cursor: pointer; }
         .student-crop-frame { overflow: hidden; border-radius: 14px; border: 1px solid var(--border); }
         .student-two-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 11px; }
-        .student-note-field { margin-top: 12px; }
+        .student-note-field { margin-top: 10px; }
+        .student-note-textarea {
+          min-height: 44px;
+          max-height: 120px;
+          padding-top: 10px;
+          padding-bottom: 10px;
+          line-height: 1.45;
+          resize: vertical;
+        }
         .student-quota-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 16px; padding: 12px 14px; border-radius: 13px; background: var(--surface-soft); border: 1px solid var(--border); }
         .student-quota-label { font-size: 12px; font-weight: 750; }
         .student-remaining { padding: 7px 11px; border-radius: 999px; font-size: 12px; font-weight: 820; border: 1px solid transparent; }
@@ -3038,22 +3070,75 @@ export default function Home() {
           letter-spacing: .02em;
         }
 
-        .student-upload-zone-compact {
-          min-height: 150px;
+        .student-add-more-images {
+          display: grid;
+          grid-template-columns: 34px minmax(0, 1fr) auto;
+          align-items: center;
+          gap: 10px;
+          min-height: 58px;
+          margin-top: 9px;
+          padding: 8px 10px;
+          border: 1px dashed var(--border-strong);
+          border-radius: 13px;
+          background: var(--surface-soft);
+          cursor: pointer;
+          transition: border-color 140ms ease, background-color 140ms ease;
+        }
+
+        .student-add-more-images:hover {
+          border-color: var(--student-sage);
+          background: color-mix(in srgb, var(--student-sage-soft) 42%, var(--surface));
+        }
+
+        .student-add-more-plus {
+          display: grid;
+          place-items: center;
+          width: 32px;
+          height: 32px;
+          border-radius: 10px;
+          background: var(--student-sage-soft);
+          color: var(--student-sage);
+          font-size: 19px;
+          font-weight: 800;
+        }
+
+        .student-add-more-images > span:nth-child(2) {
+          display: grid;
+          gap: 2px;
+          min-width: 0;
+        }
+
+        .student-add-more-images strong {
+          font-size: 12px;
+        }
+
+        .student-add-more-images small {
+          color: var(--text-muted);
+          font-size: 10px;
+        }
+
+        .student-add-more-action {
+          padding: 6px 9px;
+          border: 1px solid var(--border-strong);
+          border-radius: 999px;
+          background: var(--surface);
+          color: var(--text-secondary);
+          font-size: 10px;
+          font-weight: 800;
         }
 
         .student-image-list {
           display: grid;
-          gap: 10px;
-          margin-top: 14px;
+          gap: 8px;
+          margin-top: 2px;
         }
 
         .student-image-card {
           display: grid;
-          grid-template-columns: 42px 94px minmax(0, 1fr) auto;
+          grid-template-columns: 38px 82px minmax(0, 1fr) auto;
           align-items: center;
-          gap: 12px;
-          padding: 10px;
+          gap: 10px;
+          padding: 8px;
           border: 1px solid var(--border);
           border-radius: 15px;
           background: color-mix(in srgb, var(--surface) 96%, var(--primary) 4%);
@@ -3073,7 +3158,7 @@ export default function Home() {
 
         .student-image-card-preview {
           overflow: hidden;
-          height: 68px;
+          height: 58px;
           border-radius: 10px;
           background: var(--surface-soft);
         }
@@ -3187,15 +3272,29 @@ export default function Home() {
 
         @media (max-width: 720px) {
           .student-container {
-            padding-top: 4px;
+            padding-top: max(4px, env(safe-area-inset-top));
           }
 
           .student-app-header {
-            top: 6px;
-            min-height: 58px;
-            margin-bottom: 18px;
-            padding: 8px 9px 8px 13px;
-            border-radius: 17px;
+            top: max(4px, env(safe-area-inset-top));
+            min-height: 50px;
+            margin-bottom: 16px;
+            padding: 5px 7px 5px 12px;
+            border-radius: 16px;
+          }
+
+          .student-app-brand-en {
+            font-size: 15px;
+          }
+
+          .student-app-brand-zh {
+            font-size: 10px;
+          }
+
+          .student-menu-button {
+            width: 38px;
+            height: 38px;
+            border-radius: 12px;
           }
 
           .student-desktop-theme {
@@ -3221,6 +3320,16 @@ export default function Home() {
 
           .student-image-card-actions > * {
             flex: 1;
+          }
+
+          .student-add-more-images {
+            grid-template-columns: 32px minmax(0, 1fr) auto;
+            min-height: 54px;
+            padding: 7px 9px;
+          }
+
+          .student-add-more-action {
+            padding: 5px 8px;
           }
 
           .student-image-editor-head {
@@ -3633,21 +3742,34 @@ export default function Home() {
           min-height: 220px;
           padding: 34px 20px;
           border: 1px solid color-mix(in srgb, #b6944b 32%, var(--border));
-          background:
-            linear-gradient(
-              110deg,
-              transparent 18%,
-              color-mix(in srgb, #d9bd7c 8%, transparent) 45%,
-              color-mix(in srgb, #d9bd7c 18%, transparent) 50%,
-              color-mix(in srgb, #d9bd7c 8%, transparent) 55%,
-              transparent 82%
-            ),
-            color-mix(in srgb, var(--surface) 96%, #c8aa68 4%);
-          background-size: 240% 100%;
-          animation:
-            student-loading-shimmer 2s linear infinite,
-            student-loading-breathe 2.1s ease-in-out infinite;
+          background: color-mix(in srgb, var(--surface) 96%, #c8aa68 4%);
+          animation: student-loading-breathe 2.1s ease-in-out infinite;
           text-align: center;
+          isolation: isolate;
+        }
+
+        .student-solving-card-v11::before {
+          content: "";
+          position: absolute;
+          top: -12%;
+          bottom: -12%;
+          left: 0;
+          z-index: -1;
+          width: 42%;
+          background: linear-gradient(
+            105deg,
+            transparent 0%,
+            color-mix(in srgb, #d9bd7c 5%, transparent) 24%,
+            color-mix(in srgb, #d9bd7c 16%, transparent) 48%,
+            color-mix(in srgb, #f0ddb0 24%, transparent) 52%,
+            color-mix(in srgb, #d9bd7c 12%, transparent) 60%,
+            transparent 100%
+          );
+          filter: blur(2px);
+          transform: translate3d(-170%, 0, 0) skewX(-12deg);
+          will-change: transform;
+          animation: student-loading-shimmer-pass 1.95s linear infinite;
+          pointer-events: none;
         }
 
         .student-solving-ring {
@@ -3775,9 +3897,13 @@ export default function Home() {
           to { transform: rotate(360deg); }
         }
 
-        @keyframes student-loading-shimmer {
-          0% { background-position: 120% 0; }
-          100% { background-position: -120% 0; }
+        @keyframes student-loading-shimmer-pass {
+          0% {
+            transform: translate3d(-170%, 0, 0) skewX(-12deg);
+          }
+          100% {
+            transform: translate3d(340%, 0, 0) skewX(-12deg);
+          }
         }
 
         @keyframes student-loading-breathe {
@@ -3791,8 +3917,13 @@ export default function Home() {
 
         @media (prefers-reduced-motion: reduce) {
           .student-solving-card-v11,
+          .student-solving-card-v11::before,
           .student-solving-ring {
             animation: none !important;
+          }
+
+          .student-solving-card-v11::before {
+            display: none;
           }
         }
 
