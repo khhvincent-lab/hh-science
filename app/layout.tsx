@@ -1,108 +1,64 @@
-import type {
-  Metadata,
-} from "next";
-
-import {
-  Inter,
-  Noto_Sans_TC,
-  Noto_Serif_TC,
-} from "next/font/google";
-
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import PwaRegister from "@/components/pwa-register";
 
-import "katex/dist/katex.min.css";
-
-
-const inter =
-  Inter({
-    subsets: [
-      "latin",
-    ],
-
-    variable:
-      "--font-inter",
-
-    display:
-      "swap",
-  });
-
-
-const notoSans =
-  Noto_Sans_TC({
-    subsets: [
-      "latin",
-    ],
-
-    variable:
-      "--font-sans",
-
-    display:
-      "swap",
-
-    weight: [
-      "400",
-      "500",
-      "600",
-      "700",
-    ],
-  });
-
-
-const notoSerif =
-  Noto_Serif_TC({
-    subsets: [
-      "latin",
-    ],
-
-    variable:
-      "--font-serif",
-
-    display:
-      "swap",
-
-    weight: [
-      "500",
-      "600",
-      "700",
-    ],
-  });
-
-
-export const metadata:
-  Metadata = {
-
-  title:
-    "H.H. Science Lab 解題實驗室",
-
-  description:
-    "拆解步驟，清晰脈絡，訂正錯誤，梳理思路",
+export const metadata: Metadata = {
+  title: {
+    default: "H.H. Science Lab 解題實驗室",
+    template: "%s | H.H. Science Lab",
+  },
+  description: "自然科解題實驗室 v1",
+  applicationName: "H.H. Science Lab",
+  appleWebApp: {
+    capable: true,
+    title: "H.H. Science Lab",
+    statusBarStyle: "black-translucent",
+  },
+  formatDetection: {
+    telephone: false,
+  },
+  manifest: "/manifest.webmanifest",
 };
 
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#F5F4EF" },
+    { media: "(prefers-color-scheme: dark)", color: "#161C18" },
+  ],
+};
+
+const themeScript = `
+  (() => {
+    try {
+      const saved = localStorage.getItem("hh-science-theme");
+      const systemDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+      const theme = saved === "light" || saved === "dark"
+        ? saved
+        : systemDark
+          ? "dark"
+          : "light";
+      document.documentElement.dataset.theme = theme;
+    } catch {}
+  })();
+`;
 
 export default function RootLayout({
   children,
 }: Readonly<{
-  children:
-    React.ReactNode;
+  children: React.ReactNode;
 }>) {
-
   return (
-    <html
-      lang="zh-Hant"
-
-      suppressHydrationWarning
-    >
-
-      <body
-        className={`
-          ${inter.variable}
-          ${notoSans.variable}
-          ${notoSerif.variable}
-        `}
-      >
+    <html lang="zh-Hant-TW" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+      </head>
+      <body>
+        <PwaRegister />
         {children}
       </body>
-
     </html>
   );
 }
