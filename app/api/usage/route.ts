@@ -11,13 +11,10 @@ import {
   verifySessionToken,
 } from "@/lib/session";
 
+import {
+  getAISolverSettings,
+} from "@/lib/ai-settings";
 
-const DAILY_LIMIT = 10;
-
-
-/* =========================================================
-   Taiwan date
-========================================================= */
 
 function getTaiwanDate() {
   const parts =
@@ -26,193 +23,138 @@ function getTaiwanDate() {
       {
         timeZone:
           "Asia/Taipei",
-
         year:
           "numeric",
-
         month:
           "2-digit",
-
         day:
           "2-digit",
-      }
+      },
     ).formatToParts(
-      new Date()
+      new Date(),
     );
-
 
   const year =
     parts.find(
-      (item) =>
-        item.type ===
-        "year"
+      (part) =>
+        part.type ===
+        "year",
     )?.value;
-
 
   const month =
     parts.find(
-      (item) =>
-        item.type ===
-        "month"
+      (part) =>
+        part.type ===
+        "month",
     )?.value;
-
 
   const day =
     parts.find(
-      (item) =>
-        item.type ===
-        "day"
+      (part) =>
+        part.type ===
+        "day",
     )?.value;
-
 
   return `${year}-${month}-${day}`;
 }
 
 
-/* =========================================================
-   GET
-========================================================= */
-
 export async function GET(
-  request: NextRequest
+  request:
+    NextRequest,
 ) {
-  try {
+  const token =
+    request.cookies.get(
+      "hh_science_session",
+    )?.value;
 
-    /* -----------------------------------------------------
-       Session
-    ----------------------------------------------------- */
-
-    const token =
-      request.cookies.get(
-        "hh_science_session"
-      )?.value;
-
-
-    if (!token) {
-      return NextResponse.json(
-        {
-          error:
-            "尚未登入",
-        },
-        {
-          status:
-            401,
-        }
-      );
-    }
-
-
-    const session =
-      verifySessionToken(
-        token
-      );
-
-
-    if (!session) {
-      return NextResponse.json(
-        {
-          error:
-            "登入狀態已失效",
-        },
-        {
-          status:
-            401,
-        }
-      );
-    }
-
-
-    /* -----------------------------------------------------
-       Read today's usage
-    ----------------------------------------------------- */
-
-    const usageDate =
-      getTaiwanDate();
-
-
-    const {
-      data,
-      error,
-    } =
-      await supabaseAdmin
-        .from(
-          "daily_usage"
-        )
-        .select(
-          "count"
-        )
-        .eq(
-          "student_id",
-          session.studentId
-        )
-        .eq(
-          "usage_date",
-          usageDate
-        )
-        .maybeSingle();
-
-
-    if (error) {
-
-      console.error(
-        "Usage read error:",
-        error
-      );
-
-
-      return NextResponse.json(
-        {
-          error:
-            "讀取今日使用量失敗",
-        },
-        {
-          status:
-            500,
-        }
-      );
-    }
-
-
-    const count =
-      Number(
-        data?.count ||
-        0
-      );
-
-
-    return NextResponse.json({
-      count,
-
-      limit:
-        DAILY_LIMIT,
-
-      remaining:
-        Math.max(
-          0,
-          DAILY_LIMIT -
-            count
-        ),
-    });
-
-  } catch (
-    error
-  ) {
-
-    console.error(
-      "Usage API error:",
-      error
-    );
-
-
+  if (!token) {
     return NextResponse.json(
       {
         error:
-          "讀取使用量時發生錯誤",
+          "請先登入。",
+      },
+      {
+        status:
+          401,
+      },
+    );
+  }
+
+  const session =
+    verifySessionToken(
+      token,
+    );
+
+  if (!session) {
+    return NextResponse.json(
+      {
+        error:
+          "登入狀態已失效，請重新登入。",
+      },
+      {
+        status:
+          401,
+      },
+    );
+  }
+
+  const settings =
+    await getAISolverSettings();
+
+  const limit =
+    settings.dailyLimit;
+
+  const today =
+    getTaiwanDate();
+
+  const {
+    data,
+    error,
+  } =
+    await supabaseAdmin
+      .from(
+        "daily_usage",
+      )
+      .select(
+        "count",
+      )
+      .eq(
+        "student_id",
+        session.studentId,
+      )
+      .eq(
+        "usage_date",
+        today,
+      )
+      .maybeSingle();
+
+  if (error) {
+    return NextResponse.json(
+      {
+        error:
+          `讀取今日額度失敗：${error.message}`,
       },
       {
         status:
           500,
-      }
+      },
     );
   }
+
+  const count =
+    Number(
+      data?.count ??
+      0,
+    );
+
+  return NextResponse.json({
+    count,
+    limit,
+    remaining:
+      Math.max(
+        0,
+        limit - count,
+      ),
+  });
 }

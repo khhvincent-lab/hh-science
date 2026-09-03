@@ -14,6 +14,7 @@ type StudentSession = {
   id: string;
   campus: Campus;
   name: string;
+  mustChangePin: boolean;
 };
 
 type SubjectOption = {
@@ -35,12 +36,44 @@ type SolveData = {
   explanation: string;
   options: string;
   annotations: Annotation[];
+  historyId?: string | null;
+};
+
+type FollowupMessage = {
+  id?: string;
+  question: string;
+  answer: string;
+  createdAt?: string;
 };
 
 type UsageData = {
   count: number;
   limit: number;
   remaining: number;
+};
+
+type HistoryImage = {
+  path: string;
+  mimeType?: string;
+  order?: number;
+  url?: string | null;
+};
+
+type SolveHistoryItem = {
+  id: string;
+  subject: string;
+  referenceAnswer: string;
+  questionNote: string;
+  answer: string;
+  explanation: string;
+  options: string;
+  annotations: Annotation[];
+  imagePaths: HistoryImage[];
+  favorite: boolean;
+  createdAt: string;
+  primaryModel?: string | null;
+  verifierModel?: string | null;
+  arbiterModel?: string | null;
 };
 
 const subjectPermissions: Record<Campus, SubjectOption[]> = {
@@ -84,6 +117,16 @@ function stripExportAnnotationCommands(formula: string) {
   }
 
   return result;
+}
+
+function formatOptionAnalysis(text: string) {
+  if (!text) return "";
+
+  return text
+    .replace(/^\s*\(([A-Z])\)\s*對[：:]\s*/gm, "✓ ($1) ")
+    .replace(/^\s*\(([A-Z])\)\s*錯[：:]\s*/gm, "✕ ($1) ")
+    .replace(/^\s*([A-Z])[.、]\s*對[：:]\s*/gm, "✓ ($1) ")
+    .replace(/^\s*([A-Z])[.、]\s*錯[：:]\s*/gm, "✕ ($1) ");
 }
 
 function ScienceText({
@@ -142,8 +185,13 @@ function ScienceText({
           if (!line.trim()) return <div key={`${blockIndex}-${lineIndex}`} className="student-text-gap" />;
           const pieces = line.split(/(\$[^$\n]+\$)/);
 
+          const optionLine = /^[✓✕]\s*\([A-Z]\)/.test(line.trim());
+
           return (
-            <p key={`${blockIndex}-${lineIndex}`}>
+            <p
+              key={`${blockIndex}-${lineIndex}`}
+              className={optionLine ? "student-option-line" : undefined}
+            >
               {pieces.map((piece, pieceIndex) => {
                 if (piece.startsWith("$") && piece.endsWith("$")) {
                   return (
@@ -243,11 +291,36 @@ export default function Home() {
   const [loginLoading, setLoginLoading] = useState(false);
   const [loginError, setLoginError] = useState("");
 
+  const [newPin, setNewPin] = useState("");
+  const [confirmPin, setConfirmPin] = useState("");
+  const [pinChangeLoading, setPinChangeLoading] = useState(false);
+  const [pinChangeError, setPinChangeError] = useState("");
+
   const [usage, setUsage] = useState<UsageData>({ count: 0, limit: 10, remaining: 10 });
 
-  const [image, setImage] = useState("");
+  const [images, setImages] = useState<string[]>([]);
+  const [editQueue, setEditQueue] = useState<string[]>([]);
+  const [editQueueIndex, setEditQueueIndex] = useState(0);
+  const [editingImage, setEditingImage] = useState("");
+  const [editingExistingIndex, setEditingExistingIndex] = useState<number | null>(null);
   const [isCropping, setIsCropping] = useState(false);
   const cropperRef = useRef<any>(null);
+
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [activeView, setActiveView] = useState<"solve" | "history">("solve");
+
+  const [historyItems, setHistoryItems] = useState<SolveHistoryItem[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState("");
+  const [historySubject, setHistorySubject] = useState("");
+  const [historyFrom, setHistoryFrom] = useState("");
+  const [historyTo, setHistoryTo] = useState("");
+  const [historyKeyword, setHistoryKeyword] = useState("");
+  const [historyFavoritesOnly, setHistoryFavoritesOnly] = useState(false);
+  const [selectedHistory, setSelectedHistory] = useState<SolveHistoryItem | null>(null);
+  const [historyFavoriteBusyId, setHistoryFavoriteBusyId] = useState<string | null>(null);
+
+  const image = images[0] || "";
 
   const [subject, setSubject] = useState("");
   const [referenceAnswer, setReferenceAnswer] = useState("");
@@ -257,6 +330,11 @@ export default function Home() {
   const [isSolving, setIsSolving] = useState(false);
   const [solveData, setSolveData] = useState<SolveData | null>(null);
   const [selectedAnnotation, setSelectedAnnotation] = useState<Annotation | null>(null);
+
+  const [followupQuestion, setFollowupQuestion] = useState("");
+  const [followups, setFollowups] = useState<FollowupMessage[]>([]);
+  const [followupLoading, setFollowupLoading] = useState(false);
+  const [followupError, setFollowupError] = useState("");
 
   const [isSaving, setIsSaving] = useState(false);
   const [preparedShareFile, setPreparedShareFile] = useState<File | null>(null);
@@ -275,6 +353,7 @@ export default function Home() {
             id: data.student.id,
             campus: data.student.campus,
             name: data.student.name,
+            mustChangePin: Boolean(data.student.mustChangePin ?? data.mustChangePin),
           };
           setStudent(restored);
           setupSubject(restored);
@@ -288,6 +367,13 @@ export default function Home() {
     }
     restoreSession();
   }, []);
+
+  useEffect(() => {
+    if (student && activeView === "history") {
+      void loadHistory();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeView, student?.id]);
 
   function setupSubject(currentStudent: StudentSession) {
     const allowed = subjectPermissions[currentStudent.campus];
@@ -313,7 +399,7 @@ export default function Home() {
     setLoginError("");
     if (!campus) return setLoginError("請先選擇班級。");
     if (!name.trim()) return setLoginError("請輸入學生姓名。");
-    if (!/^\d{4}$/.test(pin.trim())) return setLoginError("班級 PIN 必須為四位數字。");
+    if (!/^\d{4,6}$/.test(pin.trim())) return setLoginError("個人登入密碼必須為 4～6 位數字。");
 
     setLoginLoading(true);
     try {
@@ -329,6 +415,7 @@ export default function Home() {
         id: data.student.id,
         campus: data.student.campus,
         name: data.student.name,
+        mustChangePin: Boolean(data.student.mustChangePin ?? data.mustChangePin),
       };
       setStudent(loggedIn);
       setupSubject(loggedIn);
@@ -338,6 +425,66 @@ export default function Home() {
       setLoginError(error instanceof Error ? error.message : "登入發生錯誤。");
     } finally {
       setLoginLoading(false);
+    }
+  }
+
+  async function handleFirstPinChange() {
+    setPinChangeError("");
+
+    if (!student) {
+      setPinChangeError("請先登入。");
+      return;
+    }
+
+    if (!/^\d{4,6}$/.test(newPin)) {
+      setPinChangeError("新密碼必須為 4～6 位數字。");
+      return;
+    }
+
+    if (newPin !== confirmPin) {
+      setPinChangeError("兩次輸入的新密碼不一致。");
+      return;
+    }
+
+    setPinChangeLoading(true);
+
+    try {
+      const response = await fetch("/api/auth/change-pin", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          newPin,
+          confirmPin,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "更新登入密碼失敗。");
+      }
+
+      setStudent((current) =>
+        current
+          ? {
+              ...current,
+              mustChangePin: false,
+            }
+          : current,
+      );
+
+      setNewPin("");
+      setConfirmPin("");
+      setPinChangeError("");
+      await loadUsage();
+    } catch (error) {
+      setPinChangeError(
+        error instanceof Error
+          ? error.message
+          : "更新登入密碼失敗。",
+      );
+    } finally {
+      setPinChangeLoading(false);
     }
   }
 
@@ -351,92 +498,377 @@ export default function Home() {
     setCampus("");
     setName("");
     setPin("");
+    setNewPin("");
+    setConfirmPin("");
+    setPinChangeError("");
+    setMenuOpen(false);
+    setActiveView("solve");
+    setHistoryItems([]);
+    setSelectedHistory(null);
+    setHistoryError("");
+    clearHistoryFilters();
     setSubject("");
     setUsage({ count: 0, limit: 10, remaining: 10 });
     clearQuestion();
   }
 
-  function handleImageUpload(event: React.ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result !== "string") return;
-      const sourceImage = new Image();
-      sourceImage.onload = () => {
-        const maxDimension = 2200;
-        let width = sourceImage.width;
-        let height = sourceImage.height;
-
-        if (width > maxDimension || height > maxDimension) {
-          const scale = Math.min(maxDimension / width, maxDimension / height);
-          width = Math.round(width * scale);
-          height = Math.round(height * scale);
-        }
-
-        const canvas = document.createElement("canvas");
-        canvas.width = width;
-        canvas.height = height;
-        const context = canvas.getContext("2d");
-        if (!context) return setQuestionError("圖片處理失敗。");
-
-        context.fillStyle = "#ffffff";
-        context.fillRect(0, 0, width, height);
-        context.drawImage(sourceImage, 0, 0, width, height);
-        setImage(canvas.toDataURL("image/jpeg", 0.92));
-        setIsCropping(false);
-        setQuestionError("");
-        setSolveData(null);
-      };
-      sourceImage.onerror = () => setQuestionError("圖片無法讀取，請重新選擇。");
-      sourceImage.src = reader.result;
-    };
-    reader.readAsDataURL(file);
+  function historySubjectLabel(value: string) {
+    if (value === "physics") return "物理";
+    if (value === "chemistry") return "化學";
+    if (value === "biology") return "生物";
+    if (value === "earth") return "地球科學";
+    return "自然科";
   }
 
-  function rotateImage() {
-    if (!image) return;
+  function formatHistoryDate(value: string) {
+    try {
+      return new Intl.DateTimeFormat("zh-TW", {
+        timeZone: "Asia/Taipei",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      }).format(new Date(value));
+    } catch {
+      return value;
+    }
+  }
+
+  async function loadHistory() {
+    if (!student) return;
+
+    setHistoryLoading(true);
+    setHistoryError("");
+
+    try {
+      const params = new URLSearchParams();
+
+      if (historySubject) params.set("subject", historySubject);
+      if (historyFrom) params.set("from", historyFrom);
+      if (historyTo) params.set("to", historyTo);
+      if (historyKeyword.trim()) params.set("q", historyKeyword.trim());
+      if (historyFavoritesOnly) params.set("favorite", "true");
+
+      const response = await fetch(
+        `/api/history${params.toString() ? `?${params.toString()}` : ""}`,
+        {
+          cache: "no-store",
+        },
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "讀取解題紀錄失敗。");
+      }
+
+      setHistoryItems(Array.isArray(data.items) ? data.items : []);
+
+      if (
+        selectedHistory &&
+        !data.items?.some((item: SolveHistoryItem) => item.id === selectedHistory.id)
+      ) {
+        setSelectedHistory(null);
+      }
+    } catch (error) {
+      setHistoryError(
+        error instanceof Error
+          ? error.message
+          : "讀取解題紀錄失敗。",
+      );
+    } finally {
+      setHistoryLoading(false);
+    }
+  }
+
+  async function toggleHistoryFavorite(item: SolveHistoryItem) {
+    setHistoryFavoriteBusyId(item.id);
+    setHistoryError("");
+
+    try {
+      const response = await fetch(`/api/history/${item.id}/favorite`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          favorite: !item.favorite,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "更新收藏狀態失敗。");
+      }
+
+      setHistoryItems((current) =>
+        current.map((history) =>
+          history.id === item.id
+            ? {
+                ...history,
+                favorite: Boolean(data.favorite),
+              }
+            : history,
+        ),
+      );
+
+      setSelectedHistory((current) =>
+        current?.id === item.id
+          ? {
+              ...current,
+              favorite: Boolean(data.favorite),
+            }
+          : current,
+      );
+    } catch (error) {
+      setHistoryError(
+        error instanceof Error
+          ? error.message
+          : "更新收藏狀態失敗。",
+      );
+    } finally {
+      setHistoryFavoriteBusyId(null);
+    }
+  }
+
+  function clearHistoryFilters() {
+    setHistorySubject("");
+    setHistoryFrom("");
+    setHistoryTo("");
+    setHistoryKeyword("");
+    setHistoryFavoritesOnly(false);
+  }
+
+  function normalizeImageFile(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+
+      reader.onload = () => {
+        if (typeof reader.result !== "string") {
+          reject(new Error("圖片無法讀取。"));
+          return;
+        }
+
+        const sourceImage = new Image();
+
+        sourceImage.onload = () => {
+          const maxDimension = 2200;
+          let width = sourceImage.width;
+          let height = sourceImage.height;
+
+          if (width > maxDimension || height > maxDimension) {
+            const scale = Math.min(
+              maxDimension / width,
+              maxDimension / height,
+            );
+
+            width = Math.round(width * scale);
+            height = Math.round(height * scale);
+          }
+
+          const canvas = document.createElement("canvas");
+          canvas.width = width;
+          canvas.height = height;
+
+          const context = canvas.getContext("2d");
+
+          if (!context) {
+            reject(new Error("圖片處理失敗。"));
+            return;
+          }
+
+          context.fillStyle = "#ffffff";
+          context.fillRect(0, 0, width, height);
+          context.drawImage(sourceImage, 0, 0, width, height);
+
+          resolve(canvas.toDataURL("image/jpeg", 0.92));
+        };
+
+        sourceImage.onerror = () => {
+          reject(new Error(`圖片「${file.name}」無法讀取。`));
+        };
+
+        sourceImage.src = reader.result;
+      };
+
+      reader.onerror = () => {
+        reject(new Error(`圖片「${file.name}」讀取失敗。`));
+      };
+
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function handleImageUpload(
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) {
+    const selectedFiles = Array.from(event.target.files || []);
+    event.target.value = "";
+
+    if (!selectedFiles.length) return;
+
+    const remaining = 5 - images.length;
+
+    if (remaining <= 0) {
+      setQuestionError("一次最多上傳 5 張圖片。");
+      return;
+    }
+
+    if (selectedFiles.length > remaining) {
+      setQuestionError(`目前最多還能加入 ${remaining} 張圖片。`);
+      return;
+    }
+
+    setQuestionError("");
+    setSolveData(null);
+    setPreparedShareFile(null);
+
+    try {
+      const processed = await Promise.all(
+        selectedFiles.map((file) => normalizeImageFile(file)),
+      );
+
+      setEditQueue(processed);
+      setEditQueueIndex(0);
+      setEditingExistingIndex(null);
+      setEditingImage(processed[0]);
+      setIsCropping(true);
+    } catch (error) {
+      setQuestionError(
+        error instanceof Error
+          ? error.message
+          : "圖片處理失敗，請重新選擇。",
+      );
+    }
+  }
+
+  function startEditExisting(index: number) {
+    const target = images[index];
+    if (!target) return;
+
+    setEditQueue([]);
+    setEditQueueIndex(0);
+    setEditingExistingIndex(index);
+    setEditingImage(target);
+    setIsCropping(true);
+    setSolveData(null);
+    setPreparedShareFile(null);
+  }
+
+  function rotateEditingImage() {
+    if (!editingImage) return;
+
     const img = new Image();
+
     img.onload = () => {
       const canvas = document.createElement("canvas");
       canvas.width = img.height;
       canvas.height = img.width;
+
       const context = canvas.getContext("2d");
       if (!context) return;
+
+      context.fillStyle = "#ffffff";
+      context.fillRect(0, 0, canvas.width, canvas.height);
       context.translate(canvas.width / 2, canvas.height / 2);
       context.rotate(Math.PI / 2);
       context.drawImage(img, -img.width / 2, -img.height / 2);
-      setImage(canvas.toDataURL("image/jpeg", 0.95));
-      setSolveData(null);
+
+      setEditingImage(canvas.toDataURL("image/jpeg", 0.95));
     };
-    img.src = image;
+
+    img.src = editingImage;
   }
 
-  function confirmCrop() {
+  function finishCurrentImageEdit() {
+    if (!editingImage) return;
+
+    let finalImage = editingImage;
     const cropper = cropperRef.current?.cropper;
-    if (!cropper) return;
-    const canvas = cropper.getCroppedCanvas({
-      maxWidth: 1800,
-      maxHeight: 1800,
-      imageSmoothingEnabled: true,
-      imageSmoothingQuality: "high",
-    });
-    setImage(canvas.toDataURL("image/jpeg", 0.95));
+
+    if (cropper) {
+      const canvas = cropper.getCroppedCanvas({
+        maxWidth: 1800,
+        maxHeight: 1800,
+        imageSmoothingEnabled: true,
+        imageSmoothingQuality: "high",
+      });
+
+      if (canvas) {
+        finalImage = canvas.toDataURL("image/jpeg", 0.95);
+      }
+    }
+
+    if (editingExistingIndex !== null) {
+      setImages((current) =>
+        current.map((item, index) =>
+          index === editingExistingIndex ? finalImage : item,
+        ),
+      );
+
+      setEditingExistingIndex(null);
+      setEditingImage("");
+      setIsCropping(false);
+      setQuestionError("");
+      return;
+    }
+
+    setImages((current) => [...current, finalImage]);
+
+    const nextIndex = editQueueIndex + 1;
+
+    if (nextIndex < editQueue.length) {
+      setEditQueueIndex(nextIndex);
+      setEditingImage(editQueue[nextIndex]);
+      setIsCropping(true);
+      return;
+    }
+
+    setEditQueue([]);
+    setEditQueueIndex(0);
+    setEditingImage("");
     setIsCropping(false);
+    setQuestionError("");
+  }
+
+  function cancelImageEdit() {
+    setEditQueue([]);
+    setEditQueueIndex(0);
+    setEditingExistingIndex(null);
+    setEditingImage("");
+    setIsCropping(false);
+  }
+
+  function removeImage(index: number) {
+    setImages((current) =>
+      current.filter((_, currentIndex) => currentIndex !== index),
+    );
     setSolveData(null);
+    setPreparedShareFile(null);
+    setExportQuestionImage("");
   }
 
   function clearQuestion() {
-    setImage("");
+    setImages([]);
+    setEditQueue([]);
+    setEditQueueIndex(0);
+    setEditingImage("");
+    setEditingExistingIndex(null);
     setIsCropping(false);
     setReferenceAnswer("");
     setQuestionNote("");
     setQuestionError("");
     setSolveData(null);
     setSelectedAnnotation(null);
+    setFollowupQuestion("");
+    setFollowups([]);
+    setFollowupError("");
     setPreparedShareFile(null);
     setExportQuestionImage("");
+
     if (student) setupSubject(student);
     else setSubject("");
   }
@@ -444,21 +876,31 @@ export default function Home() {
   async function handleStartSolve() {
     setQuestionError("");
     if (!student) return setQuestionError("請先登入。");
-    if (usage.remaining <= 0) return setQuestionError("今日 10 題 AI 解題額度已使用完畢。");
-    if (!image) return setQuestionError("請先上傳題目圖片。");
+    if (usage.remaining <= 0) {
+      return setQuestionError(`今日 ${usage.limit} 題 AI 解題額度已使用完畢。`);
+    }
+    if (!images.length) return setQuestionError("請先上傳題目圖片。");
     if (!subject) return setQuestionError("請先選擇科目。");
 
     setIsSolving(true);
     setPreparedShareFile(null);
     setExportQuestionImage("");
     setSolveData(null);
+    setFollowupQuestion("");
+    setFollowups([]);
+    setFollowupError("");
     setTimeout(() => resultRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
 
     try {
       const response = await fetch("/api/solve", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ image, subject, referenceAnswer, questionNote }),
+        body: JSON.stringify({
+          images,
+          subject,
+          referenceAnswer,
+          questionNote,
+        }),
       });
       const data = await response.json();
 
@@ -472,6 +914,7 @@ export default function Home() {
         explanation: data.explanation || "",
         options: data.options || "",
         annotations: Array.isArray(data.annotations) ? data.annotations : [],
+        historyId: data.historyId || null,
       });
 
       if (data.usage) setUsage(data.usage);
@@ -485,6 +928,62 @@ export default function Home() {
   }
 
   const availableSubjects = student ? subjectPermissions[student.campus] : [];
+
+  async function handleFollowupSubmit() {
+    const question = followupQuestion.trim();
+
+    if (!solveData?.historyId) {
+      setFollowupError("這筆解題尚未建立追問紀錄，請重新解題後再追問。");
+      return;
+    }
+
+    if (!question) {
+      setFollowupError("請先輸入想追問的內容。");
+      return;
+    }
+
+    setFollowupLoading(true);
+    setFollowupError("");
+
+    try {
+      const response = await fetch("/api/followup", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          historyId: solveData.historyId,
+          question,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "追問失敗。");
+      }
+
+      setFollowups((current) => [
+        ...current,
+        {
+          id: data.followup?.id,
+          question,
+          answer: data.followup?.answer || "",
+          createdAt: data.followup?.createdAt,
+        },
+      ]);
+
+      setFollowupQuestion("");
+    } catch (error) {
+      setFollowupError(
+        error instanceof Error
+          ? error.message
+          : "追問發生錯誤。",
+      );
+    } finally {
+      setFollowupLoading(false);
+    }
+  }
 
   function handleLineAsk() {
     if (!student) return;
@@ -756,7 +1255,7 @@ export default function Home() {
         ) {
           await navigator.share({
             title: "H.H. Science Lab 題目解析",
-            text: "題目詳解與選項分析",
+            text: "觀念解析與選項分析",
             files: [preparedShareFile],
           });
           return;
@@ -821,17 +1320,105 @@ export default function Home() {
       <div className="student-top-glow" />
 
       <div className="student-container">
-        <header className="student-brand-header">
-          <div>
-            <div className="hh-eyebrow">H.H. SCIENCE LAB</div>
-            <h1 className="hh-display student-brand-title">
-              <span className="student-brand-title-en">H.H.Science Lab</span>
-              <span className="student-brand-title-zh">解題實驗室</span>
-            </h1>
-            <p className="student-brand-slogan">拆解步驟，清晰脈絡，訂正錯誤，梳理思路</p>
+        <header className="student-app-header">
+          <button
+            type="button"
+            className="student-app-brand"
+            onClick={() => {
+              setActiveView("solve");
+              setMenuOpen(false);
+            }}
+          >
+            <span className="student-app-brand-en">H.H. Science Lab</span>
+            <span className="student-app-brand-zh">解題實驗室</span>
+          </button>
+
+          <div className="student-app-header-actions">
+            <div className="student-desktop-theme">
+              <ThemeToggle />
+            </div>
+
+            <button
+              type="button"
+              className="student-menu-button"
+              aria-label="開啟選單"
+              aria-expanded={menuOpen}
+              onClick={() => setMenuOpen((current) => !current)}
+            >
+              <span />
+              <span />
+              <span />
+            </button>
           </div>
-          <ThemeToggle />
+
+          {menuOpen && (
+            <>
+              <button
+                type="button"
+                className="student-menu-backdrop"
+                aria-label="關閉選單"
+                onClick={() => setMenuOpen(false)}
+              />
+
+              <div className="student-menu-panel">
+                <button
+                  type="button"
+                  className={activeView === "solve" ? "active" : ""}
+                  onClick={() => {
+                    setActiveView("solve");
+                    setMenuOpen(false);
+                  }}
+                >
+                  開始解題
+                </button>
+
+                <button
+                  type="button"
+                  className={activeView === "history" ? "active" : ""}
+                  onClick={() => {
+                    setActiveView("history");
+                    setMenuOpen(false);
+                  }}
+                >
+                  我的解題紀錄
+                </button>
+
+                <div className="student-menu-separator" />
+
+                {student && (
+                  <div className="student-menu-account">
+                    <strong>{student.campus}</strong>
+                    <span>{student.name}</span>
+                  </div>
+                )}
+
+                <div className="student-menu-theme">
+                  <span>外觀</span>
+                  <ThemeToggle />
+                </div>
+
+                {student && (
+                  <button
+                    type="button"
+                    className="student-menu-logout"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      void handleLogout();
+                    }}
+                  >
+                    登出
+                  </button>
+                )}
+              </div>
+            </>
+          )}
         </header>
+
+        <section className="student-brand-intro">
+          <div className="hh-eyebrow">H.H. SCIENCE LAB</div>
+          <h1 className="hh-display">自然科解題實驗室</h1>
+          <p>拆解步驟，訂正錯誤，清晰脈絡，梳理思路</p>
+        </section>
 
         {student ? (
           <section className="student-welcome-card">
@@ -840,7 +1427,12 @@ export default function Home() {
               <div>
                 <div className="student-welcome-label">WELCOME BACK</div>
                 <h2 className="hh-display student-welcome-title">{student.name}</h2>
-                <div className="student-muted">{student.campus} · 今日剩餘 {usage.remaining} 題</div>
+                <div className="student-muted">
+                  {student.campus}
+                  {student.mustChangePin
+                    ? " · 請先設定個人登入密碼"
+                    : ` · 今日剩餘 ${usage.remaining} 題`}
+                </div>
               </div>
             </div>
 
@@ -863,7 +1455,7 @@ export default function Home() {
               <div>
                 <div className="hh-eyebrow">STUDENT ACCESS</div>
                 <h2 className="hh-display student-login-title">學生登入</h2>
-                <p className="student-muted">選擇班級、輸入姓名與本月班級 PIN</p>
+                <p className="student-muted">選擇班級、輸入姓名與個人登入密碼</p>
               </div>
             </div>
 
@@ -887,15 +1479,15 @@ export default function Home() {
               </label>
 
               <label className="student-field">
-                <span>班級 PIN</span>
+                <span>個人登入密碼</span>
                 <input
                   value={pin}
-                  onChange={(event) => setPin(event.target.value.replace(/\D/g, "").slice(0, 4))}
+                  onChange={(event) => setPin(event.target.value.replace(/\D/g, "").slice(0, 6))}
                   type="password"
                   inputMode="numeric"
-                  maxLength={4}
-                  autoComplete="off"
-                  placeholder="四位數 PIN"
+                  maxLength={6}
+                  autoComplete="current-password"
+                  placeholder="4～6 位數字"
                   className="hh-input"
                 />
               </label>
@@ -909,55 +1501,232 @@ export default function Home() {
           </section>
         )}
 
+        {student?.mustChangePin && (
+          <section className="hh-card student-pin-setup-card">
+            <div className="student-pin-setup-mark">SECURE</div>
+
+            <div className="student-pin-setup-head">
+              <div>
+                <div className="hh-eyebrow">FIRST LOGIN</div>
+                <h2 className="hh-display student-pin-setup-title">
+                  設定個人登入密碼
+                </h2>
+                <p className="student-muted">
+                  這是首次登入或老師重設密碼後的必要步驟。完成設定後，才能進入解題實驗室。
+                </p>
+              </div>
+            </div>
+
+            <div className="student-pin-setup-grid">
+              <label className="student-field">
+                <span>新的個人密碼</span>
+                <input
+                  value={newPin}
+                  onChange={(event) =>
+                    setNewPin(
+                      event.target.value.replace(/\D/g, "").slice(0, 6),
+                    )
+                  }
+                  type="password"
+                  inputMode="numeric"
+                  maxLength={6}
+                  autoComplete="new-password"
+                  placeholder="4～6 位數字"
+                  className="hh-input"
+                />
+              </label>
+
+              <label className="student-field">
+                <span>再次輸入新密碼</span>
+                <input
+                  value={confirmPin}
+                  onChange={(event) =>
+                    setConfirmPin(
+                      event.target.value.replace(/\D/g, "").slice(0, 6),
+                    )
+                  }
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" && !pinChangeLoading) {
+                      void handleFirstPinChange();
+                    }
+                  }}
+                  type="password"
+                  inputMode="numeric"
+                  maxLength={6}
+                  autoComplete="new-password"
+                  placeholder="再次輸入"
+                  className="hh-input"
+                />
+              </label>
+            </div>
+
+            <div className="student-pin-setup-note">
+              請設定只有自己知道的密碼，不要使用共用初始密碼。
+            </div>
+
+            {pinChangeError && (
+              <div className="student-alert student-alert-danger">
+                {pinChangeError}
+              </div>
+            )}
+
+            <button
+              type="button"
+              onClick={handleFirstPinChange}
+              disabled={pinChangeLoading}
+              className="hh-button-primary student-pin-setup-button"
+            >
+              {pinChangeLoading ? "正在設定…" : "完成設定並進入"}
+            </button>
+          </section>
+        )}
+
+        {!student?.mustChangePin && activeView === "solve" && (
+          <>
         <div className="student-workspace">
           <section className={`hh-card student-panel student-panel-upload ${!student ? "student-panel-disabled" : ""}`}>
-            <StepHeader number="1" title="上傳題目圖片" description="從相簿選擇，或直接拍攝題目" tone="sage" />
+            <StepHeader
+              number="1"
+              title="上傳題目圖片"
+              description="一次可選 1～5 張；題目、圖表、跨頁內容與老師解答都可以一起上傳"
+              tone="sage"
+            />
 
-            {!image && (
-              <label className="student-upload-zone">
-                <div className="student-upload-icon">↑</div>
-                <div className="student-upload-title">上傳有問題的題目</div>
-                <div className="student-muted">支援相簿、拍照與常見圖片格式</div>
-                <div className="student-upload-cta">選擇圖片</div>
-                <input type="file" accept="image/*,.heic,.heif" onChange={handleImageUpload} hidden />
-              </label>
+            <label className={`student-upload-zone ${images.length ? "student-upload-zone-compact" : ""}`}>
+              <div className="student-upload-icon">＋</div>
+              <div className="student-upload-title">
+                {images.length ? "繼續加入圖片" : "選擇題目圖片"}
+              </div>
+              <div className="student-muted">
+                已加入 {images.length} / 5 張 · 選取後會逐張進入裁切與旋轉
+              </div>
+              <div className="student-upload-cta">
+                {images.length ? "加入圖片" : "選擇圖片"}
+              </div>
+              <input
+                type="file"
+                accept="image/*,.heic,.heif"
+                multiple
+                disabled={images.length >= 5 || isCropping}
+                onChange={handleImageUpload}
+                hidden
+              />
+            </label>
+
+            {images.length > 0 && (
+              <div className="student-image-list">
+                {images.map((item, index) => (
+                  <article key={`${index}-${item.slice(-24)}`} className="student-image-card">
+                    <div className="student-image-order hh-number">
+                      {String(index + 1).padStart(2, "0")}
+                    </div>
+
+                    <div className="student-image-card-preview">
+                      <img src={item} alt={`題目圖片 ${index + 1}`} />
+                    </div>
+
+                    <div className="student-image-card-info">
+                      <strong>圖片 {index + 1}</strong>
+                      <span>
+                        {index === 0
+                          ? "主要題目圖片"
+                          : "依此順序提供給 AI 閱讀"}
+                      </span>
+                    </div>
+
+                    <div className="student-image-card-actions">
+                      <button
+                        type="button"
+                        className="hh-button-secondary"
+                        onClick={() => startEditExisting(index)}
+                        disabled={isCropping}
+                      >
+                        編輯
+                      </button>
+
+                      <button
+                        type="button"
+                        className="student-image-delete"
+                        onClick={() => removeImage(index)}
+                        disabled={isCropping}
+                      >
+                        刪除
+                      </button>
+                    </div>
+                  </article>
+                ))}
+              </div>
             )}
 
-            {image && !isCropping && (
-              <>
-                <div className="student-image-frame">
-                  <img src={image} alt="題目" className="student-question-image" />
-                </div>
-                <div className="student-image-actions">
-                  <button type="button" onClick={rotateImage} className="hh-button-secondary">↻ 旋轉</button>
-                  <button type="button" onClick={() => setIsCropping(true)} className="hh-button-secondary">✂ 裁切</button>
-                  <label className="student-file-replace">
-                    更換圖片
-                    <input type="file" accept="image/*,.heic,.heif" onChange={handleImageUpload} hidden />
-                  </label>
-                </div>
-              </>
-            )}
+            {isCropping && editingImage && (
+              <div className="student-image-editor">
+                <div className="student-image-editor-head">
+                  <div>
+                    <div className="hh-eyebrow">
+                      {editingExistingIndex !== null ? "EDIT IMAGE" : "IMAGE SETUP"}
+                    </div>
+                    <h3 className="hh-display">
+                      {editingExistingIndex !== null
+                        ? `重新編輯圖片 ${editingExistingIndex + 1}`
+                        : `調整圖片 ${editQueueIndex + 1} / ${editQueue.length}`}
+                    </h3>
+                  </div>
 
-            {image && isCropping && (
-              <>
+                  <button
+                    type="button"
+                    className="hh-button-secondary"
+                    onClick={rotateEditingImage}
+                  >
+                    ↻ 旋轉 90°
+                  </button>
+                </div>
+
                 <div className="student-crop-frame">
                   <Cropper
+                    key={editingImage.slice(-40)}
                     ref={cropperRef}
-                    src={image}
+                    src={editingImage}
                     style={{ height: 420, width: "100%" }}
                     viewMode={1}
                     dragMode="move"
                     responsive
-                    autoCropArea={0.9}
+                    autoCropArea={0.92}
                     background={false}
                   />
                 </div>
-                <div className="student-two-actions">
-                  <button type="button" onClick={confirmCrop} className="hh-button-primary">確認裁切</button>
-                  <button type="button" onClick={() => setIsCropping(false)} className="hh-button-secondary">取消</button>
+
+                <div className="student-editor-tip">
+                  拖曳圖片調整位置，拉動裁切框決定 AI 實際讀取的範圍。
                 </div>
-              </>
+
+                <div className="student-two-actions">
+                  <button
+                    type="button"
+                    onClick={finishCurrentImageEdit}
+                    className="hh-button-primary"
+                  >
+                    {editingExistingIndex !== null
+                      ? "確認修改"
+                      : editQueueIndex + 1 < editQueue.length
+                        ? "確認並編輯下一張"
+                        : "確認完成"}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={cancelImageEdit}
+                    className="hh-button-secondary"
+                  >
+                    取消
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {images.length === 5 && !isCropping && (
+              <div className="student-upload-limit-note">
+                已達每題 5 張圖片上限。
+              </div>
             )}
           </section>
 
@@ -1020,7 +1789,7 @@ export default function Home() {
         </div>
 
         <section ref={resultRef} className={`hh-card student-panel student-result-panel ${!student ? "student-panel-disabled" : ""}`}>
-          <StepHeader number="3" title="題目詳解與選項分析" description="正確答案 → 此題詳解 → 各選項分析" tone="terra" />
+          <StepHeader number="3" title="觀念解析與選項分析" description="答案 → 觀念解析 → 選項判斷" tone="terra" />
 
           {!solveData && !isSolving && (
             <div className="student-result-empty">
@@ -1031,12 +1800,11 @@ export default function Home() {
           )}
 
           {isSolving && (
-            <div className="student-solving-card">
-              <div className="student-solving-orbit"><span /></div>
-              <div>
-                <div className="student-solving-title">分析題目中</div>
-                <div className="student-muted">產生詳解與選項分析，若有疑問可以儲存圖片詢問老師</div>
+            <div className="student-solving-card student-solving-card-v11">
+              <div className="student-solving-ring" aria-hidden="true">
+                <span />
               </div>
+              <div className="student-solving-title">分析題目中</div>
             </div>
           )}
 
@@ -1054,8 +1822,8 @@ export default function Home() {
                 <div className="student-result-card-header">
                   <div className="student-result-index student-result-index-gold">01</div>
                   <div>
-                    <div className="hh-eyebrow">EXPLANATION</div>
-                    <h3 className="hh-display">此題詳解</h3>
+                    <div className="hh-eyebrow">CONCEPT ANALYSIS</div>
+                    <h3 className="hh-display">觀念解析</h3>
                   </div>
                 </div>
                 <div className="student-result-content">
@@ -1068,15 +1836,89 @@ export default function Home() {
                   <div className="student-result-card-header">
                     <div className="student-result-index student-result-index-red">02</div>
                     <div>
-                      <div className="hh-eyebrow">OPTIONS</div>
-                      <h3 className="hh-display">各選項分析</h3>
+                      <div className="hh-eyebrow">OPTION ANALYSIS</div>
+                      <h3 className="hh-display">選項分析</h3>
                     </div>
                   </div>
                   <div className="student-result-content">
-                    <ScienceText text={solveData.options} annotations={solveData.annotations} onAnnotationClick={setSelectedAnnotation} />
+                    <ScienceText
+                      text={formatOptionAnalysis(solveData.options)}
+                      annotations={solveData.annotations}
+                      onAnnotationClick={setSelectedAnnotation}
+                    />
                   </div>
                 </article>
               )}
+
+              <section className="student-followup-panel">
+                <div className="student-followup-head">
+                  <div>
+                    <div className="hh-eyebrow">FOLLOW-UP</div>
+                    <h3 className="hh-display">還有疑問？</h3>
+                    <p>直接追問這一題，不會重新扣除每日解題額度。</p>
+                  </div>
+
+                  <div className="student-followup-count">
+                    {followups.length} / 3
+                  </div>
+                </div>
+
+                {followups.length > 0 && (
+                  <div className="student-followup-thread">
+                    {followups.map((item, index) => (
+                      <article
+                        key={item.id || `${index}-${item.question}`}
+                        className="student-followup-item"
+                      >
+                        <div className="student-followup-question">
+                          <span>你</span>
+                          <p>{item.question}</p>
+                        </div>
+
+                        <div className="student-followup-answer">
+                          <span>AI</span>
+                          <ScienceText text={item.answer} />
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                )}
+
+                {followupError && (
+                  <div className="student-alert student-alert-danger">
+                    {followupError}
+                  </div>
+                )}
+
+                <div className="student-followup-input-row">
+                  <textarea
+                    className="hh-textarea"
+                    rows={2}
+                    value={followupQuestion}
+                    disabled={followupLoading || followups.length >= 3}
+                    onChange={(event) => setFollowupQuestion(event.target.value)}
+                    placeholder={
+                      followups.length >= 3
+                        ? "這題已達 3 次追問上限"
+                        : "例如：為什麼這裡不能直接用理想氣體方程式？"
+                    }
+                  />
+
+                  <button
+                    type="button"
+                    className="hh-button-primary"
+                    disabled={
+                      followupLoading ||
+                      followups.length >= 3 ||
+                      !followupQuestion.trim() ||
+                      !solveData.historyId
+                    }
+                    onClick={() => void handleFollowupSubmit()}
+                  >
+                    {followupLoading ? "追問中…" : "送出追問"}
+                  </button>
+                </div>
+              </section>
 
               <div className="student-result-actions">
                 <button type="button" onClick={handleLineAsk} className="student-line-button">LINE 詢問老師</button>
@@ -1096,6 +1938,323 @@ export default function Home() {
             </div>
           )}
         </section>
+
+          </>
+        )}
+
+        {!student?.mustChangePin && activeView === "history" && (
+          <section className="student-history-shell">
+            <div className="student-history-header">
+              <div>
+                <div className="hh-eyebrow">MY SOLVE HISTORY</div>
+                <h2 className="hh-display">我的解題紀錄</h2>
+                <p>搜尋過去題目、收藏重要題目，並重新查看完整觀念解析。</p>
+              </div>
+
+              <button
+                type="button"
+                className="hh-button-primary"
+                onClick={() => setActiveView("solve")}
+              >
+                ＋ 開始解題
+              </button>
+            </div>
+
+            <div className="hh-card student-history-filters">
+              <div className="student-history-search">
+                <label>
+                  <span>關鍵字搜尋</span>
+                  <input
+                    className="hh-input"
+                    type="search"
+                    value={historyKeyword}
+                    onChange={(event) => setHistoryKeyword(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        void loadHistory();
+                      }
+                    }}
+                    placeholder="搜尋答案、題目補充、解析內容…"
+                  />
+                </label>
+              </div>
+
+              <div className="student-history-filter-grid">
+                <label>
+                  <span>科目</span>
+                  <select
+                    className="hh-input"
+                    value={historySubject}
+                    onChange={(event) => setHistorySubject(event.target.value)}
+                  >
+                    <option value="">全部自然科</option>
+                    <option value="physics">物理</option>
+                    <option value="chemistry">化學</option>
+                    <option value="biology">生物</option>
+                    <option value="earth">地球科學</option>
+                  </select>
+                </label>
+
+                <label>
+                  <span>開始日期</span>
+                  <input
+                    className="hh-input"
+                    type="date"
+                    value={historyFrom}
+                    onChange={(event) => setHistoryFrom(event.target.value)}
+                  />
+                </label>
+
+                <label>
+                  <span>結束日期</span>
+                  <input
+                    className="hh-input"
+                    type="date"
+                    value={historyTo}
+                    onChange={(event) => setHistoryTo(event.target.value)}
+                  />
+                </label>
+
+                <label className="student-history-favorite-filter">
+                  <span>收藏</span>
+                  <button
+                    type="button"
+                    className={historyFavoritesOnly ? "active" : ""}
+                    onClick={() =>
+                      setHistoryFavoritesOnly((current) => !current)
+                    }
+                  >
+                    {historyFavoritesOnly ? "★ 只看收藏" : "☆ 只看收藏"}
+                  </button>
+                </label>
+              </div>
+
+              <div className="student-history-filter-actions">
+                <button
+                  type="button"
+                  className="hh-button-primary"
+                  onClick={() => void loadHistory()}
+                  disabled={historyLoading}
+                >
+                  {historyLoading ? "搜尋中…" : "套用篩選"}
+                </button>
+
+                <button
+                  type="button"
+                  className="hh-button-secondary"
+                  onClick={() => {
+                    clearHistoryFilters();
+                    setTimeout(() => void loadHistory(), 0);
+                  }}
+                >
+                  清除條件
+                </button>
+              </div>
+            </div>
+
+            {historyError && (
+              <div className="student-alert student-alert-danger">
+                {historyError}
+              </div>
+            )}
+
+            {selectedHistory ? (
+              <div className="student-history-detail-wrap">
+                <button
+                  type="button"
+                  className="student-history-back"
+                  onClick={() => setSelectedHistory(null)}
+                >
+                  ← 返回解題紀錄
+                </button>
+
+                <article className="hh-card student-history-detail">
+                  <div className="student-history-detail-head">
+                    <div>
+                      <div className="student-history-meta-row">
+                        <span>{historySubjectLabel(selectedHistory.subject)}</span>
+                        <span>{formatHistoryDate(selectedHistory.createdAt)}</span>
+                      </div>
+                      <h3 className="hh-display">解題紀錄</h3>
+                    </div>
+
+                    <button
+                      type="button"
+                      className={`student-favorite-button ${
+                        selectedHistory.favorite ? "active" : ""
+                      }`}
+                      disabled={historyFavoriteBusyId === selectedHistory.id}
+                      onClick={() => void toggleHistoryFavorite(selectedHistory)}
+                    >
+                      {selectedHistory.favorite ? "★ 已收藏" : "☆ 收藏"}
+                    </button>
+                  </div>
+
+                  {selectedHistory.imagePaths.length > 0 && (
+                    <div className="student-history-images">
+                      {selectedHistory.imagePaths.map((historyImage, index) =>
+                        historyImage.url ? (
+                          <figure key={`${historyImage.path}-${index}`}>
+                            <img
+                              src={historyImage.url}
+                              alt={`原始題目圖片 ${index + 1}`}
+                            />
+                            <figcaption>圖片 {index + 1}</figcaption>
+                          </figure>
+                        ) : null,
+                      )}
+                    </div>
+                  )}
+
+                  {(selectedHistory.referenceAnswer ||
+                    selectedHistory.questionNote) && (
+                    <div className="student-history-context-grid">
+                      {selectedHistory.referenceAnswer && (
+                        <div>
+                          <span>標準答案</span>
+                          <strong>{selectedHistory.referenceAnswer}</strong>
+                        </div>
+                      )}
+
+                      {selectedHistory.questionNote && (
+                        <div>
+                          <span>學生補充</span>
+                          <strong>{selectedHistory.questionNote}</strong>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  <section className="student-history-answer">
+                    <div className="hh-eyebrow">FINAL ANSWER</div>
+                    <span>AI 最終答案</span>
+                    <strong>{selectedHistory.answer || "—"}</strong>
+                  </section>
+
+                  <section className="student-history-analysis-block">
+                    <div className="student-result-section-head">
+                      <div className="student-result-section-number hh-number">01</div>
+                      <div>
+                        <div className="hh-eyebrow">CONCEPT ANALYSIS</div>
+                        <h3 className="hh-display">觀念解析</h3>
+                      </div>
+                    </div>
+
+                    <ScienceText
+                      text={selectedHistory.explanation}
+                      annotations={selectedHistory.annotations}
+                      onAnnotationClick={setSelectedAnnotation}
+                    />
+                  </section>
+
+                  {selectedHistory.options && (
+                    <section className="student-history-analysis-block">
+                      <div className="student-result-section-head">
+                        <div className="student-result-section-number hh-number">02</div>
+                        <div>
+                          <div className="hh-eyebrow">OPTION ANALYSIS</div>
+                          <h3 className="hh-display">選項分析</h3>
+                        </div>
+                      </div>
+
+                      <ScienceText
+                        text={formatOptionAnalysis(selectedHistory.options)}
+                        annotations={selectedHistory.annotations}
+                        onAnnotationClick={setSelectedAnnotation}
+                      />
+                    </section>
+                  )}
+                </article>
+              </div>
+            ) : (
+              <>
+                <div className="student-history-result-count">
+                  {historyLoading
+                    ? "正在讀取解題紀錄…"
+                    : `共 ${historyItems.length} 筆紀錄`}
+                </div>
+
+                {!historyLoading && historyItems.length === 0 ? (
+                  <div className="hh-card student-history-empty">
+                    <div className="student-history-symbol">⌁</div>
+                    <h3 className="hh-display">目前沒有符合條件的紀錄</h3>
+                    <p>可以清除篩選條件，或回到開始解題建立新的紀錄。</p>
+                  </div>
+                ) : (
+                  <div className="student-history-list">
+                    {historyItems.map((item) => (
+                      <article
+                        key={item.id}
+                        className="hh-card student-history-item"
+                      >
+                        <button
+                          type="button"
+                          className="student-history-item-main"
+                          onClick={() => setSelectedHistory(item)}
+                        >
+                          <div className="student-history-thumb">
+                            {item.imagePaths[0]?.url ? (
+                              <img
+                                src={item.imagePaths[0].url || ""}
+                                alt="題目縮圖"
+                              />
+                            ) : (
+                              <span>SCI</span>
+                            )}
+                          </div>
+
+                          <div className="student-history-item-content">
+                            <div className="student-history-meta-row">
+                              <span>{historySubjectLabel(item.subject)}</span>
+                              <span>{formatHistoryDate(item.createdAt)}</span>
+                            </div>
+
+                            <strong className="student-history-item-answer">
+                              {item.answer || "查看完整解析"}
+                            </strong>
+
+                            <p>
+                              {item.questionNote ||
+                                item.explanation
+                                  .replace(/\$+/g, "")
+                                  .replace(/\\htmlData\{[^}]+\}\{([^}]+)\}/g, "$1")
+                                  .slice(0, 90) ||
+                                "點擊查看完整解題紀錄"}
+                            </p>
+
+                            <div className="student-history-item-footer">
+                              <span>
+                                {item.imagePaths.length
+                                  ? `${item.imagePaths.length} 張圖片`
+                                  : "舊版紀錄"}
+                              </span>
+
+                              {item.referenceAnswer && (
+                                <span>有標準答案</span>
+                              )}
+                            </div>
+                          </div>
+                        </button>
+
+                        <button
+                          type="button"
+                          aria-label={item.favorite ? "取消收藏" : "加入收藏"}
+                          className={`student-history-star ${
+                            item.favorite ? "active" : ""
+                          }`}
+                          disabled={historyFavoriteBusyId === item.id}
+                          onClick={() => void toggleHistoryFavorite(item)}
+                        >
+                          {item.favorite ? "★" : "☆"}
+                        </button>
+                      </article>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+          </section>
+        )}
 
         <footer className="student-footer">
           <div className="hh-eyebrow">H.H. SCIENCE LAB</div>
@@ -1117,7 +2276,7 @@ export default function Home() {
           >
             <div style={{ borderBottom: "2px solid #dce0da", paddingBottom: "18px", marginBottom: "24px" }}>
               <div style={{ fontFamily: '"Source Han Serif TC", "Noto Serif TC", "Songti TC", "PMingLiU", serif', fontSize: "32px", fontWeight: 700, color: "#30463b" }}>H.H. Science Lab 解題實驗室</div>
-              <div style={{ marginTop: "6px", fontSize: "14px", color: "#747c77" }}>拆解步驟，清晰脈絡，訂正錯誤，梳理思路</div>
+              <div style={{ marginTop: "6px", fontSize: "14px", color: "#747c77" }}>拆解步驟，訂正錯誤，清晰脈絡，梳理思路</div>
               {student && <div style={{ marginTop: "10px", fontSize: "13px", color: "#747c77" }}>{student.campus} ｜ {student.name}</div>}
             </div>
 
@@ -1146,13 +2305,13 @@ export default function Home() {
             </div>
 
             <div style={{ background: "#fff", border: "1px solid #dde1db", borderRadius: "14px", padding: "18px", marginBottom: "14px" }}>
-              <div style={{ fontFamily: '"Source Han Serif TC", "Noto Serif TC", "Songti TC", "PMingLiU", serif', fontWeight: 700, fontSize: "18px", color: "#30463b", marginBottom: "8px" }}>此題詳解</div>
+              <div style={{ fontFamily: '"Source Han Serif TC", "Noto Serif TC", "Songti TC", "PMingLiU", serif', fontWeight: 700, fontSize: "18px", color: "#30463b", marginBottom: "8px" }}>觀念解析</div>
               <ScienceText text={solveData.explanation} stripAnnotations />
             </div>
 
             {solveData.options && (
               <div style={{ background: "#fff", border: "1px solid #eadbd8", borderRadius: "14px", padding: "18px" }}>
-                <div style={{ fontFamily: '"Source Han Serif TC", "Noto Serif TC", "Songti TC", "PMingLiU", serif', fontWeight: 700, fontSize: "18px", color: "#8e5752", marginBottom: "8px" }}>各選項分析</div>
+                <div style={{ fontFamily: '"Source Han Serif TC", "Noto Serif TC", "Songti TC", "PMingLiU", serif', fontWeight: 700, fontSize: "18px", color: "#8e5752", marginBottom: "8px" }}>選項分析</div>
                 <ScienceText text={solveData.options} stripAnnotations />
               </div>
             )}
@@ -1303,6 +2462,70 @@ export default function Home() {
         .student-subject-earth.student-subject-option-selected { background: color-mix(in srgb, var(--subject-purple-soft) 82%, var(--subject-purple) 18%); border-color: var(--subject-purple); }
         .student-field .hh-input:focus, .student-field .hh-textarea:focus { border-color: var(--student-gold); box-shadow: 0 0 0 3px color-mix(in srgb, var(--student-gold) 16%, transparent); }
         .student-login-button { width: 100%; margin-top: 16px; min-height: 48px; }
+
+        .student-pin-setup-card {
+          position: relative;
+          overflow: hidden;
+          padding: 26px;
+          margin-bottom: 18px;
+        }
+
+        .student-pin-setup-card::before {
+          content: "";
+          position: absolute;
+          width: 220px;
+          height: 220px;
+          right: -90px;
+          top: -110px;
+          border-radius: 999px;
+          background: radial-gradient(circle, rgba(180, 146, 70, 0.12), transparent 68%);
+          pointer-events: none;
+        }
+
+        .student-pin-setup-mark {
+          display: inline-flex;
+          align-items: center;
+          min-height: 26px;
+          padding: 0 10px;
+          margin-bottom: 14px;
+          border-radius: 999px;
+          background: rgba(48, 70, 59, 0.08);
+          color: var(--hh-primary);
+          font-size: 10px;
+          font-weight: 800;
+          letter-spacing: .14em;
+        }
+
+        .student-pin-setup-head {
+          display: flex;
+          justify-content: space-between;
+          gap: 16px;
+          margin-bottom: 20px;
+        }
+
+        .student-pin-setup-title {
+          margin: 4px 0 5px;
+          font-size: 25px;
+        }
+
+        .student-pin-setup-grid {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 12px;
+        }
+
+        .student-pin-setup-note {
+          margin-top: 12px;
+          color: var(--hh-muted);
+          font-size: 12px;
+          line-height: 1.65;
+        }
+
+        .student-pin-setup-button {
+          width: 100%;
+          min-height: 48px;
+          margin-top: 16px;
+        }
         .student-workspace { display: block; }
         .student-panel { padding: 24px 26px; margin-bottom: 14px; transition: opacity 160ms ease; }
         .student-panel-upload { background: var(--surface); }
@@ -1390,7 +2613,8 @@ export default function Home() {
           .student-container { width: min(100% - 24px, 900px); padding-top: 28px; }
           .student-brand-title { font-size: 38px; }
           .student-workspace { display: block; }
-          .student-login-grid { grid-template-columns: 1fr; }
+          .student-login-grid,
+          .student-pin-setup-grid { grid-template-columns: 1fr; }
           .student-welcome-card { align-items: flex-start; flex-direction: column; }
           .student-welcome-actions { width: 100%; justify-content: space-between; }
         }
@@ -1647,6 +2871,938 @@ export default function Home() {
           .student-solve-button,
           .student-primary-action {
             transition: none;
+          }
+        }
+
+
+        .student-app-header {
+          position: sticky;
+          top: 10px;
+          z-index: 80;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 16px;
+          min-height: 64px;
+          margin-bottom: 22px;
+          padding: 9px 12px 9px 18px;
+          border: 1px solid var(--border);
+          border-radius: 20px;
+          background: color-mix(in srgb, var(--surface) 90%, transparent);
+          box-shadow: 0 12px 32px rgba(25, 36, 30, .08);
+          backdrop-filter: blur(18px);
+          -webkit-backdrop-filter: blur(18px);
+        }
+
+        .student-app-brand {
+          display: grid;
+          gap: 1px;
+          padding: 0;
+          border: 0;
+          background: transparent;
+          color: var(--text);
+          text-align: left;
+          cursor: pointer;
+        }
+
+        .student-app-brand-en {
+          font-family: var(--font-display);
+          font-size: 16px;
+          font-weight: 760;
+          letter-spacing: -.015em;
+        }
+
+        .student-app-brand-zh {
+          color: var(--text-muted);
+          font-size: 11px;
+          font-weight: 700;
+          letter-spacing: .08em;
+        }
+
+        .student-app-header-actions {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+
+        .student-menu-button {
+          display: inline-grid;
+          place-content: center;
+          gap: 4px;
+          width: 42px;
+          height: 42px;
+          padding: 0;
+          border: 1px solid var(--border);
+          border-radius: 13px;
+          background: var(--surface);
+          cursor: pointer;
+        }
+
+        .student-menu-button span {
+          display: block;
+          width: 17px;
+          height: 1.5px;
+          border-radius: 99px;
+          background: var(--text);
+        }
+
+        .student-menu-backdrop {
+          position: fixed;
+          inset: 0;
+          z-index: 81;
+          border: 0;
+          background: rgba(12, 17, 14, .18);
+          backdrop-filter: blur(2px);
+        }
+
+        .student-menu-panel {
+          position: absolute;
+          top: calc(100% + 8px);
+          right: 0;
+          z-index: 82;
+          width: min(300px, calc(100vw - 36px));
+          padding: 10px;
+          border: 1px solid var(--border);
+          border-radius: 18px;
+          background: var(--surface);
+          box-shadow: 0 24px 60px rgba(19, 29, 23, .18);
+        }
+
+        .student-menu-panel > button {
+          width: 100%;
+          min-height: 43px;
+          padding: 0 12px;
+          border: 0;
+          border-radius: 11px;
+          background: transparent;
+          color: var(--text);
+          text-align: left;
+          font-weight: 760;
+          cursor: pointer;
+        }
+
+        .student-menu-panel > button:hover,
+        .student-menu-panel > button.active {
+          background: color-mix(in srgb, var(--primary) 9%, var(--surface));
+          color: var(--primary);
+        }
+
+        .student-menu-panel > button.student-menu-logout {
+          color: #9d493f;
+        }
+
+        .student-menu-separator {
+          height: 1px;
+          margin: 7px 4px;
+          background: var(--border);
+        }
+
+        .student-menu-account {
+          display: grid;
+          gap: 2px;
+          padding: 9px 12px;
+        }
+
+        .student-menu-account strong {
+          font-size: 12px;
+        }
+
+        .student-menu-account span {
+          color: var(--text-muted);
+          font-size: 11px;
+        }
+
+        .student-menu-theme {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 6px 12px;
+          color: var(--text-muted);
+          font-size: 11px;
+          font-weight: 700;
+        }
+
+        .student-brand-intro {
+          margin: 0 4px 22px;
+        }
+
+        .student-brand-intro h1 {
+          margin: 5px 0 4px;
+          font-size: clamp(25px, 4vw, 38px);
+        }
+
+        .student-brand-intro p {
+          margin: 0;
+          color: var(--text-muted);
+          font-size: 13px;
+          letter-spacing: .02em;
+        }
+
+        .student-upload-zone-compact {
+          min-height: 150px;
+        }
+
+        .student-image-list {
+          display: grid;
+          gap: 10px;
+          margin-top: 14px;
+        }
+
+        .student-image-card {
+          display: grid;
+          grid-template-columns: 42px 94px minmax(0, 1fr) auto;
+          align-items: center;
+          gap: 12px;
+          padding: 10px;
+          border: 1px solid var(--border);
+          border-radius: 15px;
+          background: color-mix(in srgb, var(--surface) 96%, var(--primary) 4%);
+        }
+
+        .student-image-order {
+          display: grid;
+          place-items: center;
+          width: 36px;
+          height: 36px;
+          border-radius: 11px;
+          background: color-mix(in srgb, var(--primary) 10%, var(--surface));
+          color: var(--primary);
+          font-size: 11px;
+          font-weight: 900;
+        }
+
+        .student-image-card-preview {
+          overflow: hidden;
+          height: 68px;
+          border-radius: 10px;
+          background: var(--surface-soft);
+        }
+
+        .student-image-card-preview img {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+        }
+
+        .student-image-card-info {
+          display: grid;
+          gap: 3px;
+          min-width: 0;
+        }
+
+        .student-image-card-info strong {
+          font-size: 13px;
+        }
+
+        .student-image-card-info span {
+          overflow: hidden;
+          color: var(--text-muted);
+          font-size: 11px;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        .student-image-card-actions {
+          display: flex;
+          gap: 7px;
+        }
+
+        .student-image-card-actions .hh-button-secondary {
+          min-height: 36px;
+          padding: 0 11px;
+        }
+
+        .student-image-delete {
+          min-height: 36px;
+          padding: 0 10px;
+          border: 1px solid color-mix(in srgb, #a9584e 34%, var(--border));
+          border-radius: 10px;
+          background: transparent;
+          color: #a9584e;
+          font-size: 12px;
+          font-weight: 750;
+          cursor: pointer;
+        }
+
+        .student-image-editor {
+          margin-top: 16px;
+          padding: 16px;
+          border: 1px solid color-mix(in srgb, var(--primary) 30%, var(--border));
+          border-radius: 18px;
+          background: color-mix(in srgb, var(--primary) 5%, var(--surface));
+        }
+
+        .student-image-editor-head {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 14px;
+          margin-bottom: 12px;
+        }
+
+        .student-image-editor-head h3 {
+          margin: 4px 0 0;
+          font-size: 18px;
+        }
+
+        .student-editor-tip,
+        .student-upload-limit-note {
+          margin-top: 10px;
+          color: var(--text-muted);
+          font-size: 11px;
+          line-height: 1.6;
+        }
+
+        .student-history-placeholder {
+          display: grid;
+          place-items: center;
+          min-height: 440px;
+          padding: 40px 24px;
+          text-align: center;
+        }
+
+        .student-history-placeholder h2 {
+          margin: 6px 0 8px;
+          font-size: 28px;
+        }
+
+        .student-history-placeholder p {
+          max-width: 560px;
+          margin: 0 0 20px;
+          color: var(--text-muted);
+          line-height: 1.75;
+        }
+
+        .student-history-symbol {
+          display: grid;
+          place-items: center;
+          width: 58px;
+          height: 58px;
+          margin-bottom: 14px;
+          border-radius: 18px;
+          background: color-mix(in srgb, var(--primary) 9%, var(--surface));
+          color: var(--primary);
+          font-size: 28px;
+        }
+
+        @media (max-width: 720px) {
+          .student-container {
+            padding-top: 4px;
+          }
+
+          .student-app-header {
+            top: 6px;
+            min-height: 58px;
+            margin-bottom: 18px;
+            padding: 8px 9px 8px 13px;
+            border-radius: 17px;
+          }
+
+          .student-desktop-theme {
+            display: none;
+          }
+
+          .student-brand-intro {
+            margin-left: 1px;
+            margin-right: 1px;
+          }
+
+          .student-brand-intro h1 {
+            font-size: 25px;
+          }
+
+          .student-image-card {
+            grid-template-columns: 36px 76px minmax(0, 1fr);
+          }
+
+          .student-image-card-actions {
+            grid-column: 2 / -1;
+          }
+
+          .student-image-card-actions > * {
+            flex: 1;
+          }
+
+          .student-image-editor-head {
+            align-items: stretch;
+            flex-direction: column;
+          }
+
+          .student-crop-frame .cropper-container {
+            max-height: 360px;
+          }
+        }
+
+
+        .student-history-shell {
+          display: grid;
+          gap: 16px;
+        }
+
+        .student-history-header {
+          display: flex;
+          align-items: flex-end;
+          justify-content: space-between;
+          gap: 18px;
+          padding: 4px 3px 2px;
+        }
+
+        .student-history-header h2 {
+          margin: 5px 0 5px;
+          font-size: clamp(27px, 4vw, 38px);
+        }
+
+        .student-history-header p {
+          margin: 0;
+          color: var(--text-muted);
+          font-size: 13px;
+        }
+
+        .student-history-filters {
+          padding: 18px;
+        }
+
+        .student-history-filters label {
+          display: grid;
+          gap: 7px;
+        }
+
+        .student-history-filters label > span {
+          color: var(--text-muted);
+          font-size: 11px;
+          font-weight: 800;
+        }
+
+        .student-history-search {
+          margin-bottom: 12px;
+        }
+
+        .student-history-filter-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr 1fr .9fr;
+          gap: 10px;
+        }
+
+        .student-history-favorite-filter button {
+          min-height: 44px;
+          border: 1px solid var(--border);
+          border-radius: 12px;
+          background: var(--surface);
+          color: var(--text-muted);
+          font-weight: 800;
+          cursor: pointer;
+        }
+
+        .student-history-favorite-filter button.active {
+          border-color: color-mix(in srgb, #b08a36 50%, var(--border));
+          background: color-mix(in srgb, #b08a36 8%, var(--surface));
+          color: #9a7629;
+        }
+
+        .student-history-filter-actions {
+          display: flex;
+          gap: 9px;
+          margin-top: 14px;
+        }
+
+        .student-history-result-count {
+          padding: 0 3px;
+          color: var(--text-muted);
+          font-size: 12px;
+          font-weight: 700;
+        }
+
+        .student-history-list {
+          display: grid;
+          gap: 10px;
+        }
+
+        .student-history-item {
+          position: relative;
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) 48px;
+          gap: 4px;
+          padding: 8px;
+        }
+
+        .student-history-item-main {
+          display: grid;
+          grid-template-columns: 112px minmax(0, 1fr);
+          gap: 14px;
+          min-width: 0;
+          padding: 6px;
+          border: 0;
+          background: transparent;
+          color: inherit;
+          text-align: left;
+          cursor: pointer;
+        }
+
+        .student-history-thumb {
+          display: grid;
+          place-items: center;
+          overflow: hidden;
+          min-height: 96px;
+          border-radius: 13px;
+          background: color-mix(in srgb, var(--primary) 8%, var(--surface-soft));
+          color: var(--primary);
+          font-size: 12px;
+          font-weight: 900;
+          letter-spacing: .12em;
+        }
+
+        .student-history-thumb img {
+          width: 100%;
+          height: 100%;
+          min-height: 96px;
+          object-fit: cover;
+        }
+
+        .student-history-item-content {
+          display: grid;
+          align-content: center;
+          gap: 7px;
+          min-width: 0;
+        }
+
+        .student-history-meta-row {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 7px;
+          color: var(--text-muted);
+          font-size: 10px;
+          font-weight: 800;
+        }
+
+        .student-history-meta-row span:first-child {
+          color: var(--primary);
+        }
+
+        .student-history-item-answer {
+          overflow: hidden;
+          font-size: 16px;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        .student-history-item-content p {
+          display: -webkit-box;
+          overflow: hidden;
+          margin: 0;
+          color: var(--text-muted);
+          font-size: 12px;
+          line-height: 1.55;
+          -webkit-line-clamp: 2;
+          -webkit-box-orient: vertical;
+        }
+
+        .student-history-item-footer {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 7px;
+        }
+
+        .student-history-item-footer span {
+          padding: 3px 7px;
+          border-radius: 999px;
+          background: var(--surface-soft);
+          color: var(--text-muted);
+          font-size: 9px;
+          font-weight: 800;
+        }
+
+        .student-history-star {
+          align-self: start;
+          width: 42px;
+          height: 42px;
+          margin-top: 5px;
+          border: 0;
+          border-radius: 12px;
+          background: transparent;
+          color: var(--text-muted);
+          font-size: 21px;
+          cursor: pointer;
+        }
+
+        .student-history-star.active,
+        .student-favorite-button.active {
+          color: #ad842b;
+        }
+
+        .student-history-empty {
+          display: grid;
+          place-items: center;
+          min-height: 320px;
+          padding: 32px;
+          text-align: center;
+        }
+
+        .student-history-empty h3 {
+          margin: 5px 0;
+        }
+
+        .student-history-empty p {
+          color: var(--text-muted);
+        }
+
+        .student-history-back {
+          margin-bottom: 10px;
+          padding: 0;
+          border: 0;
+          background: transparent;
+          color: var(--primary);
+          font-size: 12px;
+          font-weight: 800;
+          cursor: pointer;
+        }
+
+        .student-history-detail {
+          padding: 22px;
+        }
+
+        .student-history-detail-head {
+          display: flex;
+          align-items: flex-start;
+          justify-content: space-between;
+          gap: 16px;
+          margin-bottom: 18px;
+        }
+
+        .student-history-detail-head h3 {
+          margin: 5px 0 0;
+          font-size: 27px;
+        }
+
+        .student-favorite-button {
+          min-height: 39px;
+          padding: 0 12px;
+          border: 1px solid var(--border);
+          border-radius: 12px;
+          background: var(--surface);
+          color: var(--text-muted);
+          font-weight: 800;
+          cursor: pointer;
+        }
+
+        .student-history-images {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+          gap: 10px;
+          margin-bottom: 18px;
+        }
+
+        .student-history-images figure {
+          overflow: hidden;
+          margin: 0;
+          border: 1px solid var(--border);
+          border-radius: 14px;
+          background: var(--surface-soft);
+        }
+
+        .student-history-images img {
+          display: block;
+          width: 100%;
+          max-height: 390px;
+          object-fit: contain;
+          background: #fff;
+        }
+
+        .student-history-images figcaption {
+          padding: 7px 10px;
+          color: var(--text-muted);
+          font-size: 10px;
+          font-weight: 700;
+        }
+
+        .student-history-context-grid {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 10px;
+          margin-bottom: 15px;
+        }
+
+        .student-history-context-grid > div {
+          display: grid;
+          gap: 4px;
+          padding: 13px 14px;
+          border: 1px solid var(--border);
+          border-radius: 13px;
+        }
+
+        .student-history-context-grid span,
+        .student-history-answer > span {
+          color: var(--text-muted);
+          font-size: 10px;
+          font-weight: 800;
+        }
+
+        .student-history-answer {
+          display: grid;
+          gap: 6px;
+          margin-bottom: 16px;
+          padding: 16px;
+          border-radius: 15px;
+          background: color-mix(in srgb, var(--primary) 8%, var(--surface));
+        }
+
+        .student-history-answer strong {
+          color: var(--primary);
+          font-size: 24px;
+        }
+
+        .student-history-analysis-block {
+          padding: 18px 0;
+          border-top: 1px solid var(--border);
+        }
+
+        @media (max-width: 760px) {
+          .student-history-header {
+            align-items: stretch;
+            flex-direction: column;
+          }
+
+          .student-history-header .hh-button-primary {
+            width: 100%;
+          }
+
+          .student-history-filter-grid {
+            grid-template-columns: 1fr 1fr;
+          }
+
+          .student-history-item-main {
+            grid-template-columns: 84px minmax(0, 1fr);
+            gap: 10px;
+          }
+
+          .student-history-thumb,
+          .student-history-thumb img {
+            min-height: 86px;
+          }
+
+          .student-history-context-grid {
+            grid-template-columns: 1fr;
+          }
+        }
+
+        @media (max-width: 520px) {
+          .student-history-filter-grid {
+            grid-template-columns: 1fr;
+          }
+
+          .student-history-filter-actions {
+            flex-direction: column;
+          }
+
+          .student-history-filter-actions > * {
+            width: 100%;
+          }
+
+          .student-history-item {
+            grid-template-columns: minmax(0, 1fr) 42px;
+          }
+
+          .student-history-item-main {
+            grid-template-columns: 1fr;
+          }
+
+          .student-history-thumb {
+            min-height: 150px;
+          }
+
+          .student-history-thumb img {
+            min-height: 150px;
+          }
+
+          .student-history-detail {
+            padding: 15px;
+          }
+        }
+
+
+        .student-option-line {
+          padding-left: 2.2em;
+          text-indent: -2.2em;
+        }
+
+        .student-solving-card-v11 {
+          position: relative;
+          display: grid;
+          place-items: center;
+          gap: 16px;
+          overflow: hidden;
+          min-height: 220px;
+          padding: 34px 20px;
+          border: 1px solid color-mix(in srgb, #b6944b 32%, var(--border));
+          background:
+            linear-gradient(
+              110deg,
+              transparent 18%,
+              color-mix(in srgb, #d9bd7c 8%, transparent) 45%,
+              color-mix(in srgb, #d9bd7c 18%, transparent) 50%,
+              color-mix(in srgb, #d9bd7c 8%, transparent) 55%,
+              transparent 82%
+            ),
+            color-mix(in srgb, var(--surface) 96%, #c8aa68 4%);
+          background-size: 240% 100%;
+          animation:
+            student-loading-shimmer 2s linear infinite,
+            student-loading-breathe 2.1s ease-in-out infinite;
+          text-align: center;
+        }
+
+        .student-solving-ring {
+          position: relative;
+          width: 54px;
+          height: 54px;
+          border: 3px solid color-mix(in srgb, #b6944b 22%, var(--border));
+          border-top-color: #b6944b;
+          border-radius: 50%;
+          animation: student-loading-spin .85s linear infinite;
+        }
+
+        .student-solving-ring span {
+          position: absolute;
+          inset: 8px;
+          border: 1px solid color-mix(in srgb, #b6944b 18%, transparent);
+          border-radius: 50%;
+        }
+
+        .student-solving-card-v11 .student-solving-title {
+          margin: 0;
+          font-size: 15px;
+          font-weight: 850;
+          letter-spacing: .08em;
+        }
+
+        .student-followup-panel {
+          display: grid;
+          gap: 14px;
+          padding: 18px;
+          border: 1px solid var(--border);
+          border-radius: 17px;
+          background: color-mix(in srgb, var(--surface) 97%, var(--primary) 3%);
+        }
+
+        .student-followup-head {
+          display: flex;
+          align-items: flex-start;
+          justify-content: space-between;
+          gap: 16px;
+        }
+
+        .student-followup-head h3 {
+          margin: 4px 0 4px;
+          font-size: 20px;
+        }
+
+        .student-followup-head p {
+          margin: 0;
+          color: var(--text-muted);
+          font-size: 11px;
+        }
+
+        .student-followup-count {
+          flex: 0 0 auto;
+          padding: 6px 9px;
+          border-radius: 999px;
+          background: var(--surface-soft);
+          color: var(--text-muted);
+          font-size: 10px;
+          font-weight: 850;
+        }
+
+        .student-followup-thread {
+          display: grid;
+          gap: 10px;
+        }
+
+        .student-followup-item {
+          display: grid;
+          gap: 8px;
+        }
+
+        .student-followup-question,
+        .student-followup-answer {
+          display: grid;
+          grid-template-columns: 30px minmax(0, 1fr);
+          gap: 9px;
+          align-items: start;
+        }
+
+        .student-followup-question > span,
+        .student-followup-answer > span {
+          display: grid;
+          place-items: center;
+          width: 30px;
+          height: 30px;
+          border-radius: 10px;
+          font-size: 10px;
+          font-weight: 900;
+        }
+
+        .student-followup-question > span {
+          background: color-mix(in srgb, var(--primary) 11%, var(--surface));
+          color: var(--primary);
+        }
+
+        .student-followup-answer > span {
+          background: color-mix(in srgb, #b6944b 12%, var(--surface));
+          color: #9a7629;
+        }
+
+        .student-followup-question p,
+        .student-followup-answer .student-science-text {
+          margin: 0;
+          padding: 8px 10px;
+          border-radius: 12px;
+          background: var(--surface-soft);
+          font-size: 12px;
+          line-height: 1.65;
+        }
+
+        .student-followup-input-row {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) auto;
+          gap: 10px;
+          align-items: stretch;
+        }
+
+        .student-followup-input-row .hh-button-primary {
+          min-width: 112px;
+        }
+
+        @keyframes student-loading-spin {
+          to { transform: rotate(360deg); }
+        }
+
+        @keyframes student-loading-shimmer {
+          0% { background-position: 120% 0; }
+          100% { background-position: -120% 0; }
+        }
+
+        @keyframes student-loading-breathe {
+          0%, 100% {
+            box-shadow: 0 0 0 rgba(182, 148, 75, 0);
+          }
+          50% {
+            box-shadow: 0 0 28px color-mix(in srgb, #b6944b 10%, transparent);
+          }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          .student-solving-card-v11,
+          .student-solving-ring {
+            animation: none !important;
+          }
+        }
+
+        @media (max-width: 640px) {
+          .student-followup-input-row {
+            grid-template-columns: 1fr;
+          }
+
+          .student-followup-input-row .hh-button-primary {
+            width: 100%;
           }
         }
 

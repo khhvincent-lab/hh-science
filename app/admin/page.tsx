@@ -1,9 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import katex from "katex";
 import ThemeToggle from "@/components/theme-toggle";
+import "katex/dist/katex.min.css";
 
-type AdminSection = "dashboard" | "students" | "ai" | "pin";
+type AdminSection = "dashboard" | "students" | "ai" | "pin" | "analytics";
 
 type DashboardData = {
   today: {
@@ -63,11 +65,45 @@ type SettingsData = {
   }[];
 };
 
+type SolverMode = "single" | "multi";
+
+type SolverSlot = {
+  provider: "openai" | "gemini";
+  model: string;
+  reasoning: string;
+};
+
+type SolverSettingsData = {
+  mode: SolverMode;
+  primary: SolverSlot;
+  verifier: SolverSlot;
+  arbiter: SolverSlot;
+  scienceGate: SolverSlot;
+  arbitration: {
+    confidenceThreshold: number;
+  };
+  followup: {
+    enabled: boolean;
+    model: SolverSlot;
+    maxPerQuestion: number;
+  };
+  dailyLimit: number;
+};
+
+type RouterModelOption = AIModel & {
+  provider: "openai" | "gemini";
+  reasoningLevels: string[];
+};
+
 type StudentRow = {
   id: string;
   campus: string;
   name: string;
   active: boolean;
+  must_change_pin?: boolean;
+  passwordStatus?: "initial" | "personal";
+  pin_changed_at?: string | null;
+  last_login_at?: string | null;
   created_at: string;
   updated_at: string;
   todayCount: number;
@@ -80,8 +116,210 @@ type StudentSummary = {
   campuses: { campus: string; count: number }[];
 };
 
+type AdminHistoryImage = {
+  path: string;
+  mimeType?: string;
+  order?: number;
+  url?: string | null;
+};
+
+type AdminFollowup = {
+  id: string;
+  question: string;
+  answer: string;
+  provider?: string | null;
+  model?: string | null;
+  createdAt: string;
+};
+
+type AdminHistoryItem = {
+  id: string;
+  subject: string;
+  referenceAnswer: string;
+  questionNote: string;
+  answer: string;
+  explanation: string;
+  options: string;
+  imagePaths: AdminHistoryImage[];
+  favorite: boolean;
+  createdAt: string;
+  primaryProvider?: string | null;
+  primaryModel?: string | null;
+  verifierProvider?: string | null;
+  verifierModel?: string | null;
+  verifierResult?: string | null;
+  arbiterProvider?: string | null;
+  arbiterModel?: string | null;
+  arbitrationTrigger?: string | null;
+  disputeStatus?: string | null;
+  followupCount: number;
+  followups: AdminFollowup[];
+};
+
+type AnalyticsRange = "today" | "7d" | "30d" | "month";
+
+type AnalyticsRoleMetric = {
+  role: string;
+  calls: number;
+  costUsd: number;
+};
+
+type AnalyticsModelMetric = {
+  model: string;
+  provider: string;
+  calls: number;
+  costUsd: number;
+  averageCostUsd: number;
+  primaryReferenceCases: number;
+  primaryMatches: number;
+  primaryConsistencyRate: number | null;
+  verifierCases: number;
+  verifierMajorErrors: number;
+  verifierDisagreementRate: number | null;
+};
+
+type AnalyticsData = {
+  range: AnalyticsRange;
+  label: string;
+  startAt: string;
+  endAt: string;
+  generatedAt: string;
+  totals: {
+    solvedQuestions: number;
+    apiCalls: number;
+    totalCostUsd: number;
+    averageCostPerSolveUsd: number;
+  };
+  roles: AnalyticsRoleMetric[];
+  quality: {
+    referenceCases: number;
+    primaryReferenceMatches: number;
+    primaryReferenceConsistencyRate: number | null;
+    noReferenceCases: number;
+    verifierQuestions: number;
+    verifierActivationRate: number | null;
+    verifierMajorErrors: number;
+    verifierDisagreementRate: number | null;
+    arbiterQuestions: number;
+    arbiterActivationRate: number | null;
+    referenceMismatchArbitrations: number;
+    referenceArbiterSupportsReference: number;
+    referenceArbiterSupportsPrimary: number;
+    referenceArbiterStillInconsistent: number;
+    verifierTriggeredArbitrations: number;
+    disputedQuestions: number;
+  };
+  models: AnalyticsModelMetric[];
+};
+
 const CAMPUSES = ["高雄班", "嘉義班", "員林班"] as const;
 const CAMPUS_FILTERS = ["全部班級", ...CAMPUSES] as const;
+
+function adminSubjectLabel(value: string) {
+  if (value === "physics") return "物理";
+  if (value === "chemistry") return "化學";
+  if (value === "biology") return "生物";
+  if (value === "earth") return "地球科學";
+  return "自然科";
+}
+
+function formatAdminDate(value: string) {
+  try {
+    return new Intl.DateTimeFormat("zh-TW", {
+      timeZone: "Asia/Taipei",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }).format(new Date(value));
+  } catch {
+    return value;
+  }
+}
+
+function adminRenderKatex(formula: string, displayMode: boolean) {
+  try {
+    return katex.renderToString(formula, {
+      displayMode,
+      throwOnError: false,
+      strict: false,
+      trust: (context) => context.command === "\\htmlData",
+    });
+  } catch {
+    return formula;
+  }
+}
+
+function AdminScienceText({ text }: { text: string }) {
+  if (!text) return null;
+
+  const cleaned = text
+    .replace(/\\n/g, "\n")
+    .replace(/\*\*/g, "")
+    .replace(/^---+$/gm, "")
+    .trim();
+
+  const blocks = cleaned.split(/(\$\$[\s\S]*?\$\$)/);
+
+  return (
+    <div className="admin-science-text">
+      {blocks.map((block, blockIndex) => {
+        if (block.startsWith("$$") && block.endsWith("$$")) {
+          return (
+            <div
+              className="admin-display-formula"
+              key={blockIndex}
+              dangerouslySetInnerHTML={{
+                __html: adminRenderKatex(block.slice(2, -2).trim(), true),
+              }}
+            />
+          );
+        }
+
+        return block.split("\n").map((line, lineIndex) => {
+          if (!line.trim()) {
+            return <div className="admin-text-gap" key={`${blockIndex}-${lineIndex}`} />;
+          }
+
+          const pieces = line.split(/(\$[^$\n]+\$)/);
+          const optionLine = /^[✓✕]\s*\([A-Z]\)/.test(line.trim());
+
+          return (
+            <p
+              className={optionLine ? "admin-option-line" : undefined}
+              key={`${blockIndex}-${lineIndex}`}
+            >
+              {pieces.map((piece, pieceIndex) =>
+                piece.startsWith("$") && piece.endsWith("$") ? (
+                  <span
+                    key={pieceIndex}
+                    dangerouslySetInnerHTML={{
+                      __html: adminRenderKatex(piece.slice(1, -1), false),
+                    }}
+                  />
+                ) : (
+                  <span key={pieceIndex}>{piece}</span>
+                ),
+              )}
+            </p>
+          );
+        });
+      })}
+    </div>
+  );
+}
+
+function formatAdminOptions(text: string) {
+  if (!text) return "";
+
+  return text
+    .replace(/^\s*\(([A-Z])\)\s*對[：:]\s*/gm, "✓ ($1) ")
+    .replace(/^\s*\(([A-Z])\)\s*錯[：:]\s*/gm, "✕ ($1) ")
+    .replace(/^\s*([A-Z])[.、]\s*對[：:]\s*/gm, "✓ ($1) ")
+    .replace(/^\s*([A-Z])[.、]\s*錯[：:]\s*/gm, "✕ ($1) ");
+}
 
 export default function AdminPage() {
   const [adminReady, setAdminReady] = useState(false);
@@ -91,6 +329,7 @@ export default function AdminPage() {
   const [loginLoading, setLoginLoading] = useState(false);
 
   const [activeSection, setActiveSection] = useState<AdminSection>("dashboard");
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
   const [dashboardLoading, setDashboardLoading] = useState(false);
   const [dashboardError, setDashboardError] = useState("");
@@ -102,12 +341,14 @@ export default function AdminPage() {
   const [settingsError, setSettingsError] = useState("");
   const [savingAI, setSavingAI] = useState(false);
 
-  const [pinValues, setPinValues] = useState<Record<string, string>>({
-    高雄班: "",
-    嘉義班: "",
-    員林班: "",
-  });
-  const [pinBusyCampus, setPinBusyCampus] = useState<string | null>(null);
+  const [routerModels, setRouterModels] = useState<RouterModelOption[]>([]);
+  const [solverSettings, setSolverSettings] = useState<SolverSettingsData | null>(null);
+  const [solverLoading, setSolverLoading] = useState(false);
+  const [solverSaving, setSolverSaving] = useState(false);
+
+  const [initialStudentPin, setInitialStudentPin] = useState("258258");
+  const [studentAuthLoading, setStudentAuthLoading] = useState(false);
+  const [studentAuthSaving, setStudentAuthSaving] = useState(false);
 
   const [students, setStudents] = useState<StudentRow[]>([]);
   const [studentSummary, setStudentSummary] = useState<StudentSummary>({
@@ -129,6 +370,7 @@ export default function AdminPage() {
   const [newName, setNewName] = useState("");
   const [addingStudent, setAddingStudent] = useState(false);
   const [busyStudentId, setBusyStudentId] = useState<string | null>(null);
+  const [historyStudent, setHistoryStudent] = useState<StudentRow | null>(null);
 
   const loadDashboard = useCallback(async () => {
     setDashboardLoading(true);
@@ -174,6 +416,70 @@ export default function AdminPage() {
     }
   }, []);
 
+  const loadAISolverSettings = useCallback(async () => {
+    setSolverLoading(true);
+    setSettingsError("");
+
+    try {
+      const response = await fetch("/api/admin/ai-settings", {
+        cache: "no-store",
+      });
+      const data = await response.json();
+
+      if (response.status === 401) {
+        setIsLoggedIn(false);
+        return;
+      }
+
+      if (!response.ok) {
+        throw new Error(data.error || "讀取 v1.1 AI Router 設定失敗。");
+      }
+
+      setRouterModels(Array.isArray(data.models) ? data.models : []);
+      setSolverSettings(data.settings ?? null);
+    } catch (error) {
+      setSettingsError(
+        error instanceof Error
+          ? error.message
+          : "讀取 v1.1 AI Router 設定失敗。",
+      );
+    } finally {
+      setSolverLoading(false);
+    }
+  }, []);
+
+  const loadStudentAuthSettings = useCallback(async () => {
+    setStudentAuthLoading(true);
+
+    try {
+      const response = await fetch("/api/admin/student-auth-settings", {
+        cache: "no-store",
+      });
+      const data = await response.json();
+
+      if (response.status === 401) {
+        setIsLoggedIn(false);
+        return;
+      }
+
+      if (!response.ok) {
+        throw new Error(data.error || "讀取學生密碼設定失敗。");
+      }
+
+      if (typeof data.initialPin === "string") {
+        setInitialStudentPin(data.initialPin);
+      }
+    } catch (error) {
+      setSettingsError(
+        error instanceof Error
+          ? error.message
+          : "讀取學生密碼設定失敗。",
+      );
+    } finally {
+      setStudentAuthLoading(false);
+    }
+  }, []);
+
   const loadStudents = useCallback(async () => {
     setStudentsLoading(true);
     setStudentError("");
@@ -209,8 +515,16 @@ export default function AdminPage() {
   }, []);
 
   const loadAllAdminData = useCallback(async () => {
-    await Promise.all([loadDashboard(), loadSettings()]);
-  }, [loadDashboard, loadSettings]);
+    await Promise.all([
+      loadDashboard(),
+      loadAISolverSettings(),
+      loadStudentAuthSettings(),
+    ]);
+  }, [
+    loadDashboard,
+    loadAISolverSettings,
+    loadStudentAuthSettings,
+  ]);
 
   useEffect(() => {
     async function checkSession() {
@@ -311,41 +625,88 @@ export default function AdminPage() {
     }
   }
 
-  async function updateClassPin(campus: string) {
-    const pin = pinValues[campus]?.trim() ?? "";
-
-    if (!/^\d{4}$/.test(pin)) {
-      setSettingsError(`${campus} PIN 必須為四位數字。`);
+  async function saveAISolverSettings() {
+    if (!solverSettings) {
+      setSettingsError("AI Router 設定尚未載入完成。");
       return;
     }
 
-    if (!window.confirm(`確定要立即更新 ${campus} 的班級 PIN 嗎？`)) return;
-
-    setPinBusyCampus(campus);
-    setSettingsError("");
+    setSolverSaving(true);
     setSettingsMessage("");
+    setSettingsError("");
 
     try {
-      const response = await fetch("/api/admin/settings", {
+      const response = await fetch("/api/admin/ai-settings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "update_class_pin",
-          campus,
-          pin,
-        }),
+        body: JSON.stringify(solverSettings),
       });
+
       const data = await response.json();
 
-      if (!response.ok) throw new Error(data.error || "更新班級 PIN 失敗。");
+      if (!response.ok) {
+        throw new Error(data.error || "儲存 AI Router 設定失敗。");
+      }
 
-      setPinValues((current) => ({ ...current, [campus]: "" }));
-      setSettingsMessage(`${campus} 班級 PIN 已更新。`);
-      await loadSettings();
+      setSolverSettings(data.settings);
+      setSettingsMessage("v1.1 AI Router 設定已更新，下一題立即生效。");
+      await Promise.all([loadDashboard(), loadAISolverSettings()]);
     } catch (error) {
-      setSettingsError(error instanceof Error ? error.message : "更新班級 PIN 失敗。");
+      setSettingsError(
+        error instanceof Error
+          ? error.message
+          : "儲存 AI Router 設定失敗。",
+      );
     } finally {
-      setPinBusyCampus(null);
+      setSolverSaving(false);
+    }
+  }
+
+  async function saveInitialStudentPin() {
+    const pin = initialStudentPin.trim();
+
+    if (!/^\d{4,6}$/.test(pin)) {
+      setSettingsError("學生初始密碼必須為 4～6 位數字。");
+      return;
+    }
+
+    if (
+      !window.confirm(
+        `確定要把共用初始密碼更新為 ${pin} 嗎？\n\n注意：已設定個人密碼的學生不受影響；之後新增學生或老師重設密碼時會使用新的初始密碼。`,
+      )
+    ) {
+      return;
+    }
+
+    setStudentAuthSaving(true);
+    setSettingsMessage("");
+    setSettingsError("");
+
+    try {
+      const response = await fetch("/api/admin/student-auth-settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ initialPin: pin }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "更新學生初始密碼失敗。");
+      }
+
+      setInitialStudentPin(data.initialPin);
+      setSettingsMessage(
+        `學生共用初始密碼已更新為 ${data.initialPin}。已設定個人密碼的學生不受影響。`,
+      );
+    } catch (error) {
+      setSettingsError(
+        error instanceof Error
+          ? error.message
+          : "更新學生初始密碼失敗。",
+      );
+    } finally {
+      setStudentAuthSaving(false);
     }
   }
 
@@ -451,6 +812,51 @@ export default function AdminPage() {
     }
   }
 
+  async function resetStudentPin(student: StudentRow) {
+    if (
+      !window.confirm(
+        `確定要重設「${student.campus}｜${student.name}」的登入密碼嗎？\n\n重設後會恢復成共用初始密碼，學生下次登入時必須重新設定自己的個人密碼。`,
+      )
+    ) {
+      return;
+    }
+
+    setBusyStudentId(student.id);
+    setStudentError("");
+    setStudentMessage("");
+
+    try {
+      const response = await fetch("/api/admin/students", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: student.id,
+          action: "reset_pin",
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "重設學生密碼失敗。");
+      }
+
+      setStudentMessage(
+        `${student.name} 的登入密碼已重設為初始密碼 ${data.initialPin}，下次登入會強制重新設定個人密碼。`,
+      );
+
+      await loadStudents();
+    } catch (error) {
+      setStudentError(
+        error instanceof Error
+          ? error.message
+          : "重設學生密碼失敗。",
+      );
+    } finally {
+      setBusyStudentId(null);
+    }
+  }
+
   const filteredStudents = useMemo(() => {
     const keyword = studentQuery.trim().toLowerCase();
 
@@ -500,7 +906,7 @@ export default function AdminPage() {
           <div className="admin-login-brand">
             <div className="hh-eyebrow">H.H. SCIENCE LAB · ADMIN</div>
             <h1 className="hh-display admin-login-title">教師管理中心</h1>
-            <p>管理 AI 解題、班級 PIN、學生名單與使用成本。</p>
+            <p>管理 AI 解題、學生帳號密碼、學生名單與使用成本。</p>
           </div>
 
           <label className="admin-field">
@@ -534,7 +940,42 @@ export default function AdminPage() {
 
   return (
     <main className="admin-shell">
-      <aside className="admin-sidebar">
+      <header className="admin-mobile-header">
+        <button
+          type="button"
+          className="admin-mobile-brand"
+          onClick={() => {
+            setActiveSection("dashboard");
+            setMobileMenuOpen(false);
+          }}
+        >
+          <span className="hh-display">教師管理中心</span>
+          <small>H.H. SCIENCE LAB</small>
+        </button>
+
+        <button
+          type="button"
+          className="admin-mobile-menu-button"
+          aria-label="開啟教師管理選單"
+          aria-expanded={mobileMenuOpen}
+          onClick={() => setMobileMenuOpen((current) => !current)}
+        >
+          <span />
+          <span />
+          <span />
+        </button>
+      </header>
+
+      {mobileMenuOpen && (
+        <button
+          type="button"
+          className="admin-mobile-backdrop"
+          aria-label="關閉選單"
+          onClick={() => setMobileMenuOpen(false)}
+        />
+      )}
+
+      <aside className={`admin-sidebar ${mobileMenuOpen ? "mobile-open" : ""}`}>
         <div className="admin-sidebar-brand">
           <div className="hh-eyebrow">H.H. SCIENCE LAB</div>
           <div className="hh-display admin-sidebar-title">教師管理中心</div>
@@ -545,30 +986,40 @@ export default function AdminPage() {
           <NavButton
             active={activeSection === "dashboard"}
             icon="01"
-            label="總覽"
-            onClick={() => setActiveSection("dashboard")}
+            label="管理總覽"
+            onClick={() => { setActiveSection("dashboard"); setMobileMenuOpen(false); }}
           />
           <NavButton
             active={activeSection === "students"}
             icon="02"
             label="學生管理"
-            onClick={() => setActiveSection("students")}
+            onClick={() => { setActiveSection("students"); setMobileMenuOpen(false); }}
           />
           <NavButton
             active={activeSection === "ai"}
             icon="03"
             label="AI 設定"
-            onClick={() => setActiveSection("ai")}
+            onClick={() => { setActiveSection("ai"); setMobileMenuOpen(false); }}
           />
           <NavButton
             active={activeSection === "pin"}
             icon="04"
-            label="班級 PIN"
-            onClick={() => setActiveSection("pin")}
+            label="學生密碼"
+            onClick={() => { setActiveSection("pin"); setMobileMenuOpen(false); }}
+          />
+          <NavButton
+            active={activeSection === "analytics"}
+            icon="05"
+            label="AI 數據分析"
+            onClick={() => { setActiveSection("analytics"); setMobileMenuOpen(false); }}
           />
         </nav>
 
         <div className="admin-sidebar-footer">
+          <div className="admin-sidebar-theme-row">
+            <span>外觀</span>
+            <ThemeToggle />
+          </div>
           <a className="admin-sidebar-link" href="/">
             ← 返回學生端
           </a>
@@ -586,7 +1037,6 @@ export default function AdminPage() {
           </div>
 
           <div className="admin-topbar-actions">
-            <ThemeToggle />
             <button
               type="button"
               className="hh-button-secondary"
@@ -606,19 +1056,11 @@ export default function AdminPage() {
               dashboard={dashboard}
               loading={dashboardLoading}
               error={dashboardError}
-              settings={settings}
-              selectedModel={selectedModel}
-              setSelectedModel={setSelectedModel}
-              reasoning={reasoning}
-              setReasoning={setReasoning}
-              savingAI={savingAI}
-              onSaveAI={saveAISettings}
-              settingsMessage={settingsMessage}
-              settingsError={settingsError}
-              pinValues={pinValues}
-              setPinValues={setPinValues}
-              pinBusyCampus={pinBusyCampus}
-              onUpdatePin={updateClassPin}
+              initialStudentPin={initialStudentPin}
+              setInitialStudentPin={setInitialStudentPin}
+              studentAuthLoading={studentAuthLoading}
+              studentAuthSaving={studentAuthSaving}
+              onSaveInitialStudentPin={saveInitialStudentPin}
             />
           )}
 
@@ -648,18 +1090,20 @@ export default function AdminPage() {
               busyStudentId={busyStudentId}
               toggleStudent={toggleStudent}
               resetStudentUsage={resetStudentUsage}
+              resetStudentPin={resetStudentPin}
+              dailyLimit={solverSettings?.dailyLimit ?? 10}
+              viewStudentHistory={setHistoryStudent}
             />
           )}
 
           {activeSection === "ai" && (
             <AISection
-              settings={settings}
-              selectedModel={selectedModel}
-              setSelectedModel={setSelectedModel}
-              reasoning={reasoning}
-              setReasoning={setReasoning}
-              saving={savingAI}
-              onSave={saveAISettings}
+              models={routerModels}
+              settings={solverSettings}
+              setSettings={setSolverSettings}
+              loading={solverLoading}
+              saving={solverSaving}
+              onSave={saveAISolverSettings}
               message={settingsMessage}
               error={settingsError}
             />
@@ -667,17 +1111,28 @@ export default function AdminPage() {
 
           {activeSection === "pin" && (
             <PinSection
-              settings={settings}
-              pinValues={pinValues}
-              setPinValues={setPinValues}
-              busyCampus={pinBusyCampus}
-              onUpdate={updateClassPin}
+              initialPin={initialStudentPin}
+              setInitialPin={setInitialStudentPin}
+              loading={studentAuthLoading}
+              saving={studentAuthSaving}
+              onSave={saveInitialStudentPin}
               message={settingsMessage}
               error={settingsError}
             />
           )}
+
+          {activeSection === "analytics" && (
+            <AnalyticsSection />
+          )}
         </div>
       </section>
+
+      {historyStudent && (
+        <AdminStudentHistoryPanel
+          student={historyStudent}
+          onClose={() => setHistoryStudent(null)}
+        />
+      )}
 
       <style jsx global>{adminStyles}</style>
     </main>
@@ -688,36 +1143,20 @@ function DashboardSection({
   dashboard,
   loading,
   error,
-  settings,
-  selectedModel,
-  setSelectedModel,
-  reasoning,
-  setReasoning,
-  savingAI,
-  onSaveAI,
-  settingsMessage,
-  settingsError,
-  pinValues,
-  setPinValues,
-  pinBusyCampus,
-  onUpdatePin,
+  initialStudentPin,
+  setInitialStudentPin,
+  studentAuthLoading,
+  studentAuthSaving,
+  onSaveInitialStudentPin,
 }: {
   dashboard: DashboardData | null;
   loading: boolean;
   error: string;
-  settings: SettingsData | null;
-  selectedModel: string;
-  setSelectedModel: (value: string) => void;
-  reasoning: string;
-  setReasoning: (value: string) => void;
-  savingAI: boolean;
-  onSaveAI: () => Promise<void>;
-  settingsMessage: string;
-  settingsError: string;
-  pinValues: Record<string, string>;
-  setPinValues: React.Dispatch<React.SetStateAction<Record<string, string>>>;
-  pinBusyCampus: string | null;
-  onUpdatePin: (campus: string) => Promise<void>;
+  initialStudentPin: string;
+  setInitialStudentPin: (value: string) => void;
+  studentAuthLoading: boolean;
+  studentAuthSaving: boolean;
+  onSaveInitialStudentPin: () => Promise<void>;
 }) {
   if (loading && !dashboard) {
     return <div className="hh-card admin-state-card">正在讀取管理資料…</div>;
@@ -729,11 +1168,6 @@ function DashboardSection({
 
   if (!dashboard) return null;
 
-  const models = settings?.models ?? [
-    { id: "gpt-5.6-luna", name: "GPT-5.6 Luna", description: "高流量／低成本" },
-    { id: "gpt-5.6-terra", name: "GPT-5.6 Terra", description: "品質與成本平衡" },
-    { id: "gpt-5.6-sol", name: "GPT-5.6 Sol", description: "最高品質" },
-  ];
 
   return (
     <div className="admin-stack admin-dashboard-stack">
@@ -804,150 +1238,53 @@ function DashboardSection({
         </div>
       </section>
 
-      <section className="hh-card admin-panel admin-ai-control-panel">
-        <div className="admin-section-head">
-          <div>
-            <div className="hh-eyebrow">AI CONTROL</div>
-            <h2 className="hh-display">AI 模型與推理強度</h2>
-            <p>直接在總覽切換所有學生下一題所使用的模型與推理深度。</p>
-          </div>
-
-          <div className="admin-current-model-mini">
-            <span>目前模型</span>
-            <strong>{dashboard.ai.modelName}</strong>
-          </div>
-        </div>
-
-        <div className="admin-overview-ai-grid">
-          <div className="admin-overview-ai-block">
-            <div className="admin-control-label">模型</div>
-            <div className="admin-model-grid overview-model-grid">
-              {models.map((model) => (
-                <button
-                  type="button"
-                  key={model.id}
-                  className={`admin-model-card model-${model.id.split("-").at(-1)} ${
-                    selectedModel === model.id ? "selected" : ""
-                  }`}
-                  onClick={() => setSelectedModel(model.id)}
-                >
-                  <div className="admin-model-top">
-                    <span>{model.name}</span>
-                    {selectedModel === model.id && <b>已選取</b>}
-                  </div>
-                  <p>{model.description}</p>
-                  {typeof model.inputPrice === "number" && (
-                    <small>
-                      Input ${model.inputPrice}/M · Output ${model.outputPrice}/M
-                    </small>
-                  )}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="admin-overview-ai-block">
-            <div className="admin-control-label">推理強度</div>
-            <div className="admin-segmented overview-reasoning">
-              {[
-                ["low", "快速", "速度優先"],
-                ["medium", "標準", "日常建議"],
-                ["high", "深度", "複雜題目"],
-              ].map(([value, label, note]) => (
-                <button
-                  type="button"
-                  key={value}
-                  className={reasoning === value ? "active" : ""}
-                  onClick={() => setReasoning(value)}
-                >
-                  <strong>{label}</strong>
-                  <span>{note}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {(settingsMessage || settingsError) && (
-          <div className={`admin-notice ${settingsError ? "danger" : "success"}`}>
-            {settingsError || settingsMessage}
-          </div>
-        )}
-
-        <div className="admin-save-row overview-save-row">
-          <button
-            type="button"
-            className="hh-button-primary"
-            disabled={savingAI}
-            onClick={() => void onSaveAI()}
-          >
-            {savingAI ? "儲存中…" : "套用 AI 設定"}
-          </button>
-        </div>
-      </section>
-
       <section className="hh-card admin-panel admin-pin-overview-panel">
         <div className="admin-section-head">
           <div>
-            <div className="hh-eyebrow">CLASS ACCESS</div>
-            <h2 className="hh-display">班級 PIN</h2>
-            <p>直接在總覽更新各班共用的四位數登入 PIN。</p>
+            <div className="hh-eyebrow">STUDENT ACCESS</div>
+            <h2 className="hh-display">學生初始密碼</h2>
+            <p>新生第一次登入與老師重設密碼後，都會使用這組共用初始密碼。</p>
           </div>
         </div>
 
-        <div className="admin-pin-grid overview-pin-grid">
-          {CAMPUSES.map((campus) => {
-            const info = settings?.classPins?.find(
-              (item) => item.campus === campus,
-            );
+        <div className="admin-pin-card">
+          <div className="admin-pin-head">
+            <div>
+              <strong>共用初始密碼</strong>
+              <span>學生首次登入後會強制改成個人 4～6 位密碼</span>
+            </div>
+            <div className="admin-pin-status">SECURE FLOW</div>
+          </div>
 
-            return (
-              <article className={`admin-pin-card pin-${campus}`} key={campus}>
-                <div className="admin-pin-head">
-                  <div>
-                    <strong>{campus}</strong>
-                    <span>{info?.configured ? "目前已設定" : "尚未設定"}</span>
-                  </div>
-                  <div className="admin-pin-status">
-                    {info?.configured ? "ACTIVE" : "NOT SET"}
-                  </div>
-                </div>
+          <div className="admin-pin-controls">
+            <input
+              className="hh-input"
+              type="text"
+              inputMode="numeric"
+              maxLength={6}
+              value={initialStudentPin}
+              disabled={studentAuthLoading || studentAuthSaving}
+              onChange={(event) =>
+                setInitialStudentPin(
+                  event.target.value.replace(/\D/g, "").slice(0, 6),
+                )
+              }
+              placeholder="4～6 位初始密碼"
+            />
 
-                {info?.validFrom && (
-                  <div className="admin-pin-date">
-                    {info.validFrom} ～ {info.validUntil || "—"}
-                  </div>
-                )}
+            <button
+              type="button"
+              className="hh-button-primary"
+              disabled={studentAuthLoading || studentAuthSaving}
+              onClick={() => void onSaveInitialStudentPin()}
+            >
+              {studentAuthSaving ? "儲存中…" : "更新初始密碼"}
+            </button>
+          </div>
 
-                <div className="admin-pin-controls">
-                  <input
-                    className="hh-input"
-                    type="password"
-                    inputMode="numeric"
-                    maxLength={4}
-                    value={pinValues[campus] || ""}
-                    onChange={(event) =>
-                      setPinValues((current) => ({
-                        ...current,
-                        [campus]: event.target.value
-                          .replace(/\D/g, "")
-                          .slice(0, 4),
-                      }))
-                    }
-                    placeholder="新的四位數 PIN"
-                  />
-                  <button
-                    type="button"
-                    className="hh-button-primary"
-                    disabled={pinBusyCampus === campus}
-                    onClick={() => void onUpdatePin(campus)}
-                  >
-                    {pinBusyCampus === campus ? "更新中…" : "更新 PIN"}
-                  </button>
-                </div>
-              </article>
-            );
-          })}
+          <div className="admin-pin-date">
+            修改初始密碼不會改掉已完成個人密碼設定的學生；只影響新增學生與之後被老師重設密碼的帳號。
+          </div>
         </div>
       </section>
 
@@ -981,6 +1318,9 @@ function StudentsSection(props: {
   busyStudentId: string | null;
   toggleStudent: (student: StudentRow) => Promise<void>;
   resetStudentUsage: (student: StudentRow) => Promise<void>;
+  resetStudentPin: (student: StudentRow) => Promise<void>;
+  dailyLimit: number;
+  viewStudentHistory: (student: StudentRow) => void;
 }) {
   const todayTotal = props.allStudents.reduce((sum, student) => sum + student.todayCount, 0);
 
@@ -998,7 +1338,7 @@ function StudentsSection(props: {
           <PanelHeader
             eyebrow="NEW STUDENT"
             title="新增學生"
-            subtitle="班級共用 PIN，因此只需要班級與姓名"
+            subtitle="新增後會套用共用初始密碼；學生第一次登入時必須設定自己的個人密碼"
           />
         </div>
 
@@ -1098,6 +1438,7 @@ function StudentsSection(props: {
                 <th>學生</th>
                 <th>班級</th>
                 <th>今日使用</th>
+                <th>登入密碼</th>
                 <th>狀態</th>
                 <th className="align-right">管理</th>
               </tr>
@@ -1105,7 +1446,7 @@ function StudentsSection(props: {
             <tbody>
               {props.loading && (
                 <tr>
-                  <td colSpan={5}>
+                  <td colSpan={6}>
                     <div className="admin-empty">正在讀取學生名單…</div>
                   </td>
                 </tr>
@@ -1131,16 +1472,30 @@ function StudentsSection(props: {
                     <td>
                       <div className="admin-usage-cell">
                         <span>
-                          <strong>{student.todayCount}</strong> / 10 題
+                          <strong>{student.todayCount}</strong> / {props.dailyLimit} 題
                         </span>
                         <div>
                           <i
                             style={{
-                              width: `${Math.min(100, student.todayCount * 10)}%`,
+                              width: `${Math.min(100, (student.todayCount / Math.max(1, props.dailyLimit)) * 100)}%`,
                             }}
                           />
                         </div>
                       </div>
+                    </td>
+                    <td>
+                      <span
+                        className={`admin-status ${
+                          student.passwordStatus === "personal"
+                            ? "active"
+                            : "inactive"
+                        }`}
+                      >
+                        <i />
+                        {student.passwordStatus === "personal"
+                          ? "個人密碼已設定"
+                          : "待設定／初始密碼"}
+                      </span>
                     </td>
                     <td>
                       <span
@@ -1156,6 +1511,14 @@ function StudentsSection(props: {
                       <div className="admin-student-actions">
                         <button
                           type="button"
+                          className="admin-mini-button history"
+                          onClick={() => props.viewStudentHistory(student)}
+                        >
+                          查看紀錄
+                        </button>
+
+                        <button
+                          type="button"
                           className="admin-mini-button quota"
                           disabled={
                             props.busyStudentId === student.id ||
@@ -1165,7 +1528,7 @@ function StudentsSection(props: {
                           title={
                             student.todayCount === 0
                               ? "今天尚未使用額度"
-                              : "將今日使用量重置為 0 / 10"
+                              : "將今日使用量重置為 0 / 當前每日額度"
                           }
                         >
                           {props.busyStudentId === student.id
@@ -1173,6 +1536,18 @@ function StudentsSection(props: {
                             : student.todayCount === 0
                               ? "額度未使用"
                               : "重置額度"}
+                        </button>
+
+                        <button
+                          type="button"
+                          className="admin-mini-button"
+                          disabled={props.busyStudentId === student.id}
+                          onClick={() => void props.resetStudentPin(student)}
+                          title="恢復成共用初始密碼，並要求學生下次登入重新設定個人密碼"
+                        >
+                          {props.busyStudentId === student.id
+                            ? "處理中…"
+                            : "重設密碼"}
                         </button>
 
                         <button
@@ -1196,7 +1571,7 @@ function StudentsSection(props: {
 
               {!props.loading && props.students.length === 0 && (
                 <tr>
-                  <td colSpan={5}>
+                  <td colSpan={6}>
                     <div className="admin-empty">沒有符合目前條件的學生。</div>
                   </td>
                 </tr>
@@ -1204,126 +1579,908 @@ function StudentsSection(props: {
             </tbody>
           </table>
         </div>
+
+        <div className="admin-student-mobile-list">
+          {props.loading && (
+            <div className="admin-empty">正在讀取學生名單…</div>
+          )}
+
+          {!props.loading && props.students.map((student) => (
+            <article className="admin-student-mobile-card" key={`mobile-${student.id}`}>
+              <div className="admin-student-mobile-head">
+                <div className="admin-student-cell">
+                  <div className="admin-avatar">{student.name.slice(0, 1)}</div>
+                  <div>
+                    <strong>{student.name}</strong>
+                    <span>{student.campus} · {student.active ? "啟用中" : "已停用"}</span>
+                  </div>
+                </div>
+
+                <span className={`admin-status ${student.passwordStatus === "personal" ? "active" : "inactive"}`}>
+                  <i />
+                  {student.passwordStatus === "personal" ? "個人密碼" : "初始密碼"}
+                </span>
+              </div>
+
+              <div className="admin-student-mobile-usage">
+                <div>
+                  <span>今日使用</span>
+                  <strong>{student.todayCount} / {props.dailyLimit} 題</strong>
+                </div>
+                <div className="admin-student-mobile-progress">
+                  <i style={{ width: `${Math.min(100, (student.todayCount / Math.max(1, props.dailyLimit)) * 100)}%` }} />
+                </div>
+              </div>
+
+              <div className="admin-student-mobile-actions">
+                <button
+                  type="button"
+                  className="admin-mini-button history"
+                  onClick={() => props.viewStudentHistory(student)}
+                >
+                  查看紀錄
+                </button>
+
+                <button
+                  type="button"
+                  className="admin-mini-button quota"
+                  disabled={props.busyStudentId === student.id || student.todayCount === 0}
+                  onClick={() => void props.resetStudentUsage(student)}
+                >
+                  {student.todayCount === 0 ? "額度未使用" : "重置額度"}
+                </button>
+
+                <button
+                  type="button"
+                  className="admin-mini-button"
+                  disabled={props.busyStudentId === student.id}
+                  onClick={() => void props.resetStudentPin(student)}
+                >
+                  重設密碼
+                </button>
+
+                <button
+                  type="button"
+                  className={`admin-mini-button ${student.active ? "danger" : "success"}`}
+                  disabled={props.busyStudentId === student.id}
+                  onClick={() => void props.toggleStudent(student)}
+                >
+                  {student.active ? "停用" : "重新啟用"}
+                </button>
+              </div>
+            </article>
+          ))}
+
+          {!props.loading && props.students.length === 0 && (
+            <div className="admin-empty">沒有符合目前條件的學生。</div>
+          )}
+        </div>
       </section>
     </div>
   );
 }
 
+function AdminStudentHistoryPanel({
+  student,
+  onClose,
+}: {
+  student: StudentRow;
+  onClose: () => void;
+}) {
+  const [items, setItems] = useState<AdminHistoryItem[]>([]);
+  const [selected, setSelected] = useState<AdminHistoryItem | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [subject, setSubject] = useState("");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const [keyword, setKeyword] = useState("");
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError("");
+
+    try {
+      const params = new URLSearchParams();
+      if (subject) params.set("subject", subject);
+      if (from) params.set("from", from);
+      if (to) params.set("to", to);
+      if (keyword.trim()) params.set("q", keyword.trim());
+
+      const response = await fetch(
+        `/api/admin/students/${student.id}/history${
+          params.toString() ? `?${params.toString()}` : ""
+        }`,
+        { cache: "no-store" },
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "讀取學生解題紀錄失敗。");
+      }
+
+      setItems(Array.isArray(data.items) ? data.items : []);
+      setSelected(null);
+    } catch (loadError) {
+      setError(
+        loadError instanceof Error
+          ? loadError.message
+          : "讀取學生解題紀錄失敗。",
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, [student.id, subject, from, to, keyword]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  useEffect(() => {
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previous;
+    };
+  }, []);
+
+  function clearFilters() {
+    setSubject("");
+    setFrom("");
+    setTo("");
+    setKeyword("");
+  }
+
+  return (
+    <div className="admin-history-overlay" role="dialog" aria-modal="true">
+      <button
+        type="button"
+        className="admin-history-backdrop"
+        aria-label="關閉學生解題紀錄"
+        onClick={onClose}
+      />
+
+      <section className="admin-history-panel">
+        <header className="admin-history-panel-head">
+          <div className="admin-history-student-identity">
+            <div className="admin-avatar large">{student.name.slice(0, 1)}</div>
+            <div>
+              <div className="hh-eyebrow">STUDENT SOLVE HISTORY</div>
+              <h2 className="hh-display">{student.name}</h2>
+              <p>{student.campus} · 教師檢視模式</p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            className="admin-history-close"
+            onClick={onClose}
+            aria-label="關閉"
+          >
+            ×
+          </button>
+        </header>
+
+        {!selected ? (
+          <>
+            <div className="admin-history-filterbar">
+              <label className="admin-history-search-field">
+                <span>搜尋</span>
+                <input
+                  className="hh-input"
+                  type="search"
+                  value={keyword}
+                  onChange={(event) => setKeyword(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") void load();
+                  }}
+                  placeholder="答案、學生補充、解析…"
+                />
+              </label>
+
+              <label>
+                <span>科目</span>
+                <select
+                  className="hh-select"
+                  value={subject}
+                  onChange={(event) => setSubject(event.target.value)}
+                >
+                  <option value="">全部自然科</option>
+                  <option value="physics">物理</option>
+                  <option value="chemistry">化學</option>
+                  <option value="biology">生物</option>
+                  <option value="earth">地球科學</option>
+                </select>
+              </label>
+
+              <label>
+                <span>開始日期</span>
+                <input
+                  className="hh-input"
+                  type="date"
+                  value={from}
+                  onChange={(event) => setFrom(event.target.value)}
+                />
+              </label>
+
+              <label>
+                <span>結束日期</span>
+                <input
+                  className="hh-input"
+                  type="date"
+                  value={to}
+                  onChange={(event) => setTo(event.target.value)}
+                />
+              </label>
+
+              <div className="admin-history-filter-actions">
+                <button
+                  type="button"
+                  className="hh-button-primary"
+                  disabled={loading}
+                  onClick={() => void load()}
+                >
+                  {loading ? "讀取中…" : "套用"}
+                </button>
+                <button
+                  type="button"
+                  className="hh-button-secondary"
+                  onClick={clearFilters}
+                >
+                  清除
+                </button>
+              </div>
+            </div>
+
+            {error && <div className="admin-notice danger">{error}</div>}
+
+            <div className="admin-history-summary-line">
+              <span>{loading ? "正在讀取…" : `共 ${items.length} 筆解題紀錄`}</span>
+              <span>
+                今日使用 {student.todayCount} 題 · {student.active ? "帳號啟用中" : "帳號已停用"}
+              </span>
+            </div>
+
+            {!loading && items.length === 0 ? (
+              <div className="admin-history-empty-state">
+                <strong>沒有符合條件的解題紀錄</strong>
+                <span>這位學生可能尚未解題，或目前篩選條件沒有結果。</span>
+              </div>
+            ) : (
+              <div className="admin-history-list">
+                {items.map((item) => (
+                  <button
+                    type="button"
+                    className="admin-history-row"
+                    key={item.id}
+                    onClick={() => setSelected(item)}
+                  >
+                    <div className="admin-history-thumb">
+                      {item.imagePaths[0]?.url ? (
+                        <img src={item.imagePaths[0].url || ""} alt="題目縮圖" />
+                      ) : (
+                        <span>SCI</span>
+                      )}
+                    </div>
+
+                    <div className="admin-history-row-main">
+                      <div className="admin-history-row-meta">
+                        <span>{adminSubjectLabel(item.subject)}</span>
+                        <span>{formatAdminDate(item.createdAt)}</span>
+                        {item.favorite && <span className="favorite">★ 學生收藏</span>}
+                      </div>
+
+                      <strong>{item.answer || "查看完整解析"}</strong>
+
+                      <p>
+                        {item.questionNote ||
+                          item.explanation.replace(/\$+/g, "").slice(0, 110) ||
+                          "點擊查看完整解題內容"}
+                      </p>
+
+                      <div className="admin-history-row-tags">
+                        <span>{item.imagePaths.length || 0} 張圖片</span>
+                        {item.referenceAnswer && <span>有標準答案</span>}
+                        {item.followupCount > 0 && (
+                          <span>{item.followupCount} 次追問</span>
+                        )}
+                        {item.primaryModel && <span>{item.primaryModel}</span>}
+                      </div>
+                    </div>
+
+                    <span className="admin-history-chevron">›</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </>
+        ) : (
+          <div className="admin-history-detail">
+            <button
+              type="button"
+              className="admin-history-detail-back"
+              onClick={() => setSelected(null)}
+            >
+              ← 返回 {student.name} 的解題紀錄
+            </button>
+
+            <div className="admin-history-detail-title">
+              <div>
+                <div className="admin-history-row-meta">
+                  <span>{adminSubjectLabel(selected.subject)}</span>
+                  <span>{formatAdminDate(selected.createdAt)}</span>
+                  {selected.favorite && <span className="favorite">★ 學生收藏</span>}
+                </div>
+                <h3 className="hh-display">完整解題內容</h3>
+              </div>
+
+              <div className={`admin-dispute-badge status-${selected.disputeStatus || "normal"}`}>
+                {selected.disputeStatus === "disputed"
+                  ? "仍有爭議"
+                  : selected.disputeStatus === "resolved"
+                    ? "已仲裁"
+                    : "一般"}
+              </div>
+            </div>
+
+            {selected.imagePaths.length > 0 && (
+              <div className="admin-history-images">
+                {selected.imagePaths.map((image, index) =>
+                  image.url ? (
+                    <figure key={`${image.path}-${index}`}>
+                      <img src={image.url} alt={`題目圖片 ${index + 1}`} />
+                      <figcaption>題目圖片 {index + 1}</figcaption>
+                    </figure>
+                  ) : null,
+                )}
+              </div>
+            )}
+
+            <div className="admin-history-context-grid">
+              <article>
+                <span>標準答案</span>
+                <strong>{selected.referenceAnswer || "學生未輸入"}</strong>
+              </article>
+              <article>
+                <span>AI 最終答案</span>
+                <strong>{selected.answer || "—"}</strong>
+              </article>
+              {selected.questionNote && (
+                <article className="wide">
+                  <span>學生補充</span>
+                  <strong>{selected.questionNote}</strong>
+                </article>
+              )}
+            </div>
+
+            <section className="admin-history-analysis-section">
+              <div className="admin-history-analysis-head">
+                <span className="hh-number">01</span>
+                <div>
+                  <div className="hh-eyebrow">CONCEPT ANALYSIS</div>
+                  <h4 className="hh-display">觀念解析</h4>
+                </div>
+              </div>
+              <AdminScienceText text={selected.explanation} />
+            </section>
+
+            {selected.options && (
+              <section className="admin-history-analysis-section">
+                <div className="admin-history-analysis-head">
+                  <span className="hh-number">02</span>
+                  <div>
+                    <div className="hh-eyebrow">OPTION ANALYSIS</div>
+                    <h4 className="hh-display">選項分析</h4>
+                  </div>
+                </div>
+                <AdminScienceText text={formatAdminOptions(selected.options)} />
+              </section>
+            )}
+
+            <section className="admin-history-routing">
+              <div className="admin-history-analysis-head">
+                <span className="hh-number">AI</span>
+                <div>
+                  <div className="hh-eyebrow">MODEL ROUTING</div>
+                  <h4 className="hh-display">本題 AI 路由</h4>
+                </div>
+              </div>
+
+              <div className="admin-history-routing-grid">
+                <RoutingCard
+                  label="PRIMARY"
+                  provider={selected.primaryProvider}
+                  model={selected.primaryModel}
+                />
+                <RoutingCard
+                  label="VERIFIER"
+                  provider={selected.verifierProvider}
+                  model={selected.verifierModel}
+                  detail={selected.verifierResult}
+                />
+                <RoutingCard
+                  label="ARBITER"
+                  provider={selected.arbiterProvider}
+                  model={selected.arbiterModel}
+                  detail={selected.arbitrationTrigger}
+                />
+              </div>
+            </section>
+
+            <section className="admin-history-followups">
+              <div className="admin-history-analysis-head">
+                <span className="hh-number">Q</span>
+                <div>
+                  <div className="hh-eyebrow">FOLLOW-UP</div>
+                  <h4 className="hh-display">學生追問紀錄</h4>
+                </div>
+              </div>
+
+              {selected.followups.length === 0 ? (
+                <div className="admin-history-no-followup">這一題沒有追問紀錄。</div>
+              ) : (
+                <div className="admin-history-followup-list">
+                  {selected.followups.map((followup, index) => (
+                    <article key={followup.id}>
+                      <div className="admin-history-followup-question">
+                        <strong>追問 {index + 1}</strong>
+                        <span>{formatAdminDate(followup.createdAt)}</span>
+                        <p>{followup.question}</p>
+                      </div>
+
+                      <div className="admin-history-followup-answer">
+                        <div>
+                          <strong>AI 回答</strong>
+                          <span>
+                            {[followup.provider, followup.model]
+                              .filter(Boolean)
+                              .join(" · ")}
+                          </span>
+                        </div>
+                        <AdminScienceText text={followup.answer} />
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              )}
+            </section>
+          </div>
+        )}
+      </section>
+    </div>
+  );
+}
+
+function RoutingCard({
+  label,
+  provider,
+  model,
+  detail,
+}: {
+  label: string;
+  provider?: string | null;
+  model?: string | null;
+  detail?: string | null;
+}) {
+  return (
+    <article className="admin-routing-card">
+      <div className="hh-eyebrow">{label}</div>
+      <strong>{model || "未啟動"}</strong>
+      <span>
+        {[provider, detail].filter(Boolean).join(" · ") || "本題未使用此角色"}
+      </span>
+    </article>
+  );
+}
+
+
 function AISection(props: {
-  settings: SettingsData | null;
-  selectedModel: string;
-  setSelectedModel: (value: string) => void;
-  reasoning: string;
-  setReasoning: (value: string) => void;
+  models: RouterModelOption[];
+  settings: SolverSettingsData | null;
+  setSettings: React.Dispatch<React.SetStateAction<SolverSettingsData | null>>;
+  loading: boolean;
   saving: boolean;
   onSave: () => Promise<void>;
   message: string;
   error: string;
 }) {
-  const models = props.settings?.models ?? [
-    {
-      id: "gpt-5.6-luna",
-      name: "GPT-5.6 Luna",
-      description: "高流量／低成本",
-    },
-    {
-      id: "gpt-5.6-terra",
-      name: "GPT-5.6 Terra",
-      description: "品質與成本平衡",
-    },
-    {
-      id: "gpt-5.6-sol",
-      name: "GPT-5.6 Sol",
-      description: "最高品質",
-    },
-  ];
+  if (props.loading || !props.settings) {
+    return (
+      <section className="hh-card admin-panel">
+        <PanelHeader
+          eyebrow="AI ROUTER"
+          title="AI 解題設定"
+          subtitle="正在讀取 v1.1 AI Router 設定…"
+        />
+        <div className="admin-empty">載入中…</div>
+      </section>
+    );
+  }
+
+  const settings = props.settings;
+
+  function patchSettings(
+    updater: (current: SolverSettingsData) => SolverSettingsData,
+  ) {
+    props.setSettings((current) =>
+      current ? updater(current) : current,
+    );
+  }
+
+  function patchSlot(
+    key: "primary" | "verifier" | "arbiter" | "scienceGate",
+    patch: Partial<SolverSlot>,
+  ) {
+    patchSettings((current) => ({
+      ...current,
+      [key]: {
+        ...current[key],
+        ...patch,
+      },
+    }));
+  }
+
+  function patchFollowupModel(patch: Partial<SolverSlot>) {
+    patchSettings((current) => ({
+      ...current,
+      followup: {
+        ...current.followup,
+        model: {
+          ...current.followup.model,
+          ...patch,
+        },
+      },
+    }));
+  }
 
   return (
     <div className="admin-stack">
       <section className="hh-card admin-panel">
         <PanelHeader
-          eyebrow="MODEL CONTROL"
-          title="AI 模型"
-          subtitle="教師端統一控制所有學生解題所使用的模型"
+          eyebrow="ROUTING MODE"
+          title="AI 解題模式"
+          subtitle="單模型適合測試；智慧多模型會依標準答案與驗算結果決定是否啟動仲裁模型"
         />
 
-        <div className="admin-model-grid">
-          {models.map((model) => (
-            <button
-              type="button"
-              key={model.id}
-              className={`admin-model-card model-${model.id.split("-").at(-1)} ${
-                props.selectedModel === model.id ? "selected" : ""
-              }`}
-              onClick={() => props.setSelectedModel(model.id)}
-            >
-              <div className="admin-model-top">
-                <span>{model.name}</span>
-                {props.selectedModel === model.id && <b>目前選擇</b>}
-              </div>
-              <p>{model.description}</p>
-              {typeof model.inputPrice === "number" && (
-                <small>
-                  Input ${model.inputPrice}/M · Output ${model.outputPrice}/M
-                </small>
-              )}
-            </button>
-          ))}
+        <div className="admin-segmented">
+          <button
+            type="button"
+            className={settings.mode === "single" ? "active" : ""}
+            onClick={() =>
+              patchSettings((current) => ({
+                ...current,
+                mode: "single",
+              }))
+            }
+          >
+            <strong>單模型解題</strong>
+            <span>只使用主要解題模型</span>
+          </button>
+
+          <button
+            type="button"
+            className={settings.mode === "multi" ? "active" : ""}
+            onClick={() =>
+              patchSettings((current) => ({
+                ...current,
+                mode: "multi",
+              }))
+            }
+          >
+            <strong>智慧多模型</strong>
+            <span>Primary＋Verifier＋必要時 Arbiter</span>
+          </button>
         </div>
       </section>
 
       <section className="hh-card admin-panel">
         <PanelHeader
-          eyebrow="REASONING"
-          title="推理強度"
-          subtitle="控制模型每題投入的推理深度"
+          eyebrow="MODEL ROUTER"
+          title="模型角色"
+          subtitle="每個角色都可以獨立選擇 OpenAI 或 Gemini 模型與推理強度"
         />
 
-        <div className="admin-segmented">
-          {[
-            ["low", "快速", "速度優先"],
-            ["medium", "標準", "建議日常使用"],
-            ["high", "深度", "複雜題目"],
-          ].map(([value, label, note]) => (
-            <button
-              type="button"
-              key={value}
-              className={props.reasoning === value ? "active" : ""}
-              onClick={() => props.setReasoning(value)}
-            >
-              <strong>{label}</strong>
-              <span>{note}</span>
-            </button>
-          ))}
+        <div className="admin-router-grid">
+          <ModelSlotEditor
+            title="主要解題模型"
+            eyebrow="PRIMARY"
+            description="每一題都會先由這個模型完整解題。"
+            slot={settings.primary}
+            models={props.models}
+            onChange={(patch) => patchSlot("primary", patch)}
+          />
+
+          <ModelSlotEditor
+            title="無標準答案驗算模型"
+            eyebrow="VERIFIER"
+            description="只有學生沒有輸入標準答案時才啟動，負責檢查重大錯誤。"
+            slot={settings.verifier}
+            models={props.models}
+            onChange={(patch) => patchSlot("verifier", patch)}
+          />
+
+          <ModelSlotEditor
+            title="衝突／爭議模型"
+            eyebrow="ARBITER"
+            description="Primary 與標準答案衝突，或 Verifier 高信心判重大錯誤時才啟動。"
+            slot={settings.arbiter}
+            models={props.models}
+            onChange={(patch) => patchSlot("arbiter", patch)}
+          />
+
+          <ModelSlotEditor
+            title="自然科辨識模型"
+            eyebrow="SCIENCE GATE"
+            description="扣除每日額度前，先判斷整組圖片是否屬於自然科。"
+            slot={settings.scienceGate}
+            models={props.models}
+            onChange={(patch) => patchSlot("scienceGate", patch)}
+          />
         </div>
 
-        {(props.message || props.error) && (
-          <div className={`admin-notice ${props.error ? "danger" : "success"}`}>
-            {props.error || props.message}
+        <div className="admin-router-threshold">
+          <div>
+            <strong>Verifier 仲裁門檻</strong>
+            <span>建議 85%，避免弱疑慮造成不必要的 Arbiter 成本。</span>
           </div>
-        )}
 
-        <div className="admin-save-row">
-          <button
-            type="button"
-            className="hh-button-primary"
-            disabled={props.saving}
-            onClick={() => void props.onSave()}
-          >
-            {props.saving ? "儲存中…" : "儲存 AI 設定"}
-          </button>
+          <div className="admin-number-control">
+            <input
+              className="hh-input"
+              type="number"
+              min={50}
+              max={100}
+              step={1}
+              value={settings.arbitration.confidenceThreshold}
+              onChange={(event) => {
+                const value = Number(event.target.value);
+                patchSettings((current) => ({
+                  ...current,
+                  arbitration: {
+                    ...current.arbitration,
+                    confidenceThreshold: Number.isFinite(value)
+                      ? Math.max(50, Math.min(100, Math.round(value)))
+                      : 85,
+                  },
+                }));
+              }}
+            />
+            <span>%</span>
+          </div>
         </div>
       </section>
+
+      <section className="hh-card admin-panel">
+        <PanelHeader
+          eyebrow="FOLLOW-UP"
+          title="學生追問"
+          subtitle="追問不重新跑完整解題 Router，也不扣每日題數"
+        />
+
+        <button
+          type="button"
+          className={`admin-toggle-button ${
+            settings.followup.enabled ? "active" : ""
+          }`}
+          onClick={() =>
+            patchSettings((current) => ({
+              ...current,
+              followup: {
+                ...current.followup,
+                enabled: !current.followup.enabled,
+              },
+            }))
+          }
+        >
+          {settings.followup.enabled ? "追問功能：開啟" : "追問功能：關閉"}
+        </button>
+
+        <div className="admin-followup-grid">
+          <ModelSlotEditor
+            title="追問模型"
+            eyebrow="FOLLOW-UP MODEL"
+            description="建議使用低成本模型，只傳必要文字上下文。"
+            slot={settings.followup.model}
+            models={props.models}
+            disabled={!settings.followup.enabled}
+            onChange={patchFollowupModel}
+          />
+
+          <div className="admin-simple-setting">
+            <div className="hh-eyebrow">FOLLOW-UP LIMIT</div>
+            <h3 className="hh-display">每題追問上限</h3>
+            <p>目前規劃預設每一題最多 3 次追問。</p>
+
+            <div className="admin-number-control">
+              <input
+                className="hh-input"
+                type="number"
+                min={1}
+                max={10}
+                value={settings.followup.maxPerQuestion}
+                disabled={!settings.followup.enabled}
+                onChange={(event) => {
+                  const value = Number(event.target.value);
+                  patchSettings((current) => ({
+                    ...current,
+                    followup: {
+                      ...current.followup,
+                      maxPerQuestion: Number.isFinite(value)
+                        ? Math.max(1, Math.min(10, Math.round(value)))
+                        : 3,
+                    },
+                  }));
+                }}
+              />
+              <span>次／題</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="hh-card admin-panel">
+        <PanelHeader
+          eyebrow="DAILY QUOTA"
+          title="每日解題額度"
+          subtitle="修改後立即生效，不需要重新部署"
+        />
+
+        <div className="admin-quota-control">
+          <div>
+            <strong>每位學生每日可解題數</strong>
+            <span>考前可暫時調成 20、30 題，之後再調回即可。</span>
+          </div>
+
+          <div className="admin-number-control">
+            <input
+              className="hh-input"
+              type="number"
+              min={1}
+              max={100}
+              step={1}
+              value={settings.dailyLimit}
+              onChange={(event) => {
+                const value = Number(event.target.value);
+                patchSettings((current) => ({
+                  ...current,
+                  dailyLimit: Number.isFinite(value)
+                    ? Math.max(1, Math.min(100, Math.round(value)))
+                    : 10,
+                }));
+              }}
+            />
+            <span>題／日</span>
+          </div>
+        </div>
+      </section>
+
+      {(props.message || props.error) && (
+        <div className={`admin-notice ${props.error ? "danger" : "success"}`}>
+          {props.error || props.message}
+        </div>
+      )}
+
+      <div className="admin-save-row">
+        <button
+          type="button"
+          className="hh-button-primary"
+          disabled={props.saving}
+          onClick={() => void props.onSave()}
+        >
+          {props.saving ? "儲存中…" : "儲存 v1.1 AI 設定"}
+        </button>
+      </div>
     </div>
   );
 }
 
+
+function ModelSlotEditor(props: {
+  title: string;
+  eyebrow: string;
+  description: string;
+  slot: SolverSlot;
+  models: RouterModelOption[];
+  onChange: (patch: Partial<SolverSlot>) => void;
+  disabled?: boolean;
+}) {
+  const selectedModel =
+    props.models.find((model) => model.id === props.slot.model) ??
+    props.models[0];
+
+  const reasoningLevels =
+    selectedModel?.reasoningLevels?.length
+      ? selectedModel.reasoningLevels
+      : ["low", "medium", "high"];
+
+  function handleModelChange(modelId: string) {
+    const model = props.models.find((item) => item.id === modelId);
+    if (!model) return;
+
+    const nextReasoning = model.reasoningLevels.includes(props.slot.reasoning)
+      ? props.slot.reasoning
+      : model.reasoningLevels.includes("medium")
+        ? "medium"
+        : model.reasoningLevels[0] || "low";
+
+    props.onChange({
+      model: model.id,
+      provider: model.provider,
+      reasoning: nextReasoning,
+    });
+  }
+
+  return (
+    <article className={`admin-router-card ${props.disabled ? "disabled" : ""}`}>
+      <div className="hh-eyebrow">{props.eyebrow}</div>
+      <h3 className="hh-display">{props.title}</h3>
+      <p>{props.description}</p>
+
+      <label className="admin-router-field">
+        <span>模型</span>
+        <select
+          className="hh-input"
+          value={props.slot.model}
+          disabled={props.disabled}
+          onChange={(event) => handleModelChange(event.target.value)}
+        >
+          {props.models.map((model) => (
+            <option key={model.id} value={model.id}>
+              {model.name} · {model.provider === "gemini" ? "Google" : "OpenAI"}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <div className="admin-router-field">
+        <span>推理強度</span>
+        <div className="admin-reasoning-pills">
+          {reasoningLevels.map((level) => (
+            <button
+              type="button"
+              key={level}
+              disabled={props.disabled}
+              className={props.slot.reasoning === level ? "active" : ""}
+              onClick={() => props.onChange({ reasoning: level })}
+            >
+              {reasoningLabel(level)}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="admin-router-meta">
+        <span>{selectedModel?.description || props.slot.model}</span>
+        {selectedModel && (
+          <small>
+            Input ${selectedModel.inputPrice ?? "—"}/M · Output $
+            {selectedModel.outputPrice ?? "—"}/M
+          </small>
+        )}
+      </div>
+    </article>
+  );
+}
+
+
+function reasoningLabel(value: string) {
+  if (value === "none") return "關閉";
+  if (value === "low") return "快速";
+  if (value === "medium") return "標準";
+  if (value === "high") return "深度";
+  if (value === "xhigh") return "超深度";
+  if (value === "max") return "最大";
+  return value;
+}
+
+
 function PinSection(props: {
-  settings: SettingsData | null;
-  pinValues: Record<string, string>;
-  setPinValues: React.Dispatch<React.SetStateAction<Record<string, string>>>;
-  busyCampus: string | null;
-  onUpdate: (campus: string) => Promise<void>;
+  initialPin: string;
+  setInitialPin: (value: string) => void;
+  loading: boolean;
+  saving: boolean;
+  onSave: () => Promise<void>;
   message: string;
   error: string;
 }) {
@@ -1331,9 +2488,9 @@ function PinSection(props: {
     <div className="admin-stack">
       <section className="hh-card admin-panel">
         <PanelHeader
-          eyebrow="CLASS ACCESS"
-          title="班級 PIN"
-          subtitle="每班共用一組四位數 PIN；更新後會立即套用"
+          eyebrow="STUDENT ACCESS"
+          title="學生登入密碼"
+          subtitle="管理所有學生共用的初始密碼；個人密碼本身不會以明碼顯示"
         />
 
         {(props.message || props.error) && (
@@ -1342,64 +2499,46 @@ function PinSection(props: {
           </div>
         )}
 
-        <div className="admin-pin-grid">
-          {CAMPUSES.map((campus) => {
-            const info = props.settings?.classPins?.find(
-              (item) => item.campus === campus,
-            );
+        <article className="admin-pin-card">
+          <div className="admin-pin-head">
+            <div>
+              <strong>共用初始密碼</strong>
+              <span>新生第一次登入、或老師重設密碼後使用</span>
+            </div>
+            <div className="admin-pin-status">4–6 DIGITS</div>
+          </div>
 
-            return (
-              <article className={`admin-pin-card pin-${campus}`} key={campus}>
-                <div className="admin-pin-head">
-                  <div>
-                    <strong>{campus}</strong>
-                    <span>{info?.configured ? "目前已設定" : "尚未設定"}</span>
-                  </div>
-                  <div className="admin-pin-status">
-                    {info?.configured ? "ACTIVE" : "NOT SET"}
-                  </div>
-                </div>
+          <div className="admin-pin-controls">
+            <input
+              className="hh-input"
+              type="text"
+              inputMode="numeric"
+              maxLength={6}
+              value={props.initialPin}
+              disabled={props.loading || props.saving}
+              onChange={(event) =>
+                props.setInitialPin(
+                  event.target.value.replace(/\D/g, "").slice(0, 6),
+                )
+              }
+              placeholder="4～6 位初始密碼"
+            />
 
-                {info?.validFrom && (
-                  <div className="admin-pin-date">
-                    有效期間：{info.validFrom} ～ {info.validUntil || "—"}
-                  </div>
-                )}
-
-                <div className="admin-pin-controls">
-                  <input
-                    className="hh-input"
-                    type="password"
-                    inputMode="numeric"
-                    maxLength={4}
-                    value={props.pinValues[campus] || ""}
-                    onChange={(event) =>
-                      props.setPinValues((current) => ({
-                        ...current,
-                        [campus]: event.target.value
-                          .replace(/\D/g, "")
-                          .slice(0, 4),
-                      }))
-                    }
-                    placeholder="新的四位數 PIN"
-                  />
-                  <button
-                    type="button"
-                    className="hh-button-primary"
-                    disabled={props.busyCampus === campus}
-                    onClick={() => void props.onUpdate(campus)}
-                  >
-                    {props.busyCampus === campus ? "更新中…" : "更新 PIN"}
-                  </button>
-                </div>
-              </article>
-            );
-          })}
-        </div>
+            <button
+              type="button"
+              className="hh-button-primary"
+              disabled={props.loading || props.saving}
+              onClick={() => void props.onSave()}
+            >
+              {props.saving ? "儲存中…" : "儲存初始密碼"}
+            </button>
+          </div>
+        </article>
       </section>
 
       <div className="admin-notice warning">
-        班級 PIN 是課堂使用的簡易進入門檻，不建議重複使用管理員密碼或其他重要密碼。
+        老師無法查看學生目前的個人密碼。若學生忘記密碼，請到「學生管理」按「重設密碼」；
+        系統會恢復成上方初始密碼，學生下次登入後必須重新設定自己的個人密碼。
       </div>
     </div>
   );
@@ -1427,6 +2566,569 @@ function NavButton({
     </button>
   );
 }
+
+function AnalyticsSection() {
+  const [range, setRange] = useState<AnalyticsRange>("7d");
+  const [data, setData] = useState<AnalyticsData | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const loadAnalytics = useCallback(async () => {
+    setLoading(true);
+    setError("");
+
+    try {
+      const response = await fetch(
+        `/api/admin/analytics?range=${encodeURIComponent(range)}`,
+        {
+          cache: "no-store",
+        },
+      );
+
+      const payload = await response.json();
+
+      if (!response.ok) {
+        throw new Error(payload.error || "讀取 AI 數據分析失敗。");
+      }
+
+      setData(payload);
+    } catch (loadError) {
+      setError(
+        loadError instanceof Error
+          ? loadError.message
+          : "讀取 AI 數據分析失敗。",
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, [range]);
+
+  useEffect(() => {
+    void loadAnalytics();
+  }, [loadAnalytics]);
+
+  const roleMap = useMemo(() => {
+    const result = new Map<string, AnalyticsRoleMetric>();
+    for (const item of data?.roles || []) {
+      result.set(item.role, item);
+    }
+    return result;
+  }, [data]);
+
+  function roleMetric(role: string) {
+    return (
+      roleMap.get(role) || {
+        role,
+        calls: 0,
+        costUsd: 0,
+      }
+    );
+  }
+
+  const ranges: Array<{
+    value: AnalyticsRange;
+    label: string;
+  }> = [
+    { value: "today", label: "今天" },
+    { value: "7d", label: "7 天" },
+    { value: "30d", label: "30 天" },
+    { value: "month", label: "本月" },
+  ];
+
+  const primary = roleMetric("primary");
+  const verifier = roleMetric("verifier");
+  const arbiter = roleMetric("arbiter");
+  const followup = roleMetric("followup");
+  const gate = roleMetric("science_gate");
+
+  return (
+    <div className="admin-stack">
+      <section className="hh-card admin-panel admin-analytics-hero">
+        <div className="admin-analytics-hero-head">
+          <div>
+            <div className="hh-eyebrow">AI ANALYTICS CENTER</div>
+            <h2 className="hh-display">AI 數據分析</h2>
+            <p>
+              成本、模型使用與 Router 品質統計。每個百分比都標示實際分母，避免把不同題型混在一起解讀。
+            </p>
+          </div>
+
+          <button
+            type="button"
+            className="hh-button-secondary"
+            onClick={() => void loadAnalytics()}
+            disabled={loading}
+          >
+            {loading ? "更新中…" : "重新整理"}
+          </button>
+        </div>
+
+        <div className="admin-analytics-range">
+          {ranges.map((item) => (
+            <button
+              key={item.value}
+              type="button"
+              className={range === item.value ? "active" : ""}
+              onClick={() => setRange(item.value)}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+
+        {data && (
+          <div className="admin-analytics-window">
+            統計區間：{data.label}
+          </div>
+        )}
+      </section>
+
+      {error && <div className="admin-notice danger">{error}</div>}
+
+      {!data && loading ? (
+        <section className="hh-card admin-panel admin-analytics-loading">
+          正在整理 AI 使用與品質資料…
+        </section>
+      ) : data ? (
+        <>
+          <section className="admin-analytics-kpi-grid">
+            <AnalyticsKpi
+              eyebrow="SOLVED"
+              label="解題數"
+              value={formatInteger(data.totals.solvedQuestions)}
+              note="分母：此區間成功建立的 solve_history 題數"
+            />
+
+            <AnalyticsKpi
+              eyebrow="API CALLS"
+              label="模型呼叫"
+              value={formatInteger(data.totals.apiCalls)}
+              note="Science Gate、Primary、Verifier、Arbiter、Follow-up 合計"
+            />
+
+            <AnalyticsKpi
+              eyebrow="TOTAL COST"
+              label="估算總成本"
+              value={formatUsd(data.totals.totalCostUsd)}
+              note="依 api_usage.estimated_cost_usd 加總"
+            />
+
+            <AnalyticsKpi
+              eyebrow="AVG / SOLVE"
+              label="平均每題成本"
+              value={formatUsd(data.totals.averageCostPerSolveUsd)}
+              note={`分母：${formatInteger(data.totals.solvedQuestions)} 題解題`}
+            />
+          </section>
+
+          <section className="hh-card admin-panel">
+            <PanelHeader
+              eyebrow="COST BY ROLE"
+              title="角色使用量與成本"
+              subtitle="一題可能同時產生多次模型呼叫；這裡拆開看每個 Router 角色實際消耗"
+            />
+
+            <div className="admin-analytics-role-grid">
+              <AnalyticsRoleCard
+                label="Science Gate"
+                metric={gate}
+                note="解題前自然科辨識"
+              />
+              <AnalyticsRoleCard
+                label="Primary"
+                metric={primary}
+                note="主要完整解題"
+              />
+              <AnalyticsRoleCard
+                label="Verifier"
+                metric={verifier}
+                note="無標準答案時驗算"
+              />
+              <AnalyticsRoleCard
+                label="Arbiter"
+                metric={arbiter}
+                note="衝突或重大錯誤仲裁"
+              />
+              <AnalyticsRoleCard
+                label="Follow-up"
+                metric={followup}
+                note="學生題後追問"
+              />
+            </div>
+          </section>
+
+          <section className="hh-card admin-panel">
+            <PanelHeader
+              eyebrow="ROUTER QUALITY"
+              title="解題品質與路由效率"
+              subtitle="不同指標使用不同母體；下方每張卡片都直接標示分母"
+            />
+
+            <div className="admin-quality-grid">
+              <QualityMetricCard
+                eyebrow="PRIMARY ↔ REFERENCE"
+                title="Primary 與標準答案一致率"
+                rate={data.quality.primaryReferenceConsistencyRate}
+                numerator={data.quality.primaryReferenceMatches}
+                denominator={data.quality.referenceCases}
+                denominatorLabel="有輸入標準答案的題目"
+              />
+
+              <QualityMetricCard
+                eyebrow="VERIFIER ACTIVATION"
+                title="Verifier 啟動率"
+                rate={data.quality.verifierActivationRate}
+                numerator={data.quality.verifierQuestions}
+                denominator={data.quality.noReferenceCases}
+                denominatorLabel="沒有標準答案的題目"
+              />
+
+              <QualityMetricCard
+                eyebrow="VERIFIER DISAGREEMENT"
+                title="Verifier 重大錯誤判定率"
+                rate={data.quality.verifierDisagreementRate}
+                numerator={data.quality.verifierMajorErrors}
+                denominator={data.quality.verifierQuestions}
+                denominatorLabel="實際啟動 Verifier 的題目"
+              />
+
+              <QualityMetricCard
+                eyebrow="ARBITER ACTIVATION"
+                title="Arbiter 啟動率"
+                rate={data.quality.arbiterActivationRate}
+                numerator={data.quality.arbiterQuestions}
+                denominator={data.totals.solvedQuestions}
+                denominatorLabel="全部解題"
+              />
+            </div>
+          </section>
+
+          <section className="hh-card admin-panel">
+            <PanelHeader
+              eyebrow="ARBITRATION OUTCOME"
+              title="仲裁結果"
+              subtitle="有標準答案的衝突題可以明確判斷 Arbiter 最後支持哪一側；無標準答案的仲裁另外列出"
+            />
+
+            <div className="admin-arbitration-summary">
+              <article>
+                <span>標準答案衝突仲裁</span>
+                <strong>
+                  {formatInteger(data.quality.referenceMismatchArbitrations)}
+                </strong>
+                <small>分母：Primary 與標準答案不一致而啟動 Arbiter 的題目</small>
+              </article>
+
+              <article className="good">
+                <span>仲裁後支持標準答案</span>
+                <strong>
+                  {formatInteger(data.quality.referenceArbiterSupportsReference)}
+                </strong>
+                <small>
+                  {formatFractionPercent(
+                    data.quality.referenceArbiterSupportsReference,
+                    data.quality.referenceMismatchArbitrations,
+                  )}
+                </small>
+              </article>
+
+              <article>
+                <span>仲裁後支持 Primary</span>
+                <strong>
+                  {formatInteger(data.quality.referenceArbiterSupportsPrimary)}
+                </strong>
+                <small>
+                  {formatFractionPercent(
+                    data.quality.referenceArbiterSupportsPrimary,
+                    data.quality.referenceMismatchArbitrations,
+                  )}
+                </small>
+              </article>
+
+              <article className="warning">
+                <span>仲裁後仍不一致</span>
+                <strong>
+                  {formatInteger(data.quality.referenceArbiterStillInconsistent)}
+                </strong>
+                <small>
+                  {formatFractionPercent(
+                    data.quality.referenceArbiterStillInconsistent,
+                    data.quality.referenceMismatchArbitrations,
+                  )}
+                </small>
+              </article>
+
+              <article>
+                <span>Verifier 觸發仲裁</span>
+                <strong>
+                  {formatInteger(data.quality.verifierTriggeredArbitrations)}
+                </strong>
+                <small>無標準答案，Verifier 高信心判定重大錯誤後啟動</small>
+              </article>
+
+              <article className="warning">
+                <span>目前標記仍有爭議</span>
+                <strong>{formatInteger(data.quality.disputedQuestions)}</strong>
+                <small>solve_history.dispute_status = disputed</small>
+              </article>
+            </div>
+          </section>
+
+          <section className="hh-card admin-panel">
+            <PanelHeader
+              eyebrow="MODEL PERFORMANCE"
+              title="各模型使用與品質"
+              subtitle="成本統計包含模型在所有角色的呼叫；一致率只計該模型擔任 Primary 且學生有輸入標準答案的題目"
+            />
+
+            <div className="admin-analytics-table-wrap">
+              <table className="admin-analytics-table">
+                <thead>
+                  <tr>
+                    <th>模型</th>
+                    <th>呼叫</th>
+                    <th>成本</th>
+                    <th>平均／次</th>
+                    <th>Primary 一致率</th>
+                    <th>Verifier 重大錯誤率</th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {data.models.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="admin-analytics-empty-cell">
+                        這個區間尚未有模型呼叫資料。
+                      </td>
+                    </tr>
+                  ) : (
+                    data.models.map((model) => (
+                      <tr key={`${model.provider}-${model.model}`}>
+                        <td>
+                          <div className="admin-model-name">
+                            <strong>{model.model}</strong>
+                            <span>{providerLabel(model.provider)}</span>
+                          </div>
+                        </td>
+                        <td>{formatInteger(model.calls)}</td>
+                        <td>{formatUsd(model.costUsd)}</td>
+                        <td>{formatUsd(model.averageCostUsd)}</td>
+                        <td>
+                          <MetricCell
+                            rate={model.primaryConsistencyRate}
+                            numerator={model.primaryMatches}
+                            denominator={model.primaryReferenceCases}
+                          />
+                        </td>
+                        <td>
+                          <MetricCell
+                            rate={model.verifierDisagreementRate}
+                            numerator={model.verifierMajorErrors}
+                            denominator={model.verifierCases}
+                          />
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="admin-model-mobile-list">
+              {data.models.map((model) => (
+                <article
+                  key={`mobile-${model.provider}-${model.model}`}
+                  className="admin-model-mobile-card"
+                >
+                  <div className="admin-model-mobile-head">
+                    <div>
+                      <strong>{model.model}</strong>
+                      <span>{providerLabel(model.provider)}</span>
+                    </div>
+                    <b>{formatInteger(model.calls)} 次</b>
+                  </div>
+
+                  <div className="admin-model-mobile-metrics">
+                    <div>
+                      <span>成本</span>
+                      <strong>{formatUsd(model.costUsd)}</strong>
+                    </div>
+                    <div>
+                      <span>平均／次</span>
+                      <strong>{formatUsd(model.averageCostUsd)}</strong>
+                    </div>
+                    <div>
+                      <span>Primary 一致率</span>
+                      <strong>{formatPercent(model.primaryConsistencyRate)}</strong>
+                      <small>
+                        {model.primaryMatches}/{model.primaryReferenceCases}
+                      </small>
+                    </div>
+                    <div>
+                      <span>Verifier 重大錯誤率</span>
+                      <strong>{formatPercent(model.verifierDisagreementRate)}</strong>
+                      <small>
+                        {model.verifierMajorErrors}/{model.verifierCases}
+                      </small>
+                    </div>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <div className="admin-analytics-footnote">
+            成本為 API 回傳 token usage 搭配目前模型價格表的估算值；若供應商價格調整，
+            歷史 estimated_cost_usd 不會自動重算。品質一致率使用系統現行的答案正規化規則，
+            不做高風險單位換算。
+          </div>
+        </>
+      ) : null}
+    </div>
+  );
+}
+
+
+function AnalyticsKpi({
+  eyebrow,
+  label,
+  value,
+  note,
+}: {
+  eyebrow: string;
+  label: string;
+  value: string;
+  note: string;
+}) {
+  return (
+    <article className="hh-card admin-analytics-kpi">
+      <div className="hh-eyebrow">{eyebrow}</div>
+      <span>{label}</span>
+      <strong className="hh-display">{value}</strong>
+      <small>{note}</small>
+    </article>
+  );
+}
+
+
+function AnalyticsRoleCard({
+  label,
+  metric,
+  note,
+}: {
+  label: string;
+  metric: AnalyticsRoleMetric;
+  note: string;
+}) {
+  return (
+    <article className="admin-role-card">
+      <div>
+        <span>{label}</span>
+        <small>{note}</small>
+      </div>
+      <strong>{formatInteger(metric.calls)} 次</strong>
+      <b>{formatUsd(metric.costUsd)}</b>
+    </article>
+  );
+}
+
+
+function QualityMetricCard({
+  eyebrow,
+  title,
+  rate,
+  numerator,
+  denominator,
+  denominatorLabel,
+}: {
+  eyebrow: string;
+  title: string;
+  rate: number | null;
+  numerator: number;
+  denominator: number;
+  denominatorLabel: string;
+}) {
+  return (
+    <article className="admin-quality-card">
+      <div className="hh-eyebrow">{eyebrow}</div>
+      <h3 className="hh-display">{title}</h3>
+      <strong>{formatPercent(rate)}</strong>
+      <div className="admin-quality-fraction">
+        {formatInteger(numerator)} / {formatInteger(denominator)}
+      </div>
+      <small>分母：{denominatorLabel}</small>
+    </article>
+  );
+}
+
+
+function MetricCell({
+  rate,
+  numerator,
+  denominator,
+}: {
+  rate: number | null;
+  numerator: number;
+  denominator: number;
+}) {
+  return (
+    <div className="admin-metric-cell">
+      <strong>{formatPercent(rate)}</strong>
+      <span>
+        {numerator}/{denominator}
+      </span>
+    </div>
+  );
+}
+
+
+function formatInteger(value: number) {
+  return new Intl.NumberFormat("zh-TW").format(Number(value || 0));
+}
+
+
+function formatUsd(value: number) {
+  const amount = Number(value || 0);
+
+  if (amount > 0 && amount < 0.001) {
+    return `$${amount.toFixed(6)}`;
+  }
+
+  if (amount < 0.1) {
+    return `$${amount.toFixed(4)}`;
+  }
+
+  return `$${amount.toFixed(2)}`;
+}
+
+
+function formatPercent(value: number | null) {
+  if (value === null || !Number.isFinite(value)) {
+    return "—";
+  }
+
+  return `${value.toFixed(1)}%`;
+}
+
+
+function formatFractionPercent(numerator: number, denominator: number) {
+  if (!denominator) {
+    return "分母 0 題";
+  }
+
+  return `${numerator}/${denominator} · ${(
+    (numerator / denominator) *
+    100
+  ).toFixed(1)}%`;
+}
+
+
+function providerLabel(value: string) {
+  if (value === "gemini") return "Google Gemini";
+  if (value === "openai") return "OpenAI";
+  return value || "Unknown";
+}
+
 
 function PanelHeader({
   eyebrow,
@@ -1503,22 +3205,20 @@ function QuickAction({
 function sectionEyebrow(section: AdminSection) {
   if (section === "students") return "STUDENT MANAGEMENT";
   if (section === "ai") return "AI CONTROL";
-  if (section === "pin") return "CLASS ACCESS";
+  if (section === "pin") return "STUDENT ACCESS";
+  if (section === "analytics") return "AI ANALYTICS";
   return "OVERVIEW";
 }
 
 function sectionTitle(section: AdminSection) {
   if (section === "students") return "學生管理";
   if (section === "ai") return "AI 設定";
-  if (section === "pin") return "班級 PIN";
+  if (section === "pin") return "學生密碼";
+  if (section === "analytics") return "AI 數據分析";
   return "管理總覽";
 }
 
-function reasoningLabel(value: string) {
-  if (value === "low") return "快速";
-  if (value === "high") return "深度";
-  return "標準";
-}
+
 
 const adminStyles = `
   .admin-shell {
@@ -3546,6 +5246,1450 @@ const adminStyles = `
         rgba(32, 42, 36, .92)
       );
     border-color: rgba(214, 174, 88, .30);
+  }
+
+
+  .admin-router-grid,
+  .admin-followup-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+  }
+
+  .admin-router-card,
+  .admin-simple-setting {
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    padding: 18px;
+    background:
+      linear-gradient(
+        145deg,
+        color-mix(in srgb, var(--surface) 96%, var(--primary) 4%),
+        var(--surface)
+      );
+  }
+
+  .admin-router-card.disabled {
+    opacity: .5;
+  }
+
+  .admin-router-card h3,
+  .admin-simple-setting h3 {
+    margin: 5px 0 6px;
+    font-size: 18px;
+  }
+
+  .admin-router-card > p,
+  .admin-simple-setting > p {
+    min-height: 40px;
+    margin: 0 0 14px;
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.65;
+  }
+
+  .admin-router-field {
+    display: grid;
+    gap: 7px;
+    margin-top: 12px;
+  }
+
+  .admin-router-field > span {
+    font-size: 12px;
+    font-weight: 800;
+  }
+
+  .admin-reasoning-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 7px;
+  }
+
+  .admin-reasoning-pills button,
+  .admin-toggle-button {
+    min-height: 34px;
+    padding: 0 12px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--surface);
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 800;
+    cursor: pointer;
+  }
+
+  .admin-reasoning-pills button.active,
+  .admin-toggle-button.active {
+    border-color: color-mix(in srgb, var(--primary) 55%, var(--border));
+    color: var(--primary);
+    background: color-mix(in srgb, var(--primary) 10%, var(--surface));
+  }
+
+  .admin-reasoning-pills button:disabled,
+  .admin-toggle-button:disabled {
+    cursor: default;
+  }
+
+  .admin-router-meta {
+    display: grid;
+    gap: 3px;
+    margin-top: 13px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 11px;
+  }
+
+  .admin-router-threshold,
+  .admin-quota-control {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 18px;
+    margin-top: 18px;
+    padding: 16px 18px;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+  }
+
+  .admin-router-threshold > div:first-child,
+  .admin-quota-control > div:first-child {
+    display: grid;
+    gap: 4px;
+  }
+
+  .admin-router-threshold span,
+  .admin-quota-control span,
+  .admin-simple-setting p {
+    color: var(--muted);
+  }
+
+  .admin-number-control {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    white-space: nowrap;
+  }
+
+  .admin-number-control .hh-input {
+    width: 98px;
+    text-align: center;
+  }
+
+  .admin-followup-grid {
+    margin-top: 14px;
+  }
+
+  @media (max-width: 760px) {
+    .admin-router-grid,
+    .admin-followup-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .admin-router-threshold,
+    .admin-quota-control {
+      align-items: stretch;
+      flex-direction: column;
+    }
+  }
+
+
+
+  .admin-mobile-header,
+  .admin-mobile-backdrop,
+  .admin-student-mobile-list {
+    display: none;
+  }
+
+  .admin-sidebar-theme-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 8px 10px;
+    color: #b5c0b8;
+    font-size: 11px;
+    font-weight: 800;
+  }
+
+  .admin-student-mobile-card {
+    padding: 14px;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    background: var(--surface);
+  }
+
+  .admin-student-mobile-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+  }
+
+  .admin-student-mobile-usage {
+    display: grid;
+    gap: 8px;
+    margin-top: 13px;
+    padding: 11px 12px;
+    border-radius: 12px;
+    background: var(--surface-soft);
+  }
+
+  .admin-student-mobile-usage > div:first-child {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    font-size: 11px;
+    color: var(--text-secondary);
+  }
+
+  .admin-student-mobile-usage strong {
+    color: var(--text);
+    font-size: 13px;
+  }
+
+  .admin-student-mobile-progress {
+    height: 5px;
+    overflow: hidden;
+    border-radius: 999px;
+    background: var(--border);
+  }
+
+  .admin-student-mobile-progress i {
+    display: block;
+    height: 100%;
+    background: var(--accent-gold);
+  }
+
+  .admin-student-mobile-actions {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 7px;
+    margin-top: 11px;
+  }
+
+  .admin-analytics-placeholder {
+    min-height: 420px;
+  }
+
+  .admin-analytics-placeholder > h2 {
+    margin: 6px 0 8px;
+    font-size: 30px;
+  }
+
+  .admin-analytics-placeholder > p {
+    max-width: 680px;
+    color: var(--text-secondary);
+    line-height: 1.7;
+  }
+
+  .admin-analytics-preview-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+    margin-top: 22px;
+  }
+
+  .admin-analytics-preview-grid article {
+    display: grid;
+    gap: 6px;
+    padding: 16px;
+    border: 1px solid var(--border);
+    border-radius: 15px;
+    background: var(--surface-soft);
+  }
+
+  .admin-analytics-preview-grid span {
+    color: var(--text-secondary);
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: .08em;
+  }
+
+  @media (max-width: 760px) {
+    .admin-shell {
+      display: block;
+      padding-top: 70px;
+    }
+
+    .admin-mobile-header {
+      position: fixed;
+      top: 7px;
+      left: 10px;
+      right: 10px;
+      z-index: 130;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      min-height: 56px;
+      padding: 7px 8px 7px 13px;
+      border: 1px solid var(--border);
+      border-radius: 17px;
+      background: color-mix(in srgb, var(--surface) 92%, transparent);
+      box-shadow: 0 12px 30px rgba(18, 26, 21, .12);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+    }
+
+    .admin-mobile-brand {
+      display: grid;
+      gap: 1px;
+      padding: 0;
+      border: 0;
+      background: transparent;
+      color: var(--text);
+      text-align: left;
+      cursor: pointer;
+    }
+
+    .admin-mobile-brand span {
+      font-size: 16px;
+    }
+
+    .admin-mobile-brand small {
+      color: var(--text-secondary);
+      font-size: 8px;
+      font-weight: 800;
+      letter-spacing: .1em;
+    }
+
+    .admin-mobile-menu-button {
+      display: grid;
+      place-content: center;
+      gap: 4px;
+      width: 42px;
+      height: 42px;
+      border: 1px solid var(--border);
+      border-radius: 13px;
+      background: var(--surface);
+      cursor: pointer;
+    }
+
+    .admin-mobile-menu-button span {
+      display: block;
+      width: 17px;
+      height: 1.5px;
+      border-radius: 99px;
+      background: var(--text);
+    }
+
+    .admin-mobile-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 118;
+      display: block;
+      border: 0;
+      background: rgba(10, 15, 12, .28);
+      backdrop-filter: blur(2px);
+    }
+
+    .admin-sidebar {
+      position: fixed !important;
+      top: 0;
+      right: 0;
+      bottom: 0;
+      left: auto;
+      z-index: 125;
+      display: flex;
+      flex-direction: column;
+      width: min(330px, 86vw);
+      min-height: 100dvh;
+      padding: 22px 16px 18px;
+      transform: translateX(105%);
+      transition: transform .2s ease;
+      box-shadow: -22px 0 60px rgba(10, 15, 12, .24);
+    }
+
+    .admin-sidebar.mobile-open {
+      transform: translateX(0);
+    }
+
+    .admin-sidebar-brand {
+      padding: 8px 6px 18px;
+    }
+
+    .admin-nav {
+      display: grid;
+      grid-template-columns: 1fr !important;
+      gap: 7px;
+      overflow: visible;
+    }
+
+    .admin-nav-button {
+      justify-content: flex-start !important;
+      min-height: 46px;
+      padding: 0 12px !important;
+      font-size: 13px !important;
+    }
+
+    .admin-nav-button span {
+      display: grid !important;
+    }
+
+    .admin-sidebar-footer {
+      display: grid !important;
+      gap: 7px;
+      margin-top: auto;
+    }
+
+    .admin-main {
+      min-width: 0;
+    }
+
+    .admin-topbar {
+      position: static !important;
+      min-height: auto;
+      padding: 12px 14px 9px;
+      background: transparent;
+      border-bottom: 0;
+    }
+
+    .admin-topbar .hh-eyebrow,
+    .admin-page-title {
+      display: none;
+    }
+
+    .admin-topbar-actions {
+      width: 100%;
+      justify-content: flex-end;
+    }
+
+    .admin-content {
+      width: min(100% - 20px, 1180px) !important;
+      padding-top: 4px !important;
+    }
+
+    .admin-table-wrap {
+      display: none;
+    }
+
+    .admin-student-mobile-list {
+      display: grid;
+      gap: 9px;
+      margin-top: 12px;
+    }
+
+    .admin-student-mobile-actions .admin-mini-button {
+      min-height: 38px;
+      padding: 0 6px;
+      font-size: 10px;
+    }
+
+    .admin-analytics-preview-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  @media (max-width: 430px) {
+    .admin-student-mobile-actions {
+      grid-template-columns: 1fr;
+    }
+  }
+
+
+  .admin-mini-button.history {
+    border-color: color-mix(in srgb, var(--primary) 35%, var(--border));
+    color: var(--primary);
+    background: color-mix(in srgb, var(--primary) 6%, var(--surface));
+  }
+
+  .admin-history-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 160;
+    display: grid;
+    place-items: stretch;
+  }
+
+  .admin-history-backdrop {
+    position: absolute;
+    inset: 0;
+    border: 0;
+    background: rgba(15, 22, 18, .48);
+    backdrop-filter: blur(4px);
+  }
+
+  .admin-history-panel {
+    position: relative;
+    z-index: 1;
+    width: min(1180px, calc(100% - 48px));
+    height: min(900px, calc(100vh - 42px));
+    margin: auto;
+    overflow: auto;
+    border: 1px solid var(--border);
+    border-radius: 24px;
+    background: var(--bg);
+    box-shadow: 0 32px 100px rgba(9, 16, 12, .28);
+  }
+
+  .admin-history-panel-head {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 18px;
+    min-height: 88px;
+    padding: 16px 22px;
+    border-bottom: 1px solid var(--border);
+    background: color-mix(in srgb, var(--surface) 92%, transparent);
+    backdrop-filter: blur(18px);
+  }
+
+  .admin-history-student-identity {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .admin-avatar.large {
+    width: 48px;
+    height: 48px;
+    font-size: 17px;
+  }
+
+  .admin-history-student-identity h2 {
+    margin: 3px 0 2px;
+    font-size: 23px;
+  }
+
+  .admin-history-student-identity p {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: 11px;
+  }
+
+  .admin-history-close {
+    display: grid;
+    place-items: center;
+    width: 42px;
+    height: 42px;
+    border: 1px solid var(--border);
+    border-radius: 13px;
+    background: var(--surface);
+    color: var(--text);
+    font-size: 25px;
+    cursor: pointer;
+  }
+
+  .admin-history-filterbar {
+    display: grid;
+    grid-template-columns: minmax(230px, 1.7fr) 1fr 1fr 1fr auto;
+    gap: 10px;
+    align-items: end;
+    padding: 18px 22px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+  }
+
+  .admin-history-filterbar label {
+    display: grid;
+    gap: 6px;
+  }
+
+  .admin-history-filterbar label > span {
+    color: var(--text-secondary);
+    font-size: 10px;
+    font-weight: 800;
+  }
+
+  .admin-history-filter-actions {
+    display: flex;
+    gap: 7px;
+  }
+
+  .admin-history-summary-line {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 15px 22px 8px;
+    color: var(--text-secondary);
+    font-size: 11px;
+    font-weight: 700;
+  }
+
+  .admin-history-list {
+    display: grid;
+    gap: 9px;
+    padding: 10px 22px 28px;
+  }
+
+  .admin-history-row {
+    display: grid;
+    grid-template-columns: 108px minmax(0, 1fr) 34px;
+    gap: 14px;
+    align-items: center;
+    width: 100%;
+    padding: 10px;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    background: var(--surface);
+    color: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition: transform .16s ease, border-color .16s ease;
+  }
+
+  .admin-history-row:hover {
+    transform: translateY(-1px);
+    border-color: color-mix(in srgb, var(--primary) 34%, var(--border));
+  }
+
+  .admin-history-thumb {
+    display: grid;
+    place-items: center;
+    overflow: hidden;
+    height: 86px;
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--primary) 8%, var(--surface));
+    color: var(--primary);
+    font-size: 11px;
+    font-weight: 900;
+    letter-spacing: .12em;
+  }
+
+  .admin-history-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .admin-history-row-main {
+    display: grid;
+    gap: 6px;
+    min-width: 0;
+  }
+
+  .admin-history-row-main > strong {
+    overflow: hidden;
+    font-size: 15px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .admin-history-row-main > p {
+    display: -webkit-box;
+    overflow: hidden;
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: 11px;
+    line-height: 1.55;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+  }
+
+  .admin-history-row-meta,
+  .admin-history-row-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .admin-history-row-meta span,
+  .admin-history-row-tags span {
+    color: var(--text-secondary);
+    font-size: 9px;
+    font-weight: 800;
+  }
+
+  .admin-history-row-meta span:first-child {
+    color: var(--primary);
+  }
+
+  .admin-history-row-meta .favorite {
+    color: #a58131;
+  }
+
+  .admin-history-row-tags span {
+    padding: 3px 6px;
+    border-radius: 999px;
+    background: var(--surface-soft);
+  }
+
+  .admin-history-chevron {
+    color: var(--text-secondary);
+    font-size: 25px;
+    text-align: center;
+  }
+
+  .admin-history-empty-state {
+    display: grid;
+    place-items: center;
+    gap: 5px;
+    min-height: 300px;
+    padding: 30px;
+    text-align: center;
+  }
+
+  .admin-history-empty-state span {
+    color: var(--text-secondary);
+    font-size: 12px;
+  }
+
+  .admin-history-detail {
+    padding: 20px 24px 34px;
+  }
+
+  .admin-history-detail-back {
+    margin: 2px 0 17px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--primary);
+    font-weight: 800;
+    cursor: pointer;
+  }
+
+  .admin-history-detail-title {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 17px;
+  }
+
+  .admin-history-detail-title h3 {
+    margin: 6px 0 0;
+    font-size: 29px;
+  }
+
+  .admin-dispute-badge {
+    padding: 7px 10px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    color: var(--text-secondary);
+    font-size: 10px;
+    font-weight: 850;
+  }
+
+  .admin-dispute-badge.status-resolved {
+    color: var(--primary);
+    border-color: color-mix(in srgb, var(--primary) 32%, var(--border));
+  }
+
+  .admin-dispute-badge.status-disputed {
+    color: #a15a4f;
+    border-color: color-mix(in srgb, #a15a4f 32%, var(--border));
+  }
+
+  .admin-history-images {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 11px;
+    margin-bottom: 16px;
+  }
+
+  .admin-history-images figure {
+    overflow: hidden;
+    margin: 0;
+    border: 1px solid var(--border);
+    border-radius: 15px;
+    background: var(--surface);
+  }
+
+  .admin-history-images img {
+    display: block;
+    width: 100%;
+    height: 300px;
+    object-fit: contain;
+    background: #fff;
+  }
+
+  .admin-history-images figcaption {
+    padding: 7px 10px;
+    color: var(--text-secondary);
+    font-size: 9px;
+    font-weight: 750;
+  }
+
+  .admin-history-context-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    margin-bottom: 15px;
+  }
+
+  .admin-history-context-grid article {
+    display: grid;
+    gap: 5px;
+    padding: 14px 15px;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: var(--surface);
+  }
+
+  .admin-history-context-grid article.wide {
+    grid-column: 1 / -1;
+  }
+
+  .admin-history-context-grid span {
+    color: var(--text-secondary);
+    font-size: 9px;
+    font-weight: 800;
+  }
+
+  .admin-history-analysis-section,
+  .admin-history-routing,
+  .admin-history-followups {
+    margin-top: 12px;
+    padding: 19px;
+    border: 1px solid var(--border);
+    border-radius: 17px;
+    background: var(--surface);
+  }
+
+  .admin-history-analysis-head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+
+  .admin-history-analysis-head > .hh-number {
+    display: grid;
+    place-items: center;
+    width: 38px;
+    height: 38px;
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--primary) 9%, var(--surface));
+    color: var(--primary);
+    font-size: 11px;
+    font-weight: 900;
+  }
+
+  .admin-history-analysis-head h4 {
+    margin: 3px 0 0;
+    font-size: 19px;
+  }
+
+  .admin-science-text {
+    color: var(--text);
+    font-size: 13px;
+    line-height: 1.78;
+  }
+
+  .admin-science-text p {
+    margin: 4px 0;
+  }
+
+  .admin-display-formula {
+    overflow-x: auto;
+    margin: 10px 0;
+    padding: 5px 0;
+  }
+
+  .admin-text-gap {
+    height: 7px;
+  }
+
+  .admin-option-line {
+    padding-left: 2.2em;
+    text-indent: -2.2em;
+  }
+
+  .admin-history-routing-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 9px;
+  }
+
+  .admin-routing-card {
+    display: grid;
+    gap: 5px;
+    padding: 13px;
+    border: 1px solid var(--border);
+    border-radius: 13px;
+    background: var(--surface-soft);
+  }
+
+  .admin-routing-card strong {
+    font-size: 12px;
+  }
+
+  .admin-routing-card span {
+    color: var(--text-secondary);
+    font-size: 9px;
+    line-height: 1.5;
+  }
+
+  .admin-history-no-followup {
+    padding: 20px;
+    border-radius: 12px;
+    background: var(--surface-soft);
+    color: var(--text-secondary);
+    font-size: 11px;
+    text-align: center;
+  }
+
+  .admin-history-followup-list {
+    display: grid;
+    gap: 11px;
+  }
+
+  .admin-history-followup-list > article {
+    display: grid;
+    gap: 8px;
+    padding: 13px;
+    border: 1px solid var(--border);
+    border-radius: 13px;
+  }
+
+  .admin-history-followup-question,
+  .admin-history-followup-answer {
+    display: grid;
+    gap: 5px;
+  }
+
+  .admin-history-followup-question > span,
+  .admin-history-followup-answer > div span {
+    color: var(--text-secondary);
+    font-size: 9px;
+  }
+
+  .admin-history-followup-question p {
+    margin: 0;
+    font-size: 12px;
+  }
+
+  .admin-history-followup-answer > div {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  @media (max-width: 900px) {
+    .admin-history-panel {
+      width: calc(100% - 18px);
+      height: calc(100vh - 18px);
+      border-radius: 19px;
+    }
+
+    .admin-history-filterbar {
+      grid-template-columns: 1fr 1fr;
+    }
+
+    .admin-history-search-field {
+      grid-column: 1 / -1;
+    }
+
+    .admin-history-filter-actions {
+      grid-column: 1 / -1;
+    }
+  }
+
+  @media (max-width: 620px) {
+    .admin-history-panel {
+      width: 100%;
+      height: 100vh;
+      border: 0;
+      border-radius: 0;
+    }
+
+    .admin-history-panel-head {
+      min-height: 72px;
+      padding: 11px 13px;
+    }
+
+    .admin-avatar.large {
+      display: none;
+    }
+
+    .admin-history-student-identity h2 {
+      font-size: 19px;
+    }
+
+    .admin-history-filterbar {
+      grid-template-columns: 1fr;
+      padding: 13px;
+    }
+
+    .admin-history-search-field,
+    .admin-history-filter-actions {
+      grid-column: auto;
+    }
+
+    .admin-history-filter-actions > * {
+      flex: 1;
+    }
+
+    .admin-history-summary-line {
+      align-items: flex-start;
+      flex-direction: column;
+      padding: 12px 13px 5px;
+    }
+
+    .admin-history-list {
+      padding: 8px 13px 24px;
+    }
+
+    .admin-history-row {
+      grid-template-columns: 82px minmax(0, 1fr);
+      gap: 9px;
+    }
+
+    .admin-history-chevron {
+      display: none;
+    }
+
+    .admin-history-thumb {
+      height: 86px;
+    }
+
+    .admin-history-detail {
+      padding: 13px 13px 28px;
+    }
+
+    .admin-history-detail-title h3 {
+      font-size: 23px;
+    }
+
+    .admin-history-images {
+      grid-template-columns: 1fr;
+    }
+
+    .admin-history-images img {
+      height: auto;
+      max-height: 430px;
+    }
+
+    .admin-history-context-grid,
+    .admin-history-routing-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .admin-history-context-grid article.wide {
+      grid-column: auto;
+    }
+
+    .admin-history-analysis-section,
+    .admin-history-routing,
+    .admin-history-followups {
+      padding: 14px;
+    }
+  }
+
+
+  .admin-analytics-hero {
+    overflow: hidden;
+    background:
+      radial-gradient(
+        circle at 94% 10%,
+        color-mix(in srgb, var(--primary) 11%, transparent),
+        transparent 32%
+      ),
+      var(--surface);
+  }
+
+  .admin-analytics-hero-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 20px;
+  }
+
+  .admin-analytics-hero-head h2 {
+    margin: 5px 0 5px;
+    font-size: 30px;
+  }
+
+  .admin-analytics-hero-head p {
+    max-width: 720px;
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: 12px;
+    line-height: 1.7;
+  }
+
+  .admin-analytics-range {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 7px;
+    margin-top: 18px;
+  }
+
+  .admin-analytics-range button {
+    min-height: 37px;
+    padding: 0 15px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--surface);
+    color: var(--text-secondary);
+    font-size: 11px;
+    font-weight: 850;
+    cursor: pointer;
+  }
+
+  .admin-analytics-range button.active {
+    border-color: color-mix(in srgb, var(--primary) 48%, var(--border));
+    background: color-mix(in srgb, var(--primary) 9%, var(--surface));
+    color: var(--primary);
+  }
+
+  .admin-analytics-window {
+    margin-top: 11px;
+    color: var(--text-secondary);
+    font-size: 10px;
+  }
+
+  .admin-analytics-loading {
+    display: grid;
+    place-items: center;
+    min-height: 240px;
+    color: var(--text-secondary);
+    font-size: 12px;
+  }
+
+  .admin-analytics-kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px;
+  }
+
+  .admin-analytics-kpi {
+    display: grid;
+    align-content: start;
+    gap: 6px;
+    min-height: 160px;
+    padding: 18px;
+  }
+
+  .admin-analytics-kpi > span {
+    color: var(--text-secondary);
+    font-size: 11px;
+    font-weight: 800;
+  }
+
+  .admin-analytics-kpi > strong {
+    margin-top: 3px;
+    font-size: clamp(24px, 3vw, 35px);
+    line-height: 1;
+  }
+
+  .admin-analytics-kpi > small {
+    margin-top: auto;
+    color: var(--text-secondary);
+    font-size: 9px;
+    line-height: 1.55;
+  }
+
+  .admin-analytics-role-grid {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 9px;
+  }
+
+  .admin-role-card {
+    display: grid;
+    gap: 12px;
+    padding: 14px;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: var(--surface-soft);
+  }
+
+  .admin-role-card > div {
+    display: grid;
+    gap: 3px;
+  }
+
+  .admin-role-card span {
+    font-size: 12px;
+    font-weight: 850;
+  }
+
+  .admin-role-card small {
+    min-height: 28px;
+    color: var(--text-secondary);
+    font-size: 9px;
+    line-height: 1.45;
+  }
+
+  .admin-role-card > strong {
+    font-size: 16px;
+  }
+
+  .admin-role-card > b {
+    color: var(--primary);
+    font-size: 11px;
+  }
+
+  .admin-quality-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .admin-quality-card {
+    display: grid;
+    gap: 7px;
+    padding: 17px;
+    border: 1px solid var(--border);
+    border-radius: 15px;
+    background:
+      linear-gradient(
+        145deg,
+        color-mix(in srgb, var(--surface) 96%, var(--primary) 4%),
+        var(--surface)
+      );
+  }
+
+  .admin-quality-card h3 {
+    min-height: 42px;
+    margin: 0;
+    font-size: 15px;
+    line-height: 1.4;
+  }
+
+  .admin-quality-card > strong {
+    margin-top: 7px;
+    color: var(--primary);
+    font-size: 28px;
+  }
+
+  .admin-quality-fraction {
+    font-size: 11px;
+    font-weight: 850;
+  }
+
+  .admin-quality-card > small {
+    color: var(--text-secondary);
+    font-size: 9px;
+    line-height: 1.55;
+  }
+
+  .admin-arbitration-summary {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .admin-arbitration-summary article {
+    display: grid;
+    gap: 6px;
+    min-height: 125px;
+    padding: 15px;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: var(--surface-soft);
+  }
+
+  .admin-arbitration-summary article.good {
+    border-color: color-mix(in srgb, var(--primary) 30%, var(--border));
+  }
+
+  .admin-arbitration-summary article.warning {
+    border-color: color-mix(in srgb, #a46c4e 28%, var(--border));
+  }
+
+  .admin-arbitration-summary span {
+    color: var(--text-secondary);
+    font-size: 10px;
+    font-weight: 800;
+  }
+
+  .admin-arbitration-summary strong {
+    font-size: 25px;
+  }
+
+  .admin-arbitration-summary small {
+    margin-top: auto;
+    color: var(--text-secondary);
+    font-size: 9px;
+    line-height: 1.5;
+  }
+
+  .admin-analytics-table-wrap {
+    overflow-x: auto;
+  }
+
+  .admin-analytics-table {
+    width: 100%;
+    min-width: 820px;
+    border-collapse: collapse;
+  }
+
+  .admin-analytics-table th,
+  .admin-analytics-table td {
+    padding: 12px 10px;
+    border-bottom: 1px solid var(--border);
+    text-align: left;
+    vertical-align: middle;
+  }
+
+  .admin-analytics-table th {
+    color: var(--text-secondary);
+    font-size: 9px;
+    font-weight: 850;
+    letter-spacing: .04em;
+  }
+
+  .admin-analytics-table td {
+    font-size: 11px;
+  }
+
+  .admin-model-name {
+    display: grid;
+    gap: 2px;
+  }
+
+  .admin-model-name strong {
+    font-size: 11px;
+  }
+
+  .admin-model-name span {
+    color: var(--text-secondary);
+    font-size: 9px;
+  }
+
+  .admin-metric-cell {
+    display: grid;
+    gap: 2px;
+  }
+
+  .admin-metric-cell strong {
+    font-size: 11px;
+  }
+
+  .admin-metric-cell span {
+    color: var(--text-secondary);
+    font-size: 8px;
+  }
+
+  .admin-analytics-empty-cell {
+    padding: 30px !important;
+    color: var(--text-secondary);
+    text-align: center !important;
+  }
+
+  .admin-model-mobile-list {
+    display: none;
+  }
+
+  .admin-analytics-footnote {
+    padding: 0 4px;
+    color: var(--text-secondary);
+    font-size: 9px;
+    line-height: 1.65;
+  }
+
+  @media (max-width: 1100px) {
+    .admin-analytics-kpi-grid,
+    .admin-quality-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .admin-analytics-role-grid {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+
+  @media (max-width: 760px) {
+    .admin-analytics-hero-head {
+      align-items: stretch;
+      flex-direction: column;
+    }
+
+    .admin-analytics-hero-head .hh-button-secondary {
+      width: 100%;
+    }
+
+    .admin-analytics-kpi-grid,
+    .admin-quality-grid,
+    .admin-arbitration-summary {
+      grid-template-columns: 1fr 1fr;
+    }
+
+    .admin-analytics-role-grid {
+      grid-template-columns: 1fr 1fr;
+    }
+
+    .admin-analytics-table-wrap {
+      display: none;
+    }
+
+    .admin-model-mobile-list {
+      display: grid;
+      gap: 9px;
+    }
+
+    .admin-model-mobile-card {
+      display: grid;
+      gap: 12px;
+      padding: 14px;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      background: var(--surface-soft);
+    }
+
+    .admin-model-mobile-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .admin-model-mobile-head > div {
+      display: grid;
+      gap: 2px;
+    }
+
+    .admin-model-mobile-head strong {
+      font-size: 12px;
+    }
+
+    .admin-model-mobile-head span {
+      color: var(--text-secondary);
+      font-size: 9px;
+    }
+
+    .admin-model-mobile-head b {
+      color: var(--primary);
+      font-size: 11px;
+    }
+
+    .admin-model-mobile-metrics {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .admin-model-mobile-metrics > div {
+      display: grid;
+      gap: 3px;
+      padding: 9px;
+      border-radius: 10px;
+      background: var(--surface);
+    }
+
+    .admin-model-mobile-metrics span,
+    .admin-model-mobile-metrics small {
+      color: var(--text-secondary);
+      font-size: 8px;
+    }
+
+    .admin-model-mobile-metrics strong {
+      font-size: 12px;
+    }
+  }
+
+  @media (max-width: 500px) {
+    .admin-analytics-kpi-grid,
+    .admin-quality-grid,
+    .admin-arbitration-summary,
+    .admin-analytics-role-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .admin-analytics-range {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+    }
+
+    .admin-analytics-range button {
+      width: 100%;
+    }
   }
 
 `;

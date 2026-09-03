@@ -4,20 +4,27 @@ import {
 } from "next/server";
 
 import {
+  supabaseAdmin,
+} from "@/lib/supabase-admin";
+
+import {
   verifySessionToken,
 } from "@/lib/session";
 
 
 export async function GET(
-  request: NextRequest
+  request:
+    NextRequest
 ) {
+
   const token =
     request.cookies.get(
       "hh_science_session"
     )?.value;
 
-
-  if (!token) {
+  if (
+    !token
+  ) {
     return NextResponse.json({
       authenticated:
         false,
@@ -30,19 +37,44 @@ export async function GET(
       token
     );
 
+  if (
+    !session
+  ) {
+    return NextResponse.json({
+      authenticated:
+        false,
+    });
+  }
 
-  if (!session) {
-    const response =
-      NextResponse.json({
-        authenticated:
-          false,
-      });
 
-    response.cookies.delete(
-      "hh_science_session"
-    );
+  const {
+    data:
+      student,
+    error,
+  } =
+    await supabaseAdmin
+      .from(
+        "students"
+      )
+      .select(
+        "id,campus,name,active,must_change_pin"
+      )
+      .eq(
+        "id",
+        session.studentId
+      )
+      .maybeSingle();
 
-    return response;
+
+  if (
+    error ||
+    !student ||
+    !student.active
+  ) {
+    return NextResponse.json({
+      authenticated:
+        false,
+    });
   }
 
 
@@ -52,13 +84,23 @@ export async function GET(
 
     student: {
       id:
-        session.studentId,
+        student.id,
 
       campus:
-        session.campus,
+        student.campus,
 
       name:
-        session.name,
+        student.name,
+
+      mustChangePin:
+        Boolean(
+          student.must_change_pin
+        ),
     },
+
+    mustChangePin:
+      Boolean(
+        student.must_change_pin
+      ),
   });
 }

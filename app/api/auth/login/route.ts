@@ -1,193 +1,641 @@
-import { createHash } from "crypto";
-import bcrypt from "bcryptjs";
-import { NextRequest, NextResponse } from "next/server";
+import {
+  createHash,
+} from "crypto";
 
-import { supabaseAdmin } from "@/lib/supabase-admin";
-import { createSessionToken } from "@/lib/session";
+import {
+  NextRequest,
+  NextResponse,
+} from "next/server";
 
-const CAMPUSES = ["高雄班", "嘉義班", "員林班"] as const;
-const STUDENT_RATE_LIMIT = { attempts: 6, windowSeconds: 10 * 60 };
+import {
+  supabaseAdmin,
+} from "@/lib/supabase-admin";
 
-function getTaiwanDateString() {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Taipei",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(new Date());
-  const map = Object.fromEntries(parts.map((part) => [part.type, part.value]));
-  return `${map.year}-${map.month}-${map.day}`;
-}
+import {
+  createSessionToken,
+} from "@/lib/session";
 
-function getClientIp(request: NextRequest) {
-  const forwarded = request.headers.get("x-forwarded-for");
-  if (forwarded) return forwarded.split(",")[0]?.trim() || "unknown";
-  return request.headers.get("x-real-ip")?.trim() || "unknown";
-}
+import {
+  getStudentAuthSettings,
+  hashStudentPin,
+  isValidStudentPin,
+  verifyStudentPin,
+} from "@/lib/student-auth";
 
-function hashRateKey(parts: string[]) {
-  return createHash("sha256").update(parts.join("|")).digest("hex");
-}
 
-async function consumeRateLimit(rateKey: string) {
-  const { data, error } = await supabaseAdmin.rpc("consume_auth_rate_limit", {
-    p_rate_key: rateKey,
-    p_limit: STUDENT_RATE_LIMIT.attempts,
-    p_window_seconds: STUDENT_RATE_LIMIT.windowSeconds,
-  });
+const CAMPUSES = [
+  "高雄班",
+  "嘉義班",
+  "員林班",
+] as const;
 
-  if (error) {
-    console.error("Student rate limit RPC error:", error);
-    return { ok: false as const, serviceError: true as const, retryAfter: 0 };
+const STUDENT_RATE_LIMIT = {
+  attempts:
+    10,
+
+  windowSeconds:
+    10 * 60,
+};
+
+
+function getClientIp(
+  request:
+    NextRequest
+) {
+
+  // Vercel 會提供 x-forwarded-for。
+  // 只取最左側的原始 client IP。
+  const forwarded =
+    request.headers.get(
+      "x-forwarded-for"
+    );
+
+  if (
+    forwarded
+  ) {
+    return (
+      forwarded
+        .split(
+          ","
+        )[0]
+        ?.trim() ||
+      "unknown"
+    );
   }
 
-  const result = Array.isArray(data) ? data[0] : data;
-  if (!result?.allowed) {
+  return (
+    request.headers
+      .get(
+        "x-real-ip"
+      )
+      ?.trim() ||
+    "unknown"
+  );
+}
+
+
+function hashRateKey(
+  parts:
+    string[]
+) {
+  return createHash(
+    "sha256"
+  )
+    .update(
+      parts.join(
+        "|"
+      )
+    )
+    .digest(
+      "hex"
+    );
+}
+
+
+async function consumeRateLimit(
+  rateKey:
+    string
+) {
+
+  const {
+    data,
+    error,
+  } =
+    await supabaseAdmin
+      .rpc(
+        "consume_auth_rate_limit",
+        {
+          p_rate_key:
+            rateKey,
+
+          p_limit:
+            STUDENT_RATE_LIMIT
+              .attempts,
+
+          p_window_seconds:
+            STUDENT_RATE_LIMIT
+              .windowSeconds,
+        }
+      );
+
+  if (
+    error
+  ) {
+    console.error(
+      "Student rate limit RPC error:",
+      error
+    );
+
     return {
-      ok: false as const,
-      serviceError: false as const,
-      retryAfter: Number(result?.retry_after_seconds ?? 60),
+      ok:
+        false as const,
+
+      serviceError:
+        true as const,
+
+      retryAfter:
+        0,
     };
   }
 
-  return { ok: true as const, serviceError: false as const, retryAfter: 0 };
+  const result =
+    Array.isArray(
+      data
+    )
+      ? data[0]
+      : data;
+
+  if (
+    !result
+      ?.allowed
+  ) {
+    return {
+      ok:
+        false as const,
+
+      serviceError:
+        false as const,
+
+      retryAfter:
+        Number(
+          result
+            ?.retry_after_seconds ??
+          60
+        ),
+    };
+  }
+
+  return {
+    ok:
+      true as const,
+
+    serviceError:
+      false as const,
+
+    retryAfter:
+      0,
+  };
 }
 
-async function clearRateLimit(rateKey: string) {
-  const { error } = await supabaseAdmin
-    .from("auth_rate_limits")
-    .delete()
-    .eq("rate_key", rateKey);
-  if (error) console.error("Clear student rate limit error:", error);
+
+async function clearRateLimit(
+  rateKey:
+    string
+) {
+
+  const {
+    error,
+  } =
+    await supabaseAdmin
+      .from(
+        "auth_rate_limits"
+      )
+      .delete()
+      .eq(
+        "rate_key",
+        rateKey
+      );
+
+  if (
+    error
+  ) {
+    console.error(
+      "Clear student rate limit error:",
+      error
+    );
+  }
 }
 
-export async function POST(request: NextRequest) {
-  let body: { campus?: string; name?: string; pin?: string };
+
+export async function POST(
+  request:
+    NextRequest
+) {
+
+  let body: {
+    campus?:
+      string;
+
+    name?:
+      string;
+
+    pin?:
+      string;
+  };
 
   try {
-    body = await request.json();
+    body =
+      await request.json();
   } catch {
-    return NextResponse.json({ error: "登入資料格式錯誤。" }, { status: 400 });
+    return NextResponse.json(
+      {
+        error:
+          "登入資料格式錯誤。",
+      },
+      {
+        status:
+          400,
+      }
+    );
   }
 
-  const campus = body.campus?.trim() ?? "";
-  const name = body.name?.trim() ?? "";
-  const pin = body.pin?.trim() ?? "";
+  const campus =
+    body.campus
+      ?.trim() ??
+    "";
 
-  if (!CAMPUSES.includes(campus as (typeof CAMPUSES)[number])) {
-    return NextResponse.json({ error: "請選擇正確班級。" }, { status: 400 });
-  }
-  if (!name) {
-    return NextResponse.json({ error: "請輸入學生姓名。" }, { status: 400 });
-  }
-  if (!/^\d{4}$/.test(pin)) {
-    return NextResponse.json({ error: "班級 PIN 必須為四位數字。" }, { status: 400 });
+  const name =
+    body.name
+      ?.trim() ??
+    "";
+
+  const pin =
+    body.pin
+      ?.trim() ??
+    "";
+
+  if (
+    !CAMPUSES.includes(
+      campus as
+        (typeof CAMPUSES)[number]
+    )
+  ) {
+    return NextResponse.json(
+      {
+        error:
+          "請選擇正確班級。",
+      },
+      {
+        status:
+          400,
+      }
+    );
   }
 
-  const clientIp = getClientIp(request);
-  const rateKey = hashRateKey([
-    "student-login",
-    clientIp,
-    campus,
-    name.toLocaleLowerCase("zh-Hant"),
-  ]);
+  if (
+    !name
+  ) {
+    return NextResponse.json(
+      {
+        error:
+          "請輸入學生姓名。",
+      },
+      {
+        status:
+          400,
+      }
+    );
+  }
 
-  const rateLimit = await consumeRateLimit(rateKey);
-  if (!rateLimit.ok) {
-    if (rateLimit.serviceError) {
+  if (
+    !isValidStudentPin(
+      pin
+    )
+  ) {
+    return NextResponse.json(
+      {
+        error:
+          "個人登入密碼必須為 4～6 位數字。",
+      },
+      {
+        status:
+          400,
+      }
+    );
+  }
+
+
+  const clientIp =
+    getClientIp(
+      request
+    );
+
+  const rateKey =
+    hashRateKey([
+      "student-login",
+      clientIp,
+      campus,
+      name.toLocaleLowerCase(
+        "zh-Hant"
+      ),
+    ]);
+
+  const rateLimit =
+    await consumeRateLimit(
+      rateKey
+    );
+
+  if (
+    !rateLimit.ok
+  ) {
+
+    if (
+      rateLimit.serviceError
+    ) {
       return NextResponse.json(
-        { error: "登入服務暫時無法使用，請稍後再試。" },
-        { status: 503 },
+        {
+          error:
+            "登入服務暫時無法使用，請稍後再試。",
+        },
+        {
+          status:
+            503,
+        }
       );
     }
 
-    const minutes = Math.max(1, Math.ceil(rateLimit.retryAfter / 60));
+    const minutes =
+      Math.max(
+        1,
+        Math.ceil(
+          rateLimit.retryAfter /
+          60
+        )
+      );
+
     return NextResponse.json(
-      { error: `登入嘗試次數過多，請約 ${minutes} 分鐘後再試。` },
       {
-        status: 429,
-        headers: { "Retry-After": String(rateLimit.retryAfter) },
+        error:
+          `登入嘗試次數過多，請約 ${minutes} 分鐘後再試。`,
       },
+      {
+        status:
+          429,
+
+        headers: {
+          "Retry-After":
+            String(
+              rateLimit.retryAfter
+            ),
+        },
+      }
     );
   }
 
-  const { data: student, error: studentError } = await supabaseAdmin
-    .from("students")
-    .select("id,campus,name,active")
-    .eq("campus", campus)
-    .eq("name", name)
-    .eq("active", true)
-    .maybeSingle();
 
-  if (studentError) {
-    console.error("Student login query error:", studentError);
+  const {
+    data:
+      student,
+    error:
+      studentError,
+  } =
+    await supabaseAdmin
+      .from(
+        "students"
+      )
+      .select(
+        "id,campus,name,active,pin_hash,must_change_pin"
+      )
+      .eq(
+        "campus",
+        campus
+      )
+      .eq(
+        "name",
+        name
+      )
+      .eq(
+        "active",
+        true
+      )
+      .maybeSingle();
+
+  if (
+    studentError
+  ) {
+    console.error(
+      "Student login query error:",
+      studentError
+    );
+
     return NextResponse.json(
-      { error: "登入資料讀取失敗，請稍後再試。" },
-      { status: 500 },
+      {
+        error:
+          "登入資料讀取失敗，請稍後再試。",
+      },
+      {
+        status:
+          500,
+      }
     );
   }
 
-  if (!student) {
+
+  // 錯誤訊息統一，避免洩漏「姓名是否存在」。
+  if (
+    !student
+  ) {
     return NextResponse.json(
-      { error: "班級、姓名或 PIN 不正確。" },
-      { status: 401 },
+      {
+        error:
+          "班級、姓名或登入密碼不正確。",
+      },
+      {
+        status:
+          401,
+      }
     );
   }
 
-  const today = getTaiwanDateString();
-  const { data: classCodes, error: classCodeError } = await supabaseAdmin
-    .from("class_access_codes")
-    .select("id,pin_hash,valid_from,valid_until")
-    .eq("campus", campus)
-    .eq("active", true)
-    .lte("valid_from", today)
-    .gte("valid_until", today);
 
-  if (classCodeError) {
-    console.error("Class PIN query error:", classCodeError);
-    return NextResponse.json(
-      { error: "班級 PIN 服務暫時無法使用。" },
-      { status: 500 },
+  let matched =
+    false;
+
+  let mustChangePin =
+    Boolean(
+      student
+        .must_change_pin
     );
+
+
+  /* -----------------------------------------------------
+     已經有個人 PIN hash
+  ----------------------------------------------------- */
+
+  if (
+    student.pin_hash
+  ) {
+    matched =
+      await verifyStudentPin(
+        pin,
+        student.pin_hash
+      );
   }
 
-  let pinMatched = false;
-  for (const code of classCodes ?? []) {
-    if (await bcrypt.compare(pin, code.pin_hash)) {
-      pinMatched = true;
-      break;
+
+  /* -----------------------------------------------------
+     舊學生過渡機制
+
+     Foundation Migration 後的既有學生 pin_hash 可能仍為 null。
+     只要第一次使用「共用初始密碼」登入成功，
+     立即建立 bcrypt hash 並標記 must_change_pin=true。
+
+     因此不需要手動替每一位舊學生跑 migration。
+  ----------------------------------------------------- */
+
+  if (
+    !student.pin_hash
+  ) {
+
+    const settings =
+      await getStudentAuthSettings();
+
+    if (
+      pin ===
+      settings.initialPin
+    ) {
+
+      const pinHash =
+        await hashStudentPin(
+          settings.initialPin
+        );
+
+      const {
+        error:
+          initializeError,
+      } =
+        await supabaseAdmin
+          .from(
+            "students"
+          )
+          .update({
+            pin_hash:
+              pinHash,
+
+            must_change_pin:
+              true,
+
+            updated_at:
+              new Date()
+                .toISOString(),
+          })
+          .eq(
+            "id",
+            student.id
+          );
+
+      if (
+        initializeError
+      ) {
+        console.error(
+          "Initialize student PIN error:",
+          initializeError
+        );
+
+        return NextResponse.json(
+          {
+            error:
+              "初始化登入密碼失敗，請稍後再試。",
+          },
+          {
+            status:
+              500,
+          }
+        );
+      }
+
+      matched =
+        true;
+
+      mustChangePin =
+        true;
     }
   }
 
-  if (!pinMatched) {
+
+  if (
+    !matched
+  ) {
     return NextResponse.json(
-      { error: "班級、姓名或 PIN 不正確。" },
-      { status: 401 },
+      {
+        error:
+          "班級、姓名或登入密碼不正確。",
+      },
+      {
+        status:
+          401,
+      }
     );
   }
 
-  const token = createSessionToken({
-    studentId: student.id,
-    campus: student.campus,
-    name: student.name,
-  });
 
-  const response = NextResponse.json({
-    student: {
-      id: student.id,
-      campus: student.campus,
-      name: student.name,
-    },
-  });
+  const token =
+    createSessionToken({
+      studentId:
+        student.id,
 
-  response.cookies.set("hh_science_session", token, {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
-    path: "/",
-    maxAge: 60 * 60 * 24 * 30,
-  });
+      campus:
+        student.campus,
 
-  await clearRateLimit(rateKey);
+      name:
+        student.name,
+    });
+
+
+  await supabaseAdmin
+    .from(
+      "students"
+    )
+    .update({
+      last_login_at:
+        new Date()
+          .toISOString(),
+    })
+    .eq(
+      "id",
+      student.id
+    );
+
+
+  const response =
+    NextResponse.json({
+      student: {
+        id:
+          student.id,
+
+        campus:
+          student.campus,
+
+        name:
+          student.name,
+
+        mustChangePin,
+      },
+
+      mustChangePin,
+    });
+
+
+  response.cookies.set(
+    "hh_science_session",
+    token,
+    {
+      httpOnly:
+        true,
+
+      sameSite:
+        "lax",
+
+      secure:
+        process.env
+          .NODE_ENV ===
+        "production",
+
+      path:
+        "/",
+
+      maxAge:
+        60 *
+        60 *
+        24 *
+        30,
+    }
+  );
+
+
+  await clearRateLimit(
+    rateKey
+  );
+
   return response;
 }
