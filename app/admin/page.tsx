@@ -2463,6 +2463,40 @@ function AISection(props: {
 }
 
 
+function getSafeReasoningLevels(
+  model: RouterModelOption | undefined,
+): string[] {
+  if (!model) {
+    return ["low", "medium", "high"];
+  }
+
+  const provided = Array.isArray(model.reasoningLevels)
+    ? model.reasoningLevels.filter(Boolean)
+    : [];
+
+  const id = String(model.id || "").toLowerCase();
+  const provider = String(model.provider || "").toLowerCase();
+
+  // Known Gemini 3.x Flash models support the three practical UI levels
+  // used by this project. Keep these visible even if an API response is
+  // temporarily incomplete.
+  if (provider === "gemini" && id.includes("gemini-3")) {
+    return ["low", "medium", "high"];
+  }
+
+  // OpenAI GPT-5.6 family: expose the full configured reasoning ladder.
+  if (provider === "openai" && id.includes("gpt-5.6")) {
+    return ["none", "low", "medium", "high", "xhigh", "max"];
+  }
+
+  if (provided.length > 0) {
+    return Array.from(new Set(provided));
+  }
+
+  return ["low", "medium", "high"];
+}
+
+
 function ModelSlotEditor(props: {
   title: string;
   eyebrow: string;
@@ -2477,19 +2511,20 @@ function ModelSlotEditor(props: {
     props.models[0];
 
   const reasoningLevels =
-    selectedModel?.reasoningLevels?.length
-      ? selectedModel.reasoningLevels
-      : ["low", "medium", "high"];
+    getSafeReasoningLevels(selectedModel);
 
   function handleModelChange(modelId: string) {
     const model = props.models.find((item) => item.id === modelId);
     if (!model) return;
 
-    const nextReasoning = model.reasoningLevels.includes(props.slot.reasoning)
+    const safeLevels =
+      getSafeReasoningLevels(model);
+
+    const nextReasoning = safeLevels.includes(props.slot.reasoning)
       ? props.slot.reasoning
-      : model.reasoningLevels.includes("medium")
+      : safeLevels.includes("medium")
         ? "medium"
-        : model.reasoningLevels[0] || "low";
+        : safeLevels[0] || "low";
 
     props.onChange({
       model: model.id,
@@ -7782,6 +7817,236 @@ const adminStyles = `
     .admin-add-form { grid-template-columns: 78px minmax(0,1fr) 68px !important; }
     .admin-router-card { grid-template-columns: 82px minmax(0,1fr) !important; }
     .admin-router-field { grid-template-columns: 42px minmax(0,1fr) !important; }
+  }
+
+
+  /* =========================================================
+     FINAL MOBILE FIX — READABLE ANALYTICS + FULL REASONING
+     ========================================================= */
+
+  @media (max-width: 760px) {
+    /* AI Analytics: prioritize readability, not maximum density */
+    .admin-analytics-compact {
+      gap: 9px !important;
+    }
+
+    .admin-analytics-toolbar {
+      padding: 12px !important;
+    }
+
+    .admin-analytics-toolbar .hh-eyebrow {
+      font-size: 9px !important;
+    }
+
+    .admin-analytics-toolbar h2 {
+      margin-top: 3px !important;
+      font-size: 20px !important;
+      line-height: 1.2 !important;
+    }
+
+    .admin-analytics-range button {
+      min-height: 38px !important;
+      height: 38px !important;
+      padding: 0 8px !important;
+      font-size: 12px !important;
+      font-weight: 800 !important;
+    }
+
+    .admin-data-table-panel {
+      padding: 13px !important;
+    }
+
+    .admin-data-table-panel .admin-panel-header {
+      margin-bottom: 9px !important;
+    }
+
+    .admin-data-table-panel .admin-panel-header .hh-eyebrow {
+      font-size: 9px !important;
+    }
+
+    .admin-data-table-panel .admin-panel-header h2 {
+      font-size: 18px !important;
+      line-height: 1.2 !important;
+    }
+
+    .admin-data-table-panel .admin-panel-header p {
+      font-size: 11px !important;
+      line-height: 1.4 !important;
+    }
+
+    .admin-data-table-wrap {
+      width: 100% !important;
+      overflow-x: auto !important;
+      -webkit-overflow-scrolling: touch !important;
+    }
+
+    .admin-data-table {
+      width: 100% !important;
+      min-width: 0 !important;
+      table-layout: auto !important;
+      border-collapse: collapse !important;
+    }
+
+    .admin-data-table th {
+      padding: 9px 8px !important;
+      font-size: 10.5px !important;
+      line-height: 1.25 !important;
+      font-weight: 850 !important;
+      letter-spacing: .01em !important;
+      white-space: nowrap !important;
+    }
+
+    .admin-data-table td {
+      padding: 10px 8px !important;
+      font-size: 12.5px !important;
+      line-height: 1.35 !important;
+      vertical-align: middle !important;
+    }
+
+    .admin-data-table td strong {
+      font-size: 12.5px !important;
+    }
+
+    .admin-data-table td small {
+      display: block !important;
+      margin-top: 2px !important;
+      font-size: 10px !important;
+      line-height: 1.25 !important;
+      color: var(--text-secondary) !important;
+    }
+
+    .admin-data-table tbody tr {
+      min-height: 42px !important;
+    }
+
+    /* First four tables should fit the screen and remain legible. */
+    .admin-data-table:not(.admin-model-performance-table) th:first-child,
+    .admin-data-table:not(.admin-model-performance-table) td:first-child {
+      width: 46% !important;
+    }
+
+    .admin-data-table:not(.admin-model-performance-table) th:nth-child(2),
+    .admin-data-table:not(.admin-model-performance-table) td:nth-child(2) {
+      width: 24% !important;
+      white-space: nowrap !important;
+    }
+
+    .admin-data-table:not(.admin-model-performance-table) th:nth-child(3),
+    .admin-data-table:not(.admin-model-performance-table) td:nth-child(3) {
+      width: 30% !important;
+    }
+
+    /* Six-column model table: horizontal scroll instead of microscopic text. */
+    .admin-model-performance-table {
+      min-width: 760px !important;
+      table-layout: auto !important;
+    }
+
+    .admin-model-performance-table th,
+    .admin-model-performance-table td {
+      white-space: nowrap !important;
+    }
+
+    .admin-model-performance-table th:first-child,
+    .admin-model-performance-table td:first-child {
+      min-width: 150px !important;
+    }
+
+    /* Model role cards: reasoning is a real segmented row with all options visible/clickable */
+    .admin-router-card {
+      grid-template-columns: 108px minmax(0, 1fr) !important;
+    }
+
+    .admin-router-identity .hh-eyebrow {
+      font-size: 9px !important;
+    }
+
+    .admin-router-identity h3 {
+      font-size: 15px !important;
+      line-height: 1.25 !important;
+    }
+
+    .admin-router-field {
+      grid-template-columns: 58px minmax(0, 1fr) !important;
+      gap: 7px !important;
+    }
+
+    .admin-router-field > span {
+      font-size: 11px !important;
+      font-weight: 800 !important;
+    }
+
+    .admin-router-model-field .hh-input {
+      min-height: 40px !important;
+      height: 40px !important;
+      font-size: 13px !important;
+    }
+
+    .admin-reasoning-pills {
+      display: flex !important;
+      width: 100% !important;
+      max-width: 100% !important;
+      gap: 5px !important;
+      overflow-x: auto !important;
+      overflow-y: hidden !important;
+      padding: 1px 0 3px !important;
+      scrollbar-width: none !important;
+      -webkit-overflow-scrolling: touch !important;
+    }
+
+    .admin-reasoning-pills::-webkit-scrollbar {
+      display: none !important;
+    }
+
+    .admin-reasoning-pills button {
+      display: inline-flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      flex: 0 0 auto !important;
+      width: auto !important;
+      min-width: 62px !important;
+      min-height: 38px !important;
+      height: 38px !important;
+      padding: 0 11px !important;
+      border-radius: 10px !important;
+      font-size: 12px !important;
+      font-weight: 800 !important;
+      white-space: nowrap !important;
+      pointer-events: auto !important;
+      opacity: 1 !important;
+    }
+
+    .admin-reasoning-pills button.active {
+      font-weight: 900 !important;
+    }
+
+    .admin-router-meta > span,
+    .admin-router-meta > small {
+      font-size: 10px !important;
+      line-height: 1.35 !important;
+    }
+  }
+
+  @media (max-width: 430px) {
+    .admin-data-table th {
+      padding: 8px 6px !important;
+      font-size: 10px !important;
+    }
+
+    .admin-data-table td {
+      padding: 9px 6px !important;
+      font-size: 12px !important;
+    }
+
+    .admin-router-card {
+      grid-template-columns: 98px minmax(0, 1fr) !important;
+    }
+
+    .admin-reasoning-pills button {
+      min-width: 58px !important;
+      padding: 0 9px !important;
+      font-size: 11.5px !important;
+    }
   }
 
 `;
