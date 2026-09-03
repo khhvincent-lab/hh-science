@@ -228,8 +228,10 @@ export default function Home() {
   const [selectedAnnotation, setSelectedAnnotation] = useState<Annotation | null>(null);
 
   const [isSaving, setIsSaving] = useState(false);
+  const [preparedShareFile, setPreparedShareFile] = useState<File | null>(null);
   const resultRef = useRef<HTMLElement | null>(null);
   const exportCardRef = useRef<HTMLDivElement | null>(null);
+  const exportQuestionImageRef = useRef<HTMLImageElement | null>(null);
 
   useEffect(() => {
     async function restoreSession() {
@@ -401,6 +403,7 @@ export default function Home() {
     setQuestionError("");
     setSolveData(null);
     setSelectedAnnotation(null);
+    setPreparedShareFile(null);
     if (student) setupSubject(student);
     else setSubject("");
   }
@@ -413,6 +416,7 @@ export default function Home() {
     if (!subject) return setQuestionError("請先選擇科目。");
 
     setIsSolving(true);
+    setPreparedShareFile(null);
     setSolveData(null);
     setTimeout(() => resultRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
 
@@ -465,75 +469,206 @@ export default function Home() {
     window.open("https://line.me/R/msg/text/?" + encodeURIComponent(message), "_blank");
   }
 
+  async function normalizeQuestionImageForExport(source: string) {
+    const sourceImage = new Image();
+    sourceImage.decoding = "async";
+
+    await new Promise<void>((resolve, reject) => {
+      sourceImage.onload = () => resolve();
+      sourceImage.onerror = () => reject(new Error("題目圖片載入失敗"));
+      sourceImage.src = source;
+    });
+
+    const maxWidth = 1600;
+    const ratio = Math.min(1, maxWidth / sourceImage.naturalWidth);
+    const width = Math.max(1, Math.round(sourceImage.naturalWidth * ratio));
+    const height = Math.max(1, Math.round(sourceImage.naturalHeight * ratio));
+
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+
+    const context = canvas.getContext("2d");
+    if (!context) throw new Error("無法建立題目圖片畫布");
+
+    context.fillStyle = "#ffffff";
+    context.fillRect(0, 0, width, height);
+    context.drawImage(sourceImage, 0, 0, width, height);
+
+    return canvas.toDataURL("image/png", 0.96);
+  }
+
+  async function waitForExportImages(root: HTMLElement) {
+    const images = Array.from(root.querySelectorAll("img"));
+
+    await Promise.all(
+      images.map(async (img) => {
+        if (img.complete && img.naturalWidth > 0) {
+          try {
+            await img.decode();
+          } catch {}
+          return;
+        }
+
+        await new Promise<void>((resolve, reject) => {
+          const timer = window.setTimeout(
+            () => reject(new Error("題目圖片載入逾時")),
+            12000,
+          );
+
+          img.addEventListener(
+            "load",
+            () => {
+              window.clearTimeout(timer);
+              resolve();
+            },
+            { once: true },
+          );
+
+          img.addEventListener(
+            "error",
+            () => {
+              window.clearTimeout(timer);
+              reject(new Error("題目圖片載入失敗"));
+            },
+            { once: true },
+          );
+        });
+      }),
+    );
+  }
+
+  async function buildSolutionImageFile() {
+    if (!exportCardRef.current || !solveData) {
+      throw new Error("目前沒有可匯出的解析內容");
+    }
+
+    if ("fonts" in document) {
+      await document.fonts.ready;
+    }
+
+    // Safari 對大型 data URL 圖片在 html2canvas 裡偶爾會漏圖。
+    // 匯出前先重新畫成標準 PNG，再讓匯出卡片使用這張 PNG。
+    const normalizedQuestionImage = await normalizeQuestionImageForExport(image);
+
+    if (exportQuestionImageRef.current) {
+      exportQuestionImageRef.current.src = normalizedQuestionImage;
+
+      try {
+        await exportQuestionImageRef.current.decode();
+      } catch {
+        await waitForExportImages(exportCardRef.current);
+      }
+    }
+
+    await waitForExportImages(exportCardRef.current);
+
+    // iPhone / iPad 記憶體較吃緊，稍微降低 scale 可大幅提升成功率，
+    // 桌機仍維持 2x。
+    const isMobileSafari =
+      /iPhone|iPad|iPod/i.test(navigator.userAgent) ||
+      (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+
+    const canvas = await html2canvas(exportCardRef.current, {
+      scale: isMobileSafari ? 1.5 : 2,
+      backgroundColor: "#f8f7f2",
+      useCORS: true,
+      allowTaint: false,
+      logging: false,
+      imageTimeout: 20000,
+      foreignObjectRendering: false,
+      removeContainer: true,
+      onclone: (clonedDocument) => {
+        clonedDocument.documentElement.setAttribute("data-theme", "light");
+      },
+    });
+
+    const blob: Blob | null = await new Promise((resolve) => {
+      canvas.toBlob(resolve, "image/png", 1);
+    });
+
+    if (!blob) {
+      throw new Error("解析圖片建立失敗");
+    }
+
+    const safeStudent = student
+      ? student.name.replace(/[\\/:*?"<>|]/g, "")
+      : "學生";
+
+    const fileName = `HH-Science-${safeStudent}-${Date.now()}.png`;
+
+    return new File([blob], fileName, {
+      type: "image/png",
+      lastModified: Date.now(),
+    });
+  }
+
+  function downloadPreparedFile(file: File) {
+    const url = URL.createObjectURL(file);
+    const anchor = document.createElement("a");
+
+    anchor.href = url;
+    anchor.download = file.name;
+    anchor.rel = "noopener";
+    anchor.style.display = "none";
+
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+
+    window.setTimeout(() => {
+      URL.revokeObjectURL(url);
+    }, 60000);
+  }
+
   async function handleSaveImage() {
     if (!exportCardRef.current || !solveData) return;
 
+    // 第二次點擊：這一段不先做任何 await，讓 iOS 保留「使用者手勢」，
+    // navigator.share 才能直接打開系統分享表。
+    if (preparedShareFile) {
+      try {
+        if (
+          navigator.share &&
+          navigator.canShare?.({ files: [preparedShareFile] })
+        ) {
+          await navigator.share({
+            title: "H.H. Science Lab 題目解析",
+            text: "題目詳解與選項分析",
+            files: [preparedShareFile],
+          });
+          return;
+        }
+
+        downloadPreparedFile(preparedShareFile);
+        return;
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") {
+          return;
+        }
+
+        console.error("Share solution image failed:", error);
+        alert("系統分享沒有成功，將改用下載方式儲存。");
+        downloadPreparedFile(preparedShareFile);
+        return;
+      }
+    }
+
+    // 第一次點擊：先可靠地生成完整 PNG。
     setIsSaving(true);
 
     try {
-      // 等待網頁字型完成載入，避免 Safari 在截圖時抓到尚未完成的字型狀態。
-      if ("fonts" in document) {
-        await document.fonts.ready;
-      }
-
-      const canvas = await html2canvas(exportCardRef.current, {
-        scale: 2,
-        backgroundColor: "#f8f7f2",
-        useCORS: true,
-        allowTaint: false,
-        logging: false,
-        imageTimeout: 15000,
-        foreignObjectRendering: false,
-        onclone: (clonedDocument) => {
-          // 匯出的解析圖片固定使用淺色版，避免深色模式影響儲存圖片。
-          clonedDocument.documentElement.setAttribute("data-theme", "light");
-        },
-      });
-
-      const blob: Blob | null = await new Promise((resolve) => {
-        canvas.toBlob(resolve, "image/png", 1);
-      });
-
-      if (!blob) {
-        throw new Error("圖片建立失敗");
-      }
-
-      const safeStudent = student
-        ? student.name.replace(/[\\/:*?"<>|]/g, "")
-        : "學生";
-
-      const fileName = `HH-Science-${safeStudent}-${Date.now()}.png`;
-      const url = URL.createObjectURL(blob);
-
-      // 直接使用瀏覽器下載，不先呼叫 navigator.share。
-      //
-      // Safari / iOS Safari 在等待 html2canvas 完成後，
-      // Web Share API 的「使用者手勢」可能已經失效，
-      // 會拋出 NotAllowedError，導致原本桌機與手機都顯示儲存失敗。
-      const anchor = document.createElement("a");
-      anchor.href = url;
-      anchor.download = fileName;
-      anchor.rel = "noopener";
-      anchor.style.display = "none";
-
-      document.body.appendChild(anchor);
-      anchor.click();
-      anchor.remove();
-
-      // Safari 需要一點時間開始讀取 blob URL，
-      // 不要在 click 後立刻 revoke。
-      window.setTimeout(() => {
-        URL.revokeObjectURL(url);
-      }, 60000);
+      const file = await buildSolutionImageFile();
+      setPreparedShareFile(file);
     } catch (error) {
-      console.error("Save solution image failed:", error);
+      console.error("Build solution image failed:", error);
 
       const message =
         error instanceof Error
           ? `${error.name}: ${error.message}`
           : "未知錯誤";
 
-      alert(`解析圖片儲存失敗。\n\n${message}`);
+      alert(`解析圖片建立失敗。\n\n${message}`);
     } finally {
       setIsSaving(false);
     }
@@ -567,7 +702,10 @@ export default function Home() {
         <header className="student-brand-header">
           <div>
             <div className="hh-eyebrow">H.H. SCIENCE LAB</div>
-            <h1 className="hh-display student-brand-title">H.H.Science Lab 解題實驗室</h1>
+            <h1 className="hh-display student-brand-title">
+              <span className="student-brand-title-en">H.H.Science Lab</span>
+              <span className="student-brand-title-zh">解題實驗室</span>
+            </h1>
             <p className="student-brand-slogan">拆解步驟，清晰脈絡，訂正錯誤，梳理思路</p>
           </div>
           <ThemeToggle />
@@ -752,7 +890,7 @@ export default function Home() {
 
             <div className="student-two-actions student-solve-actions">
               <button type="button" onClick={handleStartSolve} disabled={isSolving || limitReached} className="hh-button-primary student-solve-button">
-                {limitReached ? "今日額度已使用完畢" : isSolving ? "AI 正在分析題目…" : "開始 AI 解題"}
+                {limitReached ? "今日額度已使用完畢" : isSolving ? "分析題目中…" : "開始 AI 解題"}
               </button>
               <button type="button" onClick={clearQuestion} className="hh-button-secondary">清除目前題目</button>
             </div>
@@ -760,12 +898,12 @@ export default function Home() {
         </div>
 
         <section ref={resultRef} className={`hh-card student-panel student-result-panel ${!student ? "student-panel-disabled" : ""}`}>
-          <StepHeader number="3" title="解題結果" description="正確答案 → 此題詳解 → 各選項分析" tone="terra" />
+          <StepHeader number="3" title="題目詳解與選項分析" description="正確答案 → 此題詳解 → 各選項分析" tone="terra" />
 
           {!solveData && !isSolving && (
             <div className="student-result-empty">
               <div className="student-empty-symbol">∴</div>
-              <div>尚未產生解題結果</div>
+              <div>尚未產生題目詳解</div>
               <div className="student-muted">完成上方步驟後，解析會顯示在這裡</div>
             </div>
           )}
@@ -774,8 +912,8 @@ export default function Home() {
             <div className="student-solving-card">
               <div className="student-solving-orbit"><span /></div>
               <div>
-                <div className="student-solving-title">AI 正在分析題目</div>
-                <div className="student-muted">辨識題意、計算並整理成可讀的解析…</div>
+                <div className="student-solving-title">分析題目中</div>
+                <div className="student-muted">產生詳解與選項分析，若有疑問可以儲存圖片詢問老師</div>
               </div>
             </div>
           )}
@@ -821,16 +959,25 @@ export default function Home() {
               <div className="student-result-actions">
                 <button type="button" onClick={handleLineAsk} className="student-line-button">LINE 詢問老師</button>
                 <button type="button" onClick={handleSaveImage} disabled={isSaving} className="student-save-button">
-                  {isSaving ? "正在製作解析圖片…" : "儲存解析圖片"}
+                  {isSaving
+                    ? "正在產生解析圖片…"
+                    : preparedShareFile
+                      ? "分享／存到照片"
+                      : "產生解析圖片"}
                 </button>
               </div>
+              {preparedShareFile && (
+                <div className="student-save-hint">
+                  圖片已產生完成，再按一次「分享／存到照片」即可開啟系統分享表。
+                </div>
+              )}
             </div>
           )}
         </section>
 
         <footer className="student-footer">
           <div className="hh-eyebrow">H.H. SCIENCE LAB</div>
-          <div>AI 是輔助理解的工具；有疑問時，請回到推理與概念本身。</div>
+          <div>自然科解題實驗室 v1</div>
         </footer>
       </div>
 
@@ -855,7 +1002,7 @@ export default function Home() {
             <div style={{ marginBottom: "22px" }}>
               <div style={{ fontWeight: 700, fontSize: "17px", color: "#30463b", marginBottom: "10px" }}>題目</div>
               <div style={{ padding: "12px", background: "#fff", border: "1px solid #dde1db", borderRadius: "14px" }}>
-                <img src={image} alt="題目" style={{ display: "block", maxWidth: "100%", maxHeight: "680px", margin: "0 auto" }} />
+                <img ref={exportQuestionImageRef} src={image} alt="題目" crossOrigin="anonymous" style={{ display: "block", maxWidth: "100%", maxHeight: "680px", margin: "0 auto" }} />
               </div>
             </div>
 
@@ -964,6 +1111,10 @@ export default function Home() {
         .student-container { position: relative; z-index: 1; width: min(900px, calc(100% - 32px)); margin: 0 auto; padding: 40px 0 72px; }
         .student-brand-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; margin-bottom: 22px; }
         .student-brand-title { margin: 5px 0 0; font-size: clamp(34px, 5vw, 54px); line-height: 1.12; color: var(--primary); }
+        .student-brand-title-en,
+        .student-brand-title-zh { display: block; }
+        .student-brand-title-en { white-space: nowrap; }
+        .student-brand-title-zh { margin-top: 2px; }
         .student-brand-slogan { margin: 10px 0 0; color: var(--text-secondary); font-size: 14px; letter-spacing: .02em; }
         .student-muted { color: var(--text-muted); font-size: 13px; }
         .student-loading-page { min-height: 100vh; display: grid; place-items: center; }
@@ -1076,6 +1227,7 @@ export default function Home() {
         .student-line-button { background: var(--student-terra); color: white; }
         .student-save-button { background: var(--student-gold-soft); color: var(--student-gold); border: 1px solid color-mix(in srgb, var(--student-gold) 25%, transparent); }
         .student-save-button:disabled { opacity: .55; }
+        .student-save-hint { margin-top: -2px; padding: 10px 12px; border-radius: 11px; background: var(--student-gold-soft); color: var(--student-gold); border: 1px solid color-mix(in srgb, var(--student-gold) 22%, transparent); font-size: 11px; line-height: 1.6; text-align: center; }
         .student-science-text { display: grid; gap: 3px; }
         .student-science-text p { margin: 0; line-height: 1.82; }
         .student-text-gap { height: 3px; }
