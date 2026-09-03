@@ -5,6 +5,8 @@ import katex from "katex";
 import ThemeToggle from "@/components/theme-toggle";
 import "katex/dist/katex.min.css";
 
+const USD_TO_TWD_RATE = 32.5;
+
 type AdminSection = "dashboard" | "students" | "ai" | "pin" | "analytics";
 
 type DashboardData = {
@@ -1143,7 +1145,7 @@ function DashboardSection({
   loading: boolean;
   error: string;
 }) {
-  const [costAlertThreshold, setCostAlertThreshold] = useState("20");
+  const [costAlertThreshold, setCostAlertThreshold] = useState("500");
   const [costAlertLoading, setCostAlertLoading] = useState(true);
   const [costAlertSaving, setCostAlertSaving] = useState(false);
   const [costAlertMessage, setCostAlertMessage] = useState("");
@@ -1163,7 +1165,7 @@ function DashboardSection({
         }
 
         if (active) {
-          setCostAlertThreshold(String(data.monthlyThresholdUsd ?? 20));
+          setCostAlertThreshold(String(data.monthlyThresholdTwd ?? 500));
         }
       } catch (loadError) {
         if (active) {
@@ -1188,8 +1190,8 @@ function DashboardSection({
   async function saveCostAlertSetting() {
     const value = Number(costAlertThreshold);
 
-    if (!Number.isFinite(value) || value <= 0 || value > 100000) {
-      setCostAlertMessage("警示金額必須大於 0，且不超過 100000 美元。");
+    if (!Number.isFinite(value) || value <= 0 || value > 3000000) {
+      setCostAlertMessage("警示金額必須大於 0，且不超過 NT$3,000,000。");
       return;
     }
 
@@ -1203,7 +1205,7 @@ function DashboardSection({
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          monthlyThresholdUsd: value,
+          monthlyThresholdTwd: value,
         }),
       });
 
@@ -1213,7 +1215,7 @@ function DashboardSection({
         throw new Error(data.error || "儲存 API 成本警示設定失敗。");
       }
 
-      setCostAlertThreshold(String(data.monthlyThresholdUsd));
+      setCostAlertThreshold(String(data.monthlyThresholdTwd));
       setCostAlertMessage("API 成本警示金額已更新。");
     } catch (saveError) {
       setCostAlertMessage(
@@ -1231,7 +1233,7 @@ function DashboardSection({
     Boolean(dashboard) &&
     Number.isFinite(costAlertValue) &&
     costAlertValue > 0 &&
-    dashboard!.month.cost >= costAlertValue;
+    usdToTwd(dashboard!.month.cost) >= costAlertValue;
 
   if (loading && !dashboard) {
     return <div className="hh-card admin-state-card">正在讀取管理資料…</div>;
@@ -1259,7 +1261,7 @@ function DashboardSection({
           <article className="admin-period-card period-month">
             <span>本月解題</span>
             <strong className="hh-number">{dashboard.month.questions} 題</strong>
-            <small>平均每題 ${dashboard.month.averageCost.toFixed(4)}</small>
+            <small>平均每題 {formatTwdFromUsd(dashboard.month.averageCost)}</small>
           </article>
 
           <article className="admin-period-card period-today">
@@ -1270,14 +1272,14 @@ function DashboardSection({
 
           <article className="admin-period-card period-month-cost">
             <span>本月 API 成本</span>
-            <strong className="hh-number">${dashboard.month.cost.toFixed(4)}</strong>
+            <strong className="hh-number">{formatTwdFromUsd(dashboard.month.cost)}</strong>
             <small>本月累積</small>
           </article>
 
           <article className="admin-period-card period-today-cost">
             <span>今日 API 成本</span>
-            <strong className="hh-number">${dashboard.today.cost.toFixed(4)}</strong>
-            <small>平均 ${dashboard.today.averageCost.toFixed(4)} / 題</small>
+            <strong className="hh-number">{formatTwdFromUsd(dashboard.today.cost)}</strong>
+            <small>平均 {formatTwdFromUsd(dashboard.today.averageCost)} / 題</small>
           </article>
         </div>
 
@@ -1286,25 +1288,25 @@ function DashboardSection({
             <div className="hh-eyebrow">API COST ALERT</div>
             <strong>
               {isCostAlert
-                ? `本月成本已達 $${dashboard.month.cost.toFixed(4)}`
-                : `本月成本 $${dashboard.month.cost.toFixed(4)}`}
+                ? `本月成本已達 ${formatTwdFromUsd(dashboard.month.cost)}`
+                : `本月成本 ${formatTwdFromUsd(dashboard.month.cost)}`}
             </strong>
             <span>
               {isCostAlert
-                ? `已達到你設定的 $${costAlertValue.toFixed(2)} 警示門檻`
+                ? `已達到你設定的 NT$${Math.round(costAlertValue).toLocaleString("zh-TW")} 警示門檻`
                 : `達到設定金額時會顯示警示`}
             </span>
           </div>
 
           <div className="admin-cost-alert-controls">
             <label>
-              <span>警示金額（USD）</span>
+              <span>警示金額（NT$）</span>
               <input
                 className="hh-input"
                 type="number"
                 min="0.01"
-                max="100000"
-                step="0.01"
+                max="3000000"
+                step="10"
                 value={costAlertThreshold}
                 disabled={costAlertLoading || costAlertSaving}
                 onChange={(event) => setCostAlertThreshold(event.target.value)}
@@ -1351,9 +1353,9 @@ function DashboardSection({
 
               <div className="admin-campus-row-metrics">
                 <Metric label="今日解題" value={`${campus.todayQuestions} 題`} />
-                <Metric label="今日成本" value={`$${campus.todayCost.toFixed(4)}`} />
+                <Metric label="今日成本" value={formatTwdFromUsd(campus.todayCost)} />
                 <Metric label="本月解題" value={`${campus.monthQuestions} 題`} />
-                <Metric label="本月成本" value={`$${campus.monthCost.toFixed(4)}`} />
+                <Metric label="本月成本" value={formatTwdFromUsd(campus.monthCost)} />
               </div>
             </article>
           ))}
@@ -2528,8 +2530,7 @@ function ModelSlotEditor(props: {
         <span>{selectedModel?.description || props.slot.model}</span>
         {selectedModel && (
           <small>
-            Input ${selectedModel.inputPrice ?? "—"}/M · Output $
-            {selectedModel.outputPrice ?? "—"}/M
+            Input {selectedModel.inputPrice == null ? "—" : formatTwdFromUsd(Number(selectedModel.inputPrice))}/M · Output {selectedModel.outputPrice == null ? "—" : formatTwdFromUsd(Number(selectedModel.outputPrice))}/M
           </small>
         )}
       </div>
@@ -2783,14 +2784,14 @@ function AnalyticsSection() {
             <AnalyticsKpi
               eyebrow="TOTAL COST"
               label="估算總成本"
-              value={formatUsd(data.totals.totalCostUsd)}
+              value={formatTwdFromUsd(data.totals.totalCostUsd)}
               note="依 api_usage.estimated_cost_usd 加總"
             />
 
             <AnalyticsKpi
               eyebrow="AVG / SOLVE"
               label="平均每題成本"
-              value={formatUsd(data.totals.averageCostPerSolveUsd)}
+              value={formatTwdFromUsd(data.totals.averageCostPerSolveUsd)}
               note={`分母：${formatInteger(data.totals.solvedQuestions)} 題解題`}
             />
           </section>
@@ -2985,8 +2986,8 @@ function AnalyticsSection() {
                           </div>
                         </td>
                         <td>{formatInteger(model.calls)}</td>
-                        <td>{formatUsd(model.costUsd)}</td>
-                        <td>{formatUsd(model.averageCostUsd)}</td>
+                        <td>{formatTwdFromUsd(model.costUsd)}</td>
+                        <td>{formatTwdFromUsd(model.averageCostUsd)}</td>
                         <td>
                           <MetricCell
                             rate={model.primaryConsistencyRate}
@@ -3025,11 +3026,11 @@ function AnalyticsSection() {
                   <div className="admin-model-mobile-metrics">
                     <div>
                       <span>成本</span>
-                      <strong>{formatUsd(model.costUsd)}</strong>
+                      <strong>{formatTwdFromUsd(model.costUsd)}</strong>
                     </div>
                     <div>
                       <span>平均／次</span>
-                      <strong>{formatUsd(model.averageCostUsd)}</strong>
+                      <strong>{formatTwdFromUsd(model.averageCostUsd)}</strong>
                     </div>
                     <div>
                       <span>Primary 一致率</span>
@@ -3052,7 +3053,7 @@ function AnalyticsSection() {
           </section>
 
           <div className="admin-analytics-footnote">
-            成本為 API 回傳 token usage 搭配目前模型價格表的估算值；若供應商價格調整，
+            成本原始資料仍以 API 的 USD token usage 計算，後台統一換算顯示為 NT$；若供應商價格調整，
             歷史 estimated_cost_usd 不會自動重算。品質一致率使用系統現行的答案正規化規則，
             不做高風險單位換算。
           </div>
@@ -3101,7 +3102,7 @@ function AnalyticsRoleCard({
         <small>{note}</small>
       </div>
       <strong>{formatInteger(metric.calls)} 次</strong>
-      <b>{formatUsd(metric.costUsd)}</b>
+      <b>{formatTwdFromUsd(metric.costUsd)}</b>
     </article>
   );
 }
@@ -3161,18 +3162,22 @@ function formatInteger(value: number) {
 }
 
 
-function formatUsd(value: number) {
-  const amount = Number(value || 0);
+function usdToTwd(value: number) {
+  return Number(value || 0) * USD_TO_TWD_RATE;
+}
 
-  if (amount > 0 && amount < 0.001) {
-    return `$${amount.toFixed(6)}`;
+
+function formatTwdFromUsd(value: number) {
+  const amount = usdToTwd(value);
+
+  if (amount > 0 && amount < 1) {
+    return `NT$${amount.toFixed(2)}`;
   }
 
-  if (amount < 0.1) {
-    return `$${amount.toFixed(4)}`;
-  }
-
-  return `$${amount.toFixed(2)}`;
+  return `NT$${amount.toLocaleString("zh-TW", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
 }
 
 
@@ -7754,6 +7759,109 @@ const adminStyles = `
 
     .admin-reasoning-pills {
       grid-template-columns: repeat(auto-fit, minmax(42px, 1fr));
+    }
+  }
+
+
+  /* =========================================================
+     ADMIN MOBILE REGRESSION FIX
+     - compact popover menu
+     - safe area
+     - no full-screen drawer
+     ========================================================= */
+  @media (max-width: 760px) {
+    .admin-shell {
+      padding-top: calc(max(8px, env(safe-area-inset-top)) + 66px) !important;
+    }
+
+    .admin-mobile-header {
+      top: max(8px, env(safe-area-inset-top)) !important;
+      left: 10px !important;
+      right: 10px !important;
+      z-index: 150 !important;
+    }
+
+    .admin-mobile-backdrop {
+      position: fixed !important;
+      inset: 0 !important;
+      z-index: 138 !important;
+      background: rgba(8, 13, 10, .08) !important;
+      backdrop-filter: none !important;
+      -webkit-backdrop-filter: none !important;
+    }
+
+    .admin-sidebar {
+      position: fixed !important;
+      top: calc(max(8px, env(safe-area-inset-top)) + 62px) !important;
+      right: 10px !important;
+      bottom: auto !important;
+      left: auto !important;
+      z-index: 145 !important;
+      width: min(286px, calc(100vw - 20px)) !important;
+      min-height: 0 !important;
+      max-height: calc(100dvh - max(8px, env(safe-area-inset-top)) - 82px) !important;
+      overflow-y: auto !important;
+      padding: 8px !important;
+      border: 1px solid var(--border) !important;
+      border-radius: 16px !important;
+      background: color-mix(in srgb, var(--surface) 97%, transparent) !important;
+      box-shadow: 0 18px 48px rgba(8, 14, 10, .22) !important;
+      transform: translateY(-8px) scale(.985) !important;
+      transform-origin: top right !important;
+      opacity: 0 !important;
+      pointer-events: none !important;
+      transition: opacity .14s ease, transform .14s ease !important;
+    }
+
+    .admin-sidebar.mobile-open {
+      transform: translateY(0) scale(1) !important;
+      opacity: 1 !important;
+      pointer-events: auto !important;
+    }
+
+    .admin-sidebar-brand {
+      display: none !important;
+    }
+
+    .admin-nav {
+      display: grid !important;
+      grid-template-columns: 1fr !important;
+      gap: 3px !important;
+      overflow: visible !important;
+    }
+
+    .admin-nav-button {
+      justify-content: flex-start !important;
+      min-height: 40px !important;
+      padding: 0 10px !important;
+      border-radius: 10px !important;
+      font-size: 12px !important;
+    }
+
+    .admin-nav-button span {
+      display: grid !important;
+      width: 22px !important;
+      height: 20px !important;
+      font-size: 8px !important;
+    }
+
+    .admin-sidebar-footer {
+      display: grid !important;
+      grid-template-columns: 1fr 1fr !important;
+      gap: 4px !important;
+      margin-top: 6px !important;
+      padding-top: 6px !important;
+    }
+
+    .admin-sidebar-link {
+      min-height: 36px !important;
+      padding: 0 8px !important;
+      display: flex !important;
+      align-items: center !important;
+      border-radius: 9px !important;
+      background: var(--surface-soft) !important;
+      color: var(--text-secondary) !important;
+      font-size: 10px !important;
     }
   }
 
