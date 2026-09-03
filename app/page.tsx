@@ -1433,9 +1433,8 @@ export default function Home() {
 
             <div className="student-welcome-actions">
               <div className={`student-usage-pill student-usage-pill-${usageTone}`}>
-                <span className="hh-number">{usage.count}</span>
-                <span>/</span>
-                <span className="hh-number">{usage.limit}</span>
+                <span>剩餘</span>
+                <span className="hh-number">{usage.remaining}</span>
                 <span>題</span>
               </div>
             </div>
@@ -1782,16 +1781,6 @@ export default function Home() {
                 className="hh-textarea student-note-textarea"
               />
             </label>
-
-            <div className="student-quota-row">
-              <div>
-                <div className="student-quota-label">每日 AI 解題額度</div>
-                <div className="student-muted">每位學生每日最多 {usage.limit} 題</div>
-              </div>
-              <div className={`student-remaining student-remaining-${usageTone}`}>
-                <span className="hh-number">{usage.remaining}</span> 題剩餘
-              </div>
-            </div>
 
             {limitReached && <div className="student-alert student-alert-danger">今日解題額度已使用完畢，明天會自動恢復為 {usage.limit} 題。</div>}
             {questionError && <div className="student-alert student-alert-danger">{questionError}</div>}
@@ -3380,10 +3369,10 @@ export default function Home() {
             align-items: center;
             justify-content: center;
             width: auto;
-            min-width: 82px;
+            min-width: 86px;
             min-height: 34px;
             padding: 0 11px;
-            gap: 3px;
+            gap: 4px;
             border-radius: 999px;
             font-size: 10px;
             line-height: 1;
@@ -3391,7 +3380,7 @@ export default function Home() {
           }
 
           .student-usage-pill .hh-number {
-            font-size: 14px;
+            font-size: 15px;
             line-height: 1;
           }
 
