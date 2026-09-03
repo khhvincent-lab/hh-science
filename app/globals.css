@@ -1,0 +1,655 @@
+@import "tailwindcss";
+
+
+/* =========================================================
+   H.H. Science Lab
+   Deep Forest Academic Design System
+========================================================= */
+
+
+/* ---------------------------------------------------------
+   Light theme
+--------------------------------------------------------- */
+
+:root {
+  color-scheme: light;
+
+  --bg: #f5f4ef;
+  --bg-soft: #efeee8;
+
+  --surface: #ffffff;
+  --surface-soft: #f7f7f3;
+  --surface-muted: #ecefe9;
+
+  --primary: #30463b;
+  --primary-hover: #25382f;
+  --primary-soft: #e8ece8;
+
+  --secondary: #708276;
+  --secondary-soft: #e5e9e5;
+
+  --text: #26322c;
+  --text-secondary: #747c77;
+  --text-muted: #959c97;
+
+  --border: #dde1db;
+  --border-strong: #c8cec7;
+
+  --accent: #d6a84b;
+  --accent-soft: #f4e8c9;
+
+  --danger: #a95f59;
+  --danger-soft: #f3e5e3;
+
+  --success: #54745d;
+  --success-soft: #e5ede7;
+
+  --info: #70889a;
+  --info-soft: #e6ecef;
+
+  --shadow-sm:
+    0 4px 16px rgba(45, 56, 48, 0.045);
+
+  --shadow-md:
+    0 12px 32px rgba(45, 56, 48, 0.07);
+
+  --shadow-lg:
+    0 24px 60px rgba(45, 56, 48, 0.10);
+}
+
+
+/* ---------------------------------------------------------
+   Dark theme
+--------------------------------------------------------- */
+
+html[data-theme="dark"] {
+  color-scheme: dark;
+
+  --bg: #161c18;
+  --bg-soft: #1b221e;
+
+  --surface: #202823;
+  --surface-soft: #252e28;
+  --surface-muted: #2a342d;
+
+  --primary: #9bafa0;
+  --primary-hover: #b5c6b9;
+  --primary-soft: #2b3931;
+
+  --secondary: #85988b;
+  --secondary-soft: #2c3730;
+
+  --text: #f1f3f0;
+  --text-secondary: #aeb8b0;
+  --text-muted: #7f8b82;
+
+  --border: #344039;
+  --border-strong: #46534a;
+
+  --accent: #dab45f;
+  --accent-soft: #3c3423;
+
+  --danger: #d2847c;
+  --danger-soft: #3d2b29;
+
+  --success: #8fb29a;
+  --success-soft: #26382d;
+
+  --info: #8da7b8;
+  --info-soft: #28363f;
+
+  --shadow-sm:
+    0 4px 18px rgba(0, 0, 0, 0.18);
+
+  --shadow-md:
+    0 14px 38px rgba(0, 0, 0, 0.26);
+
+  --shadow-lg:
+    0 26px 70px rgba(0, 0, 0, 0.34);
+}
+
+
+/* =========================================================
+   Base
+========================================================= */
+
+* {
+  box-sizing: border-box;
+}
+
+
+html {
+  background: var(--bg);
+  color: var(--text);
+  transition:
+    background-color 180ms ease,
+    color 180ms ease;
+}
+
+
+body {
+  margin: 0;
+
+  background:
+    var(--bg);
+
+  color:
+    var(--text);
+
+  font-family:
+    var(--font-sans),
+    "Noto Sans TC",
+    "PingFang TC",
+    "Microsoft JhengHei",
+    sans-serif;
+
+  -webkit-font-smoothing:
+    antialiased;
+
+  text-rendering:
+    optimizeLegibility;
+}
+
+
+button,
+input,
+textarea,
+select {
+  font:
+    inherit;
+}
+
+
+button {
+  -webkit-tap-highlight-color:
+    transparent;
+}
+
+
+/* =========================================================
+   Typography
+========================================================= */
+
+.hh-display {
+  font-family:
+    var(--font-serif),
+    "Noto Serif TC",
+    "Songti TC",
+    serif;
+
+  letter-spacing:
+    -0.02em;
+}
+
+
+.hh-brand {
+  font-family:
+    var(--font-serif),
+    "Noto Serif TC",
+    serif;
+
+  font-weight:
+    700;
+
+  letter-spacing:
+    -0.02em;
+}
+
+
+.hh-number {
+  font-family:
+    var(--font-inter),
+    "Inter",
+    "SF Pro Display",
+    sans-serif;
+
+  font-variant-numeric:
+    tabular-nums;
+}
+
+
+.hh-eyebrow {
+  font-family:
+    var(--font-inter),
+    "Inter",
+    sans-serif;
+
+  font-size:
+    0.72rem;
+
+  font-weight:
+    700;
+
+  letter-spacing:
+    0.14em;
+
+  text-transform:
+    uppercase;
+
+  color:
+    var(--text-muted);
+}
+
+
+/* =========================================================
+   Layout helpers
+========================================================= */
+
+.hh-page {
+  min-height:
+    100vh;
+
+  background:
+    var(--bg);
+
+  color:
+    var(--text);
+}
+
+
+.hh-container {
+  width:
+    min(1180px, calc(100% - 40px));
+
+  margin:
+    0 auto;
+}
+
+
+/* =========================================================
+   Surfaces / cards
+========================================================= */
+
+.hh-card {
+  background:
+    var(--surface);
+
+  border:
+    1px solid var(--border);
+
+  border-radius:
+    20px;
+
+  box-shadow:
+    var(--shadow-sm);
+}
+
+
+.hh-card-soft {
+  background:
+    var(--surface-soft);
+
+  border:
+    1px solid var(--border);
+
+  border-radius:
+    16px;
+}
+
+
+/* =========================================================
+   Buttons
+========================================================= */
+
+.hh-button-primary {
+  appearance:
+    none;
+
+  border:
+    0;
+
+  border-radius:
+    12px;
+
+  padding:
+    12px 18px;
+
+  background:
+    var(--primary);
+
+  color:
+    #ffffff;
+
+  font-weight:
+    700;
+
+  cursor:
+    pointer;
+
+  transition:
+    transform 120ms ease,
+    background-color 120ms ease,
+    box-shadow 120ms ease;
+}
+
+
+html[data-theme="dark"]
+.hh-button-primary {
+  color:
+    #172019;
+}
+
+
+.hh-button-primary:hover {
+  background:
+    var(--primary-hover);
+
+  box-shadow:
+    var(--shadow-sm);
+}
+
+
+.hh-button-primary:active {
+  transform:
+    translateY(1px);
+}
+
+
+.hh-button-primary:disabled {
+  opacity:
+    0.52;
+
+  cursor:
+    default;
+}
+
+
+.hh-button-secondary {
+  appearance:
+    none;
+
+  border:
+    1px solid var(--border-strong);
+
+  border-radius:
+    12px;
+
+  padding:
+    11px 16px;
+
+  background:
+    var(--surface);
+
+  color:
+    var(--text);
+
+  font-weight:
+    650;
+
+  cursor:
+    pointer;
+
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease;
+}
+
+
+.hh-button-secondary:hover {
+  background:
+    var(--surface-soft);
+}
+
+
+/* =========================================================
+   Inputs
+========================================================= */
+
+.hh-input,
+.hh-select,
+.hh-textarea {
+  width:
+    100%;
+
+  border:
+    1px solid var(--border-strong);
+
+  border-radius:
+    12px;
+
+  background:
+    var(--surface);
+
+  color:
+    var(--text);
+
+  padding:
+    12px 14px;
+
+  outline:
+    none;
+
+  transition:
+    border-color 120ms ease,
+    box-shadow 120ms ease,
+    background-color 120ms ease;
+}
+
+
+.hh-input::placeholder,
+.hh-textarea::placeholder {
+  color:
+    var(--text-muted);
+}
+
+
+.hh-input:focus,
+.hh-select:focus,
+.hh-textarea:focus {
+  border-color:
+    var(--secondary);
+
+  box-shadow:
+    0 0 0 3px
+    color-mix(
+      in srgb,
+      var(--secondary) 17%,
+      transparent
+    );
+}
+
+
+/* =========================================================
+   Status pills
+========================================================= */
+
+.hh-pill {
+  display:
+    inline-flex;
+
+  align-items:
+    center;
+
+  gap:
+    6px;
+
+  border-radius:
+    999px;
+
+  padding:
+    6px 10px;
+
+  font-size:
+    0.78rem;
+
+  font-weight:
+    700;
+}
+
+
+.hh-pill-success {
+  color:
+    var(--success);
+
+  background:
+    var(--success-soft);
+}
+
+
+.hh-pill-warning {
+  color:
+    var(--accent);
+
+  background:
+    var(--accent-soft);
+}
+
+
+.hh-pill-danger {
+  color:
+    var(--danger);
+
+  background:
+    var(--danger-soft);
+}
+
+
+.hh-pill-info {
+  color:
+    var(--info);
+
+  background:
+    var(--info-soft);
+}
+
+
+/* =========================================================
+   Tables
+========================================================= */
+
+.hh-table {
+  width:
+    100%;
+
+  border-collapse:
+    collapse;
+}
+
+
+.hh-table th {
+  padding:
+    11px 12px;
+
+  text-align:
+    left;
+
+  font-size:
+    0.75rem;
+
+  color:
+    var(--text-muted);
+
+  border-bottom:
+    1px solid var(--border);
+}
+
+
+.hh-table td {
+  padding:
+    13px 12px;
+
+  border-bottom:
+    1px solid var(--border);
+
+  color:
+    var(--text);
+}
+
+
+/* =========================================================
+   Theme toggle
+========================================================= */
+
+.hh-theme-toggle {
+  width:
+    40px;
+
+  height:
+    40px;
+
+  display:
+    inline-grid;
+
+  place-items:
+    center;
+
+  border:
+    1px solid var(--border);
+
+  border-radius:
+    12px;
+
+  background:
+    var(--surface);
+
+  color:
+    var(--text-secondary);
+
+  cursor:
+    pointer;
+
+  box-shadow:
+    var(--shadow-sm);
+
+  transition:
+    transform 120ms ease,
+    background-color 120ms ease;
+}
+
+
+.hh-theme-toggle:hover {
+  background:
+    var(--surface-soft);
+}
+
+
+.hh-theme-toggle:active {
+  transform:
+    scale(0.97);
+}
+
+
+/* =========================================================
+   Selection
+========================================================= */
+
+::selection {
+  background:
+    var(--accent-soft);
+
+  color:
+    var(--text);
+}
+
+
+/* =========================================================
+   Scrollbar
+========================================================= */
+
+* {
+  scrollbar-width:
+    thin;
+
+  scrollbar-color:
+    var(--border-strong)
+    transparent;
+}
+
+
+/* =========================================================
+   Mobile
+========================================================= */
+
+@media (
+  max-width: 700px
+) {
+
+  .hh-container {
+    width:
+      min(
+        100% - 24px,
+        1180px
+      );
+  }
+
+}
