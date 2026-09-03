@@ -1056,11 +1056,6 @@ export default function AdminPage() {
               dashboard={dashboard}
               loading={dashboardLoading}
               error={dashboardError}
-              initialStudentPin={initialStudentPin}
-              setInitialStudentPin={setInitialStudentPin}
-              studentAuthLoading={studentAuthLoading}
-              studentAuthSaving={studentAuthSaving}
-              onSaveInitialStudentPin={saveInitialStudentPin}
             />
           )}
 
@@ -1143,21 +1138,101 @@ function DashboardSection({
   dashboard,
   loading,
   error,
-  initialStudentPin,
-  setInitialStudentPin,
-  studentAuthLoading,
-  studentAuthSaving,
-  onSaveInitialStudentPin,
 }: {
   dashboard: DashboardData | null;
   loading: boolean;
   error: string;
-  initialStudentPin: string;
-  setInitialStudentPin: (value: string) => void;
-  studentAuthLoading: boolean;
-  studentAuthSaving: boolean;
-  onSaveInitialStudentPin: () => Promise<void>;
 }) {
+  const [costAlertThreshold, setCostAlertThreshold] = useState("20");
+  const [costAlertLoading, setCostAlertLoading] = useState(true);
+  const [costAlertSaving, setCostAlertSaving] = useState(false);
+  const [costAlertMessage, setCostAlertMessage] = useState("");
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadCostAlertSetting() {
+      try {
+        const response = await fetch("/api/admin/cost-alert-settings", {
+          cache: "no-store",
+        });
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error || "讀取 API 成本警示設定失敗。");
+        }
+
+        if (active) {
+          setCostAlertThreshold(String(data.monthlyThresholdUsd ?? 20));
+        }
+      } catch (loadError) {
+        if (active) {
+          setCostAlertMessage(
+            loadError instanceof Error
+              ? loadError.message
+              : "讀取 API 成本警示設定失敗。",
+          );
+        }
+      } finally {
+        if (active) setCostAlertLoading(false);
+      }
+    }
+
+    void loadCostAlertSetting();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  async function saveCostAlertSetting() {
+    const value = Number(costAlertThreshold);
+
+    if (!Number.isFinite(value) || value <= 0 || value > 100000) {
+      setCostAlertMessage("警示金額必須大於 0，且不超過 100000 美元。");
+      return;
+    }
+
+    setCostAlertSaving(true);
+    setCostAlertMessage("");
+
+    try {
+      const response = await fetch("/api/admin/cost-alert-settings", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          monthlyThresholdUsd: value,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "儲存 API 成本警示設定失敗。");
+      }
+
+      setCostAlertThreshold(String(data.monthlyThresholdUsd));
+      setCostAlertMessage("API 成本警示金額已更新。");
+    } catch (saveError) {
+      setCostAlertMessage(
+        saveError instanceof Error
+          ? saveError.message
+          : "儲存 API 成本警示設定失敗。",
+      );
+    } finally {
+      setCostAlertSaving(false);
+    }
+  }
+
+  const costAlertValue = Number(costAlertThreshold || 0);
+  const isCostAlert =
+    Boolean(dashboard) &&
+    Number.isFinite(costAlertValue) &&
+    costAlertValue > 0 &&
+    dashboard!.month.cost >= costAlertValue;
+
   if (loading && !dashboard) {
     return <div className="hh-card admin-state-card">正在讀取管理資料…</div>;
   }
@@ -1205,6 +1280,53 @@ function DashboardSection({
             <small>平均 ${dashboard.today.averageCost.toFixed(4)} / 題</small>
           </article>
         </div>
+
+        <div className={`admin-cost-alert-strip ${isCostAlert ? "warning" : ""}`}>
+          <div className="admin-cost-alert-status">
+            <div className="hh-eyebrow">API COST ALERT</div>
+            <strong>
+              {isCostAlert
+                ? `本月成本已達 $${dashboard.month.cost.toFixed(4)}`
+                : `本月成本 $${dashboard.month.cost.toFixed(4)}`}
+            </strong>
+            <span>
+              {isCostAlert
+                ? `已達到你設定的 $${costAlertValue.toFixed(2)} 警示門檻`
+                : `達到設定金額時會顯示警示`}
+            </span>
+          </div>
+
+          <div className="admin-cost-alert-controls">
+            <label>
+              <span>警示金額（USD）</span>
+              <input
+                className="hh-input"
+                type="number"
+                min="0.01"
+                max="100000"
+                step="0.01"
+                value={costAlertThreshold}
+                disabled={costAlertLoading || costAlertSaving}
+                onChange={(event) => setCostAlertThreshold(event.target.value)}
+              />
+            </label>
+
+            <button
+              type="button"
+              className="hh-button-secondary"
+              disabled={costAlertLoading || costAlertSaving}
+              onClick={() => void saveCostAlertSetting()}
+            >
+              {costAlertSaving ? "儲存中…" : "設定警示"}
+            </button>
+          </div>
+        </div>
+
+        {costAlertMessage && (
+          <div className={`admin-cost-alert-message ${costAlertMessage.includes("已更新") ? "success" : ""}`}>
+            {costAlertMessage}
+          </div>
+        )}
       </section>
 
       <section className="hh-card admin-panel admin-overview-panel">
@@ -1235,56 +1357,6 @@ function DashboardSection({
               </div>
             </article>
           ))}
-        </div>
-      </section>
-
-      <section className="hh-card admin-panel admin-pin-overview-panel">
-        <div className="admin-section-head">
-          <div>
-            <div className="hh-eyebrow">STUDENT ACCESS</div>
-            <h2 className="hh-display">學生初始密碼</h2>
-            <p>新生第一次登入與老師重設密碼後，都會使用這組共用初始密碼。</p>
-          </div>
-        </div>
-
-        <div className="admin-pin-card">
-          <div className="admin-pin-head">
-            <div>
-              <strong>共用初始密碼</strong>
-              <span>學生首次登入後會強制改成個人 4～6 位密碼</span>
-            </div>
-            <div className="admin-pin-status">SECURE FLOW</div>
-          </div>
-
-          <div className="admin-pin-controls">
-            <input
-              className="hh-input"
-              type="text"
-              inputMode="numeric"
-              maxLength={6}
-              value={initialStudentPin}
-              disabled={studentAuthLoading || studentAuthSaving}
-              onChange={(event) =>
-                setInitialStudentPin(
-                  event.target.value.replace(/\D/g, "").slice(0, 6),
-                )
-              }
-              placeholder="4～6 位初始密碼"
-            />
-
-            <button
-              type="button"
-              className="hh-button-primary"
-              disabled={studentAuthLoading || studentAuthSaving}
-              onClick={() => void onSaveInitialStudentPin()}
-            >
-              {studentAuthSaving ? "儲存中…" : "更新初始密碼"}
-            </button>
-          </div>
-
-          <div className="admin-pin-date">
-            修改初始密碼不會改掉已完成個人密碼設定的學生；只影響新增學生與之後被老師重設密碼的帳號。
-          </div>
         </div>
       </section>
 
@@ -6689,6 +6761,323 @@ const adminStyles = `
 
     .admin-analytics-range button {
       width: 100%;
+    }
+  }
+
+
+  /* ===== Admin compact mobile redesign ===== */
+
+  .admin-period-card,
+  .admin-period-card > span,
+  .admin-period-card > strong,
+  .admin-period-card > small {
+    text-align: left;
+  }
+
+  .admin-cost-alert-strip {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 14px;
+    align-items: end;
+    margin-top: 14px;
+    padding: 13px 14px;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: var(--surface-soft);
+  }
+
+  .admin-cost-alert-strip.warning {
+    border-color: color-mix(in srgb, #c59a43 55%, var(--border));
+    background: color-mix(in srgb, #c59a43 10%, var(--surface));
+    box-shadow: 0 0 0 2px color-mix(in srgb, #c59a43 8%, transparent);
+  }
+
+  .admin-cost-alert-status {
+    display: grid;
+    gap: 3px;
+  }
+
+  .admin-cost-alert-status strong {
+    font-size: 13px;
+  }
+
+  .admin-cost-alert-status span {
+    color: var(--text-secondary);
+    font-size: 10px;
+  }
+
+  .admin-cost-alert-controls {
+    display: flex;
+    align-items: end;
+    gap: 7px;
+  }
+
+  .admin-cost-alert-controls label {
+    display: grid;
+    gap: 4px;
+  }
+
+  .admin-cost-alert-controls label > span {
+    color: var(--text-secondary);
+    font-size: 9px;
+    font-weight: 800;
+  }
+
+  .admin-cost-alert-controls .hh-input {
+    width: 130px;
+    min-height: 38px;
+  }
+
+  .admin-cost-alert-controls .hh-button-secondary {
+    min-height: 38px;
+  }
+
+  .admin-cost-alert-message {
+    margin-top: 7px;
+    color: var(--danger);
+    font-size: 10px;
+  }
+
+  .admin-cost-alert-message.success {
+    color: var(--success);
+  }
+
+  @media (max-width: 760px) {
+    .admin-topbar {
+      min-height: 64px;
+      padding: 10px 12px;
+    }
+
+    .admin-page-title {
+      margin-top: 2px;
+      font-size: 20px;
+      line-height: 1.15;
+    }
+
+    .admin-topbar .hh-eyebrow {
+      font-size: 8px;
+    }
+
+    .admin-content {
+      width: min(100% - 16px, 1180px);
+      padding-top: 10px;
+      padding-bottom: 28px;
+    }
+
+    .admin-stack {
+      gap: 9px;
+    }
+
+    .admin-panel,
+    .admin-compact-panel {
+      padding: 13px;
+      border-radius: 14px;
+    }
+
+    .admin-section-head,
+    .admin-panel-header,
+    .admin-analytics-hero-head,
+    .admin-history-detail-title,
+    .admin-history-analysis-head {
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    .admin-section-head h2,
+    .admin-panel-header h2,
+    .admin-analytics-hero-head h2,
+    .admin-ai-summary-head h2,
+    .admin-system-card h2,
+    .admin-history-detail-title h3,
+    .admin-history-analysis-head h4 {
+      font-size: 16px;
+      line-height: 1.25;
+    }
+
+    .admin-section-head p,
+    .admin-panel-header p,
+    .admin-analytics-hero-head p {
+      margin-top: 3px;
+      font-size: 10px;
+      line-height: 1.5;
+    }
+
+    .admin-section-note {
+      display: none;
+    }
+
+    .admin-period-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 7px;
+    }
+
+    .admin-period-card {
+      min-height: 76px;
+      padding: 10px 11px;
+      border-radius: 12px;
+    }
+
+    .admin-period-card > span {
+      font-size: 9px;
+    }
+
+    .admin-period-card > strong {
+      margin-top: 5px;
+      font-size: 17px;
+      text-align: left !important;
+    }
+
+    .admin-period-card > small {
+      margin-top: 3px;
+      font-size: 8px;
+    }
+
+    .admin-cost-alert-strip {
+      grid-template-columns: 1fr;
+      gap: 9px;
+      margin-top: 9px;
+      padding: 10px;
+      border-radius: 12px;
+    }
+
+    .admin-cost-alert-status strong {
+      font-size: 12px;
+    }
+
+    .admin-cost-alert-controls {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 7px;
+    }
+
+    .admin-cost-alert-controls .hh-input {
+      width: 100%;
+      min-height: 36px;
+    }
+
+    .admin-cost-alert-controls .hh-button-secondary {
+      min-height: 36px;
+      padding-left: 10px;
+      padding-right: 10px;
+    }
+
+    .admin-campus-list {
+      gap: 7px;
+    }
+
+    .admin-campus-row {
+      grid-template-columns: 82px minmax(0, 1fr);
+      gap: 8px;
+      min-height: 72px;
+      padding: 9px 10px;
+      border-radius: 12px;
+    }
+
+    .admin-campus-identity strong {
+      font-size: 14px;
+    }
+
+    .admin-campus-identity span {
+      margin-top: 2px;
+      font-size: 9px;
+    }
+
+    .admin-campus-row-metrics {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 4px 7px;
+    }
+
+    .admin-campus-row-metrics .admin-metric {
+      padding: 4px 6px;
+      border-radius: 8px;
+    }
+
+    .admin-campus-row-metrics .admin-metric span {
+      font-size: 7.5px;
+    }
+
+    .admin-campus-row-metrics .admin-metric strong {
+      margin-top: 1px;
+      font-size: 10px;
+      text-align: left;
+    }
+
+    .admin-kpi-grid {
+      gap: 7px;
+    }
+
+    .admin-kpi {
+      min-height: 92px;
+      padding: 11px;
+      border-radius: 12px;
+    }
+
+    .admin-kpi strong {
+      font-size: 20px;
+    }
+
+    .admin-ai-card,
+    .admin-model-card,
+    .admin-setting-card,
+    .admin-student-mobile-card,
+    .admin-pin-card {
+      padding: 11px;
+      border-radius: 12px;
+    }
+
+    .admin-segmented,
+    .admin-filter-tabs {
+      gap: 5px;
+    }
+
+    .admin-nav-button,
+    .admin-mini-button {
+      min-height: 36px;
+    }
+
+    .admin-analytics-kpi-grid {
+      gap: 7px;
+    }
+
+    .admin-analytics-kpi {
+      min-height: 112px;
+      padding: 12px;
+    }
+
+    .admin-analytics-kpi > strong {
+      font-size: 22px;
+    }
+
+    .admin-quality-card,
+    .admin-role-card,
+    .admin-arbitration-summary article {
+      padding: 11px;
+      min-height: auto;
+    }
+
+    .admin-quality-card h3 {
+      min-height: 0;
+      font-size: 13px;
+    }
+
+    .admin-quality-card > strong {
+      font-size: 22px;
+    }
+  }
+
+  @media (max-width: 520px) {
+    .admin-period-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .admin-kpi-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .admin-quality-grid,
+    .admin-arbitration-summary,
+    .admin-analytics-role-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
     }
   }
 
