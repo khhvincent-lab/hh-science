@@ -1334,7 +1334,7 @@ export default function Home() {
           </button>
 
           <div className="student-app-header-actions">
-            <div className="student-desktop-theme">
+            <div className="student-header-theme" aria-label="切換深色或淺色模式">
               <ThemeToggle />
             </div>
 
@@ -1392,11 +1392,6 @@ export default function Home() {
                   </div>
                 )}
 
-                <div className="student-menu-theme">
-                  <span>外觀</span>
-                  <ThemeToggle />
-                </div>
-
                 {student && (
                   <button
                     type="button"
@@ -1443,9 +1438,6 @@ export default function Home() {
                 <span className="hh-number">{usage.limit}</span>
                 <span>題</span>
               </div>
-              <button type="button" onClick={handleLogout} className="hh-button-secondary student-switch-button">
-                切換學生
-              </button>
             </div>
           </section>
         ) : (
@@ -1588,18 +1580,19 @@ export default function Home() {
             <StepHeader
               number="1"
               title="上傳題目圖片"
-              description="一次可選 1～5 張；題目、圖表、跨頁內容與老師解答都可以一起上傳"
+              description="可上傳1～5張，題目與解答皆可上傳"
               tone="sage"
             />
 
             {images.length === 0 && (
               <label className="student-upload-zone">
-                <div className="student-upload-icon">＋</div>
-                <div className="student-upload-title">選擇題目圖片</div>
-                <div className="student-muted">
-                  一次可選 1～5 張 · 選取後會逐張進入裁切與旋轉
+                <div className="student-upload-mainline">
+                  <div className="student-upload-icon">＋</div>
+                  <div className="student-upload-title">選擇題目圖片</div>
                 </div>
-                <div className="student-upload-cta">選擇圖片</div>
+                <div className="student-muted student-upload-short-note">
+                  可上傳1～5張，題目與解答皆可上傳
+                </div>
                 <input
                   type="file"
                   accept="image/*,.heic,.heif"
@@ -2562,7 +2555,17 @@ export default function Home() {
         .student-upload-zone { min-height: 158px; padding: 18px 14px; border: 1px dashed var(--border-strong); border-radius: 16px; background: var(--surface-soft); display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; cursor: pointer; transition: border-color 140ms ease, background-color 140ms ease; }
         .student-upload-zone:hover { border-color: var(--student-sage); background: color-mix(in srgb, var(--student-sage-soft) 46%, var(--surface)); }
         .student-upload-icon { width: 38px; height: 38px; border-radius: 12px; display: grid; place-items: center; background: var(--student-sage-soft); color: var(--student-sage); font-size: 21px; }
-        .student-upload-title { margin-top: 8px; font-weight: 750; }
+        .student-upload-mainline {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 10px;
+        }
+        .student-upload-title { margin-top: 0; font-weight: 750; }
+        .student-upload-short-note {
+          margin-top: 7px;
+          white-space: nowrap;
+        }
         .student-upload-cta { margin-top: 10px; padding: 7px 11px; border-radius: 999px; background: var(--surface); border: 1px solid var(--border-strong); color: var(--text-secondary); font-size: 11px; font-weight: 750; }
         .student-image-frame { padding: 10px; background: var(--surface-soft); border: 1px solid var(--border); border-radius: 18px; }
         .student-question-image { display: block; max-width: 100%; max-height: 470px; margin: 0 auto; border-radius: 12px; }
@@ -2641,18 +2644,18 @@ export default function Home() {
         .student-modal-done { width: 100%; margin-top: 16px; }
 
         @media (max-width: 820px) {
-          .student-subject-picker { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+          .student-subject-picker { grid-template-columns: repeat(4, minmax(0, 1fr)); }
           .student-container { width: min(100% - 24px, 900px); padding-top: 28px; }
           .student-brand-title { font-size: 38px; }
           .student-workspace { display: block; }
           .student-login-grid,
           .student-pin-setup-grid { grid-template-columns: 1fr; }
-          .student-welcome-card { align-items: flex-start; flex-direction: column; }
-          .student-welcome-actions { width: 100%; justify-content: space-between; }
+          .student-welcome-card { align-items: center; flex-direction: row; }
+          .student-welcome-actions { width: auto; justify-content: flex-end; }
         }
 
         @media (max-width: 600px) {
-          .student-subject-picker { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+          .student-subject-picker { grid-template-columns: repeat(4, minmax(0, 1fr)); }
           .student-container { width: min(100% - 20px, 900px); padding-top: 22px; padding-bottom: 48px; }
           .student-brand-header { align-items: flex-start; margin-bottom: 20px; }
           .student-brand-title { font-size: 31px; }
@@ -2662,6 +2665,12 @@ export default function Home() {
           .student-image-actions { grid-template-columns: 1fr 1fr; }
           .student-image-actions .student-file-replace { grid-column: 1 / -1; }
           .student-step-title { font-size: 20px; }
+          .student-subject-option {
+            min-height: 42px;
+            padding: 6px 3px;
+            font-size: 9.5px;
+            letter-spacing: -0.02em;
+          }
           .student-quota-row { align-items: flex-start; }
           .student-footer { flex-direction: column; gap: 8px; }
           .student-modal-backdrop { align-items: flex-end; padding: 0; }
@@ -2957,6 +2966,12 @@ export default function Home() {
           gap: 8px;
         }
 
+        .student-header-theme {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+
         .student-menu-button {
           display: inline-grid;
           place-content: center;
@@ -2981,7 +2996,7 @@ export default function Home() {
         .student-menu-backdrop {
           position: fixed;
           inset: 0;
-          z-index: 81;
+          z-index: 101;
           border: 0;
           background: rgba(12, 17, 14, .18);
           backdrop-filter: blur(2px);
@@ -2991,8 +3006,8 @@ export default function Home() {
           position: absolute;
           top: calc(100% + 8px);
           right: 0;
-          z-index: 82;
-          width: min(300px, calc(100vw - 36px));
+          z-index: 102;
+          width: min(300px, calc(100vw - 24px));
           padding: 10px;
           border: 1px solid var(--border);
           border-radius: 18px;
@@ -3042,16 +3057,6 @@ export default function Home() {
         .student-menu-account span {
           color: var(--text-muted);
           font-size: 11px;
-        }
-
-        .student-menu-theme {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          padding: 6px 12px;
-          color: var(--text-muted);
-          font-size: 11px;
-          font-weight: 700;
         }
 
         .student-brand-intro {
@@ -3272,13 +3277,18 @@ export default function Home() {
 
         @media (max-width: 720px) {
           .student-container {
-            padding-top: max(4px, env(safe-area-inset-top));
+            padding-top: calc(max(6px, env(safe-area-inset-top)) + 66px);
           }
 
           .student-app-header {
-            top: max(4px, env(safe-area-inset-top));
+            position: fixed;
+            top: max(6px, env(safe-area-inset-top));
+            left: 12px;
+            right: 12px;
+            z-index: 100;
+            width: auto;
             min-height: 50px;
-            margin-bottom: 16px;
+            margin-bottom: 0;
             padding: 5px 7px 5px 12px;
             border-radius: 16px;
           }
@@ -3291,19 +3301,143 @@ export default function Home() {
             font-size: 10px;
           }
 
+          .student-app-header-actions {
+            gap: 6px;
+          }
+
+          .student-header-theme {
+            flex: 0 0 auto;
+          }
+
           .student-menu-button {
+            flex: 0 0 auto;
             width: 38px;
             height: 38px;
             border-radius: 12px;
           }
 
-          .student-desktop-theme {
-            display: none;
-          }
-
           .student-brand-intro {
             margin-left: 1px;
             margin-right: 1px;
+          }
+
+          .student-welcome-card {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            min-height: 68px;
+            padding: 9px 11px;
+            margin-bottom: 12px;
+            border-radius: 14px;
+          }
+
+          .student-welcome-main {
+            min-width: 0;
+            gap: 9px;
+          }
+
+          .student-avatar {
+            flex: 0 0 auto;
+            width: 34px;
+            height: 34px;
+            border-radius: 10px;
+            font-size: 14px;
+          }
+
+          .student-welcome-label {
+            display: none;
+          }
+
+          .student-welcome-title {
+            overflow: hidden;
+            margin: 0 0 2px;
+            font-size: 16px;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+          }
+
+          .student-welcome-main .student-muted {
+            overflow: hidden;
+            max-width: 54vw;
+            font-size: 10px;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+          }
+
+          .student-welcome-actions {
+            flex: 0 0 auto;
+            width: auto;
+            margin-left: auto;
+          }
+
+          .student-usage-pill {
+            min-height: 34px;
+            padding: 0 10px;
+            font-size: 10px;
+          }
+
+          .student-panel-upload {
+            padding-top: 15px;
+            padding-bottom: 15px;
+          }
+
+          .student-upload-zone {
+            min-height: 86px;
+            padding: 14px 12px;
+            border-radius: 14px;
+          }
+
+          .student-upload-mainline {
+            gap: 8px;
+          }
+
+          .student-upload-icon {
+            width: 32px;
+            height: 32px;
+            border-radius: 10px;
+            font-size: 18px;
+          }
+
+          .student-upload-title {
+            font-size: 14px;
+          }
+
+          .student-upload-short-note {
+            margin-top: 5px;
+            max-width: 100%;
+            overflow: hidden;
+            font-size: 10px;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+          }
+
+          .student-subject-picker {
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 6px;
+          }
+
+          .student-subject-option {
+            min-height: 44px;
+            gap: 4px;
+            padding: 7px 4px;
+            border-radius: 10px;
+            font-size: 10px;
+          }
+
+          .student-subject-dot {
+            width: 6px;
+            height: 6px;
+          }
+
+          .student-subject-check {
+            display: none;
+          }
+
+          .student-subject-option-selected .student-subject-dot {
+            width: 8px;
+            height: 8px;
+            box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 14%, transparent);
           }
 
           .student-brand-intro h1 {
