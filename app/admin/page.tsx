@@ -411,6 +411,46 @@ export default function AdminPage() {
     }
   }
 
+  async function resetStudentUsage(student: StudentRow) {
+    if (
+      !window.confirm(
+        `確定要重置「${student.campus}｜${student.name}」今天的解題額度嗎？\n\n重置後會恢復為 10 / 10 題。`,
+      )
+    ) {
+      return;
+    }
+
+    setBusyStudentId(student.id);
+    setStudentError("");
+    setStudentMessage("");
+
+    try {
+      const response = await fetch("/api/admin/students", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: student.id,
+          action: "reset_usage",
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "重置學生額度失敗。");
+      }
+
+      setStudentMessage(`已重置 ${student.name} 今日解題額度，恢復為 10 / 10 題。`);
+      await Promise.all([loadStudents(), loadDashboard()]);
+    } catch (error) {
+      setStudentError(
+        error instanceof Error ? error.message : "重置學生額度失敗。",
+      );
+    } finally {
+      setBusyStudentId(null);
+    }
+  }
+
   const filteredStudents = useMemo(() => {
     const keyword = studentQuery.trim().toLowerCase();
 
@@ -607,6 +647,7 @@ export default function AdminPage() {
               addStudent={addStudent}
               busyStudentId={busyStudentId}
               toggleStudent={toggleStudent}
+              resetStudentUsage={resetStudentUsage}
             />
           )}
 
@@ -939,6 +980,7 @@ function StudentsSection(props: {
   addStudent: () => Promise<void>;
   busyStudentId: string | null;
   toggleStudent: (student: StudentRow) => Promise<void>;
+  resetStudentUsage: (student: StudentRow) => Promise<void>;
 }) {
   const todayTotal = props.allStudents.reduce((sum, student) => sum + student.todayCount, 0);
 
@@ -1111,20 +1153,43 @@ function StudentsSection(props: {
                       </span>
                     </td>
                     <td className="align-right">
-                      <button
-                        type="button"
-                        className={`admin-mini-button ${
-                          student.active ? "danger" : "success"
-                        }`}
-                        disabled={props.busyStudentId === student.id}
-                        onClick={() => void props.toggleStudent(student)}
-                      >
-                        {props.busyStudentId === student.id
-                          ? "處理中…"
-                          : student.active
-                            ? "停用"
-                            : "重新啟用"}
-                      </button>
+                      <div className="admin-student-actions">
+                        <button
+                          type="button"
+                          className="admin-mini-button quota"
+                          disabled={
+                            props.busyStudentId === student.id ||
+                            student.todayCount === 0
+                          }
+                          onClick={() => void props.resetStudentUsage(student)}
+                          title={
+                            student.todayCount === 0
+                              ? "今天尚未使用額度"
+                              : "將今日使用量重置為 0 / 10"
+                          }
+                        >
+                          {props.busyStudentId === student.id
+                            ? "處理中…"
+                            : student.todayCount === 0
+                              ? "額度未使用"
+                              : "重置額度"}
+                        </button>
+
+                        <button
+                          type="button"
+                          className={`admin-mini-button ${
+                            student.active ? "danger" : "success"
+                          }`}
+                          disabled={props.busyStudentId === student.id}
+                          onClick={() => void props.toggleStudent(student)}
+                        >
+                          {props.busyStudentId === student.id
+                            ? "處理中…"
+                            : student.active
+                              ? "停用"
+                              : "重新啟用"}
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -3440,6 +3505,47 @@ const adminStyles = `
     .admin-current-model-mini {
       width: 100%;
     }
+  }
+
+
+  .admin-student-actions {
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 7px;
+    flex-wrap: wrap;
+  }
+
+  .admin-mini-button.quota {
+    color: var(--accent-gold);
+    border-color: color-mix(in srgb, var(--accent-gold) 32%, var(--border));
+    background:
+      linear-gradient(
+        135deg,
+        color-mix(in srgb, var(--accent-gold) 8%, var(--surface)),
+        var(--surface)
+      );
+  }
+
+  .admin-mini-button.quota:hover:not(:disabled) {
+    border-color: color-mix(in srgb, var(--accent-gold) 58%, var(--border));
+    box-shadow: 0 0 18px color-mix(in srgb, var(--accent-gold) 13%, transparent);
+  }
+
+  .admin-mini-button.quota:disabled {
+    opacity: .45;
+    cursor: default;
+  }
+
+  [data-theme="dark"] .admin-mini-button.quota {
+    color: #e0bd69;
+    background:
+      linear-gradient(
+        135deg,
+        rgba(190, 151, 70, .12),
+        rgba(32, 42, 36, .92)
+      );
+    border-color: rgba(214, 174, 88, .30);
   }
 
 `;

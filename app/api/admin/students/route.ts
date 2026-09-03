@@ -154,7 +154,7 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: "未登入管理員。" }, { status: 401 });
   }
 
-  let body: { id?: string; active?: boolean; campus?: string; name?: string };
+  let body: { id?: string; active?: boolean; campus?: string; name?: string; action?: string };
   try {
     body = await request.json();
   } catch {
@@ -164,6 +164,33 @@ export async function PATCH(request: NextRequest) {
   const id = body.id?.trim();
   if (!id) {
     return NextResponse.json({ error: "缺少學生 ID。" }, { status: 400 });
+  }
+
+  if (body.action === "reset_usage") {
+    const today = getTaiwanDateString();
+
+    const { error: resetError } = await supabaseAdmin
+      .from("daily_usage")
+      .delete()
+      .eq("student_id", id)
+      .eq("usage_date", today);
+
+    if (resetError) {
+      return NextResponse.json(
+        { error: `重置學生額度失敗：${resetError.message}` },
+        { status: 500 },
+      );
+    }
+
+    return NextResponse.json({
+      success: true,
+      studentId: id,
+      usage: {
+        count: 0,
+        limit: 10,
+        remaining: 10,
+      },
+    });
   }
 
   const updates: Record<string, string | boolean> = {};
