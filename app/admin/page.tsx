@@ -2758,7 +2758,7 @@ function AnalyticsSection() {
           <section className="hh-card admin-panel admin-data-table-panel">
             <PanelHeader eyebrow="OVERVIEW" title="使用與成本" subtitle={data.label} />
             <div className="admin-data-table-wrap">
-              <table className="admin-data-table">
+              <table className="admin-data-table admin-overview-data-table">
                 <thead><tr><th>指標</th><th>數值</th><th>說明</th></tr></thead>
                 <tbody>
                   <tr><td>解題數</td><td>{formatInteger(data.totals.solvedQuestions)} 題</td><td>成功建立的解題紀錄</td></tr>
@@ -2819,7 +2819,8 @@ function AnalyticsSection() {
 
           <section className="hh-card admin-panel admin-data-table-panel">
             <PanelHeader eyebrow="MODEL PERFORMANCE" title="各模型使用與品質" />
-            <div className="admin-data-table-wrap">
+
+            <div className="admin-data-table-wrap admin-model-performance-desktop">
               <table className="admin-data-table admin-model-performance-table">
                 <thead><tr><th>模型</th><th>呼叫</th><th>成本</th><th>平均／次</th><th>Primary 一致率</th><th>Verifier 錯誤率</th></tr></thead>
                 <tbody>
@@ -2837,6 +2838,43 @@ function AnalyticsSection() {
                   ))}
                 </tbody>
               </table>
+            </div>
+
+            <div className="admin-model-performance-mobile">
+              {data.models.length === 0 ? (
+                <div className="admin-empty">這個區間尚無資料。</div>
+              ) : data.models.map((model) => (
+                <article className="admin-model-performance-row" key={`mobile-${model.provider}-${model.model}`}>
+                  <div className="admin-model-performance-head">
+                    <div>
+                      <strong>{model.model}</strong>
+                      <span>{providerLabel(model.provider)}</span>
+                    </div>
+                    <b>{formatInteger(model.calls)} 次</b>
+                  </div>
+
+                  <div className="admin-model-performance-metrics">
+                    <div>
+                      <span>總成本</span>
+                      <strong>{formatTwdFromUsd(model.costUsd)}</strong>
+                    </div>
+                    <div>
+                      <span>平均／次</span>
+                      <strong>{formatTwdFromUsd(model.averageCostUsd)}</strong>
+                    </div>
+                    <div>
+                      <span>Primary 一致率</span>
+                      <strong>{formatPercent(model.primaryConsistencyRate)}</strong>
+                      <small>{model.primaryMatches}/{model.primaryReferenceCases}</small>
+                    </div>
+                    <div>
+                      <span>Verifier 錯誤率</span>
+                      <strong>{formatPercent(model.verifierDisagreementRate)}</strong>
+                      <small>{model.verifierMajorErrors}/{model.verifierCases}</small>
+                    </div>
+                  </div>
+                </article>
+              ))}
             </div>
           </section>
         </>
@@ -8046,6 +8084,295 @@ const adminStyles = `
       min-width: 58px !important;
       padding: 0 9px !important;
       font-size: 11.5px !important;
+    }
+  }
+
+
+  /* =========================================================
+     MOBILE ADMIN — HEADER BREATHING + ANALYTICS REBUILD
+     ========================================================= */
+
+  .admin-model-performance-mobile {
+    display: none;
+  }
+
+  @media (max-width: 760px) {
+    /* Never let a child widen the iPhone layout */
+    .admin-shell,
+    .admin-main,
+    .admin-content,
+    .admin-stack,
+    .admin-panel,
+    .admin-data-table-panel {
+      min-width: 0 !important;
+      max-width: 100% !important;
+      box-sizing: border-box !important;
+    }
+
+    .admin-shell,
+    .admin-main {
+      overflow-x: hidden !important;
+    }
+
+    /* Header: still compact, but no longer cramped */
+    .admin-shell {
+      padding-top: calc(max(10px, env(safe-area-inset-top)) + 64px) !important;
+    }
+
+    .admin-mobile-header {
+      top: max(10px, env(safe-area-inset-top)) !important;
+      left: 12px !important;
+      right: 12px !important;
+      height: 52px !important;
+      min-height: 52px !important;
+      padding: 6px 7px 6px 13px !important;
+      border-radius: 15px !important;
+    }
+
+    .admin-mobile-brand {
+      gap: 1px !important;
+    }
+
+    .admin-mobile-brand span {
+      font-size: 17px !important;
+      line-height: 1.08 !important;
+    }
+
+    .admin-mobile-brand small {
+      font-size: 8.5px !important;
+      line-height: 1 !important;
+      letter-spacing: .12em !important;
+    }
+
+    .admin-mobile-menu-button {
+      width: 38px !important;
+      height: 38px !important;
+      border-radius: 11px !important;
+    }
+
+    .admin-sidebar {
+      top: calc(max(10px, env(safe-area-inset-top)) + 58px) !important;
+      right: 12px !important;
+      width: min(270px, calc(100vw - 24px)) !important;
+    }
+
+    /* Analytics page typography */
+    .admin-analytics-compact {
+      width: 100% !important;
+      gap: 10px !important;
+    }
+
+    .admin-analytics-toolbar {
+      width: 100% !important;
+      padding: 13px !important;
+      border-radius: 14px !important;
+    }
+
+    .admin-analytics-toolbar .hh-eyebrow {
+      font-size: 9px !important;
+    }
+
+    .admin-analytics-toolbar h2 {
+      font-size: 20px !important;
+      line-height: 1.2 !important;
+    }
+
+    .admin-analytics-range {
+      gap: 6px !important;
+      margin-top: 10px !important;
+    }
+
+    .admin-analytics-range button {
+      min-height: 40px !important;
+      height: 40px !important;
+      font-size: 12px !important;
+      border-radius: 12px !important;
+    }
+
+    .admin-data-table-panel {
+      width: 100% !important;
+      padding: 13px !important;
+      border-radius: 14px !important;
+      overflow: hidden !important;
+    }
+
+    .admin-data-table-panel .admin-panel-header {
+      margin-bottom: 9px !important;
+    }
+
+    .admin-data-table-panel .admin-panel-header .hh-eyebrow {
+      font-size: 9px !important;
+    }
+
+    .admin-data-table-panel .admin-panel-header h2 {
+      font-size: 18px !important;
+      line-height: 1.2 !important;
+    }
+
+    .admin-data-table-panel .admin-panel-header p {
+      font-size: 11px !important;
+      line-height: 1.35 !important;
+    }
+
+    .admin-data-table-wrap {
+      width: 100% !important;
+      min-width: 0 !important;
+      max-width: 100% !important;
+      overflow: hidden !important;
+    }
+
+    .admin-data-table {
+      width: 100% !important;
+      min-width: 0 !important;
+      max-width: 100% !important;
+      table-layout: fixed !important;
+      border-collapse: collapse !important;
+    }
+
+    .admin-data-table th {
+      padding: 9px 7px !important;
+      font-size: 10.5px !important;
+      line-height: 1.25 !important;
+      white-space: normal !important;
+    }
+
+    .admin-data-table td {
+      padding: 10px 7px !important;
+      font-size: 13px !important;
+      line-height: 1.35 !important;
+      white-space: normal !important;
+      overflow-wrap: anywhere !important;
+    }
+
+    .admin-data-table td small {
+      font-size: 10px !important;
+      line-height: 1.25 !important;
+    }
+
+    .admin-data-table th:first-child,
+    .admin-data-table td:first-child {
+      width: 48% !important;
+    }
+
+    .admin-data-table th:nth-child(2),
+    .admin-data-table td:nth-child(2) {
+      width: 24% !important;
+    }
+
+    .admin-data-table th:nth-child(3),
+    .admin-data-table td:nth-child(3) {
+      width: 28% !important;
+    }
+
+    /* Overview doesn't need the verbose description column on phone */
+    .admin-overview-data-table th:nth-child(3),
+    .admin-overview-data-table td:nth-child(3) {
+      display: none !important;
+    }
+
+    .admin-overview-data-table th:first-child,
+    .admin-overview-data-table td:first-child {
+      width: 58% !important;
+    }
+
+    .admin-overview-data-table th:nth-child(2),
+    .admin-overview-data-table td:nth-child(2) {
+      width: 42% !important;
+      text-align: right !important;
+    }
+
+    /* Six-column desktop table must never participate in mobile sizing */
+    .admin-model-performance-desktop {
+      display: none !important;
+    }
+
+    .admin-model-performance-mobile {
+      display: grid !important;
+      gap: 8px !important;
+      width: 100% !important;
+      min-width: 0 !important;
+    }
+
+    .admin-model-performance-row {
+      display: grid !important;
+      gap: 9px !important;
+      min-width: 0 !important;
+      padding: 11px !important;
+      border: 1px solid var(--border) !important;
+      border-radius: 12px !important;
+      background: var(--surface-soft) !important;
+    }
+
+    .admin-model-performance-head {
+      display: flex !important;
+      align-items: flex-start !important;
+      justify-content: space-between !important;
+      gap: 10px !important;
+      min-width: 0 !important;
+    }
+
+    .admin-model-performance-head > div {
+      display: grid !important;
+      gap: 2px !important;
+      min-width: 0 !important;
+    }
+
+    .admin-model-performance-head strong {
+      font-size: 14px !important;
+      line-height: 1.2 !important;
+      overflow-wrap: anywhere !important;
+    }
+
+    .admin-model-performance-head span {
+      color: var(--text-secondary) !important;
+      font-size: 10px !important;
+    }
+
+    .admin-model-performance-head b {
+      flex: 0 0 auto !important;
+      font-size: 12px !important;
+      color: var(--primary) !important;
+    }
+
+    .admin-model-performance-metrics {
+      display: grid !important;
+      grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+      gap: 6px !important;
+    }
+
+    .admin-model-performance-metrics > div {
+      display: grid !important;
+      gap: 2px !important;
+      min-width: 0 !important;
+      padding: 8px !important;
+      border-radius: 9px !important;
+      background: var(--surface) !important;
+    }
+
+    .admin-model-performance-metrics span {
+      color: var(--text-secondary) !important;
+      font-size: 9px !important;
+      font-weight: 750 !important;
+    }
+
+    .admin-model-performance-metrics strong {
+      font-size: 13px !important;
+      line-height: 1.2 !important;
+    }
+
+    .admin-model-performance-metrics small {
+      color: var(--text-secondary) !important;
+      font-size: 9px !important;
+    }
+  }
+
+  @media (min-width: 761px) {
+    .admin-model-performance-desktop {
+      display: block;
+    }
+
+    .admin-model-performance-mobile {
+      display: none !important;
     }
   }
 
