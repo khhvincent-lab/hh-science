@@ -549,8 +549,21 @@ export default function Home() {
     });
   }
 
+  async function loadCanvasImage(source: string) {
+    const img = new Image();
+    img.decoding = "async";
+
+    await new Promise<void>((resolve, reject) => {
+      img.onload = () => resolve();
+      img.onerror = () => reject(new Error("匯出圖片載入失敗"));
+      img.src = source;
+    });
+
+    return img;
+  }
+
   async function buildSolutionImageFile() {
-    if (!exportCardRef.current || !solveData) {
+    if (!exportCardRef.current || !exportQuestionImageRef.current || !solveData) {
       throw new Error("目前沒有可匯出的解析內容");
     }
 
@@ -558,60 +571,112 @@ export default function Home() {
       await document.fonts.ready;
     }
 
-    // Safari 對大型 data URL 圖片在 DOM 匯出時偶爾會漏圖。
-    // 匯出前先重新畫成標準 PNG，再讓匯出卡片使用這張 PNG。
+    // 先把原始題目圖轉成標準 PNG。
     const normalizedQuestionImage = await normalizeQuestionImageForExport(image);
 
-    // html-to-image 會 clone DOM。若只直接改 img.src，React 的原始 JSX src
-    // 有機會在 clone 時仍取到舊值。改用獨立 state，先讓 React 真正完成一次 render。
-    setExportQuestionImage(normalizedQuestionImage);
-    await waitForNextPaint();
+    // 題目圖在 html-to-image / Safari clone 時可能會變成空白，
+    // 因此這一版不再要求匯出引擎負責畫題目圖。
+    // html-to-image 只負責「文字＋版面」，最後再用原生 Canvas
+    // 把題目圖直接合成到正確位置，避開 Safari 的 DOM 圖片 clone 問題。
+    const card = exportCardRef.current;
+    const questionElement = exportQuestionImageRef.current;
 
-    if (!exportQuestionImageRef.current) {
-      throw new Error("找不到匯出用題目圖片");
-    }
+    const cardRect = card.getBoundingClientRect();
+    const questionRect = questionElement.getBoundingClientRect();
 
     if (
-      !exportQuestionImageRef.current.complete ||
-      exportQuestionImageRef.current.naturalWidth <= 0
+      cardRect.width <= 0 ||
+      cardRect.height <= 0 ||
+      questionRect.width <= 0 ||
+      questionRect.height <= 0
     ) {
-      await waitForExportImages(exportCardRef.current);
+      throw new Error("無法取得解析圖片版面尺寸");
     }
 
-    try {
-      await exportQuestionImageRef.current.decode();
-    } catch {
-      // Safari 某些 data URL decode 會 reject，但只要 naturalWidth > 0 仍可正常匯出。
-      if (exportQuestionImageRef.current.naturalWidth <= 0) {
-        throw new Error("匯出用題目圖片尚未完成載入");
-      }
-    }
-
-    await waitForNextPaint();
-
-    // iPhone / iPad 記憶體較吃緊，稍微降低輸出倍率可大幅提升成功率，
-    // 桌機仍維持較高解析度。
-    const isMobileSafari =
+    const isIOS =
       /iPhone|iPad|iPod/i.test(navigator.userAgent) ||
       (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
 
-    const pixelRatio = isMobileSafari ? 1.35 : 1.8;
+    const pixelRatio = isIOS ? 1.35 : 1.8;
 
-    const dataUrl = await toPng(exportCardRef.current, {
-      backgroundColor: "#f8f7f2",
-      pixelRatio,
-      cacheBust: true,
-      skipAutoScale: true,
-      canvasWidth: Math.round(exportCardRef.current.scrollWidth * pixelRatio),
-      canvasHeight: Math.round(exportCardRef.current.scrollHeight * pixelRatio),
-      style: {
-        background: "#f8f7f2",
-        color: "#27332d",
-      },
+    // 先暫時讓題目 img 本身透明，保留它佔用的版面位置。
+    // 這樣 html-to-image 產生的底圖只會留下乾淨的白色題目框。
+    const previousOpacity = questionElement.style.opacity;
+    questionElement.style.opacity = "0";
+
+    let baseDataUrl: string;
+
+    try {
+      await waitForNextPaint();
+
+      baseDataUrl = await toPng(card, {
+        backgroundColor: "#f8f7f2",
+        pixelRatio,
+        cacheBust: true,
+        skipAutoScale: true,
+        style: {
+          background: "#f8f7f2",
+          color: "#27332d",
+        },
+      });
+    } finally {
+      questionElement.style.opacity = previousOpacity;
+    }
+
+    const baseImage = await loadCanvasImage(baseDataUrl);
+    const questionImage = await loadCanvasImage(normalizedQuestionImage);
+
+    const finalCanvas = document.createElement("canvas");
+    finalCanvas.width = baseImage.naturalWidth;
+    finalCanvas.height = baseImage.naturalHeight;
+
+    const context = finalCanvas.getContext("2d");
+    if (!context) {
+      throw new Error("無法建立最終解析圖片");
+    }
+
+    // 先畫 html-to-image 產生的完整文字與版面。
+    context.drawImage(baseImage, 0, 0);
+
+    // 由實際輸出尺寸反推 DOM → PNG 的縮放比例，
+    // 不依賴 pixelRatio 猜測，因此桌機 / iPhone 都能對準。
+    const scaleX = baseImage.naturalWidth / cardRect.width;
+    const scaleY = baseImage.naturalHeight / cardRect.height;
+
+    const targetX = (questionRect.left - cardRect.left) * scaleX;
+    const targetY = (questionRect.top - cardRect.top) * scaleY;
+    const targetWidth = questionRect.width * scaleX;
+    const targetHeight = questionRect.height * scaleY;
+
+    const sourceWidth = questionImage.naturalWidth;
+    const sourceHeight = questionImage.naturalHeight;
+
+    if (sourceWidth <= 0 || sourceHeight <= 0) {
+      throw new Error("原題目圖片尺寸異常");
+    }
+
+    // 等比例 contain，完整顯示題目，不裁切。
+    const containScale = Math.min(
+      targetWidth / sourceWidth,
+      targetHeight / sourceHeight,
+    );
+
+    const drawWidth = sourceWidth * containScale;
+    const drawHeight = sourceHeight * containScale;
+    const drawX = targetX + (targetWidth - drawWidth) / 2;
+    const drawY = targetY + (targetHeight - drawHeight) / 2;
+
+    context.drawImage(
+      questionImage,
+      drawX,
+      drawY,
+      drawWidth,
+      drawHeight,
+    );
+
+    const blob: Blob | null = await new Promise((resolve) => {
+      finalCanvas.toBlob(resolve, "image/png", 1);
     });
-
-    const response = await fetch(dataUrl);
-    const blob = await response.blob();
 
     if (!blob || blob.size === 0) {
       throw new Error("解析圖片建立失敗");
@@ -1030,7 +1095,7 @@ export default function Home() {
               <div style={{ padding: "12px", background: "#fff", border: "1px solid #dde1db", borderRadius: "14px" }}>
                 <img
                   ref={exportQuestionImageRef}
-                  src={exportQuestionImage || image}
+                  src={image}
                   alt="題目"
                   style={{
                     display: "block",
