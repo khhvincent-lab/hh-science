@@ -67,14 +67,35 @@ function renderKatex(formula: string, displayMode: boolean) {
   }
 }
 
+function stripExportAnnotationCommands(formula: string) {
+  // 匯出的 PNG 不需要點擊標註。把 \htmlData{annotation=...}{內容}
+  // 還原成純 KaTeX 內容，可避免複雜化學式在圖片匯出時被 KaTeX
+  // 判定為不合法語法而顯示紅色原始指令。
+  let result = formula;
+
+  for (let i = 0; i < 8; i += 1) {
+    const next = result.replace(
+      /\\htmlData\{annotation=[^}]+\}\{([^{}]*)\}/g,
+      "$1",
+    );
+
+    if (next === result) break;
+    result = next;
+  }
+
+  return result;
+}
+
 function ScienceText({
   text,
   annotations,
   onAnnotationClick,
+  stripAnnotations = false,
 }: {
   text: string;
   annotations?: Annotation[];
   onAnnotationClick?: (annotation: Annotation) => void;
+  stripAnnotations?: boolean;
 }) {
   if (!text) return null;
 
@@ -107,7 +128,12 @@ function ScienceText({
             <div
               key={blockIndex}
               className="student-display-formula"
-              dangerouslySetInnerHTML={{ __html: renderKatex(formula, true) }}
+              dangerouslySetInnerHTML={{
+                __html: renderKatex(
+                  stripAnnotations ? stripExportAnnotationCommands(formula) : formula,
+                  true,
+                ),
+              }}
             />
           );
         }
@@ -125,7 +151,12 @@ function ScienceText({
                       key={pieceIndex}
                       className="student-inline-formula"
                       dangerouslySetInnerHTML={{
-                        __html: renderKatex(piece.slice(1, -1), false),
+                        __html: renderKatex(
+                          stripAnnotations
+                            ? stripExportAnnotationCommands(piece.slice(1, -1))
+                            : piece.slice(1, -1),
+                          false,
+                        ),
                       }}
                     />
                   );
@@ -1111,18 +1142,18 @@ export default function Home() {
 
             <div style={{ background: "#e8ece8", border: "1px solid #c8d3ca", borderRadius: "14px", padding: "14px 18px", marginBottom: "14px" }}>
               <div style={{ fontWeight: 700, color: "#30463b" }}>正確答案</div>
-              <div style={{ marginTop: "6px" }}><ScienceText text={solveData.answer} /></div>
+              <div style={{ marginTop: "6px" }}><ScienceText text={solveData.answer} stripAnnotations /></div>
             </div>
 
             <div style={{ background: "#fff", border: "1px solid #dde1db", borderRadius: "14px", padding: "18px", marginBottom: "14px" }}>
               <div style={{ fontFamily: '"Source Han Serif TC", "Noto Serif TC", "Songti TC", "PMingLiU", serif', fontWeight: 700, fontSize: "18px", color: "#30463b", marginBottom: "8px" }}>此題詳解</div>
-              <ScienceText text={solveData.explanation} />
+              <ScienceText text={solveData.explanation} stripAnnotations />
             </div>
 
             {solveData.options && (
               <div style={{ background: "#fff", border: "1px solid #eadbd8", borderRadius: "14px", padding: "18px" }}>
                 <div style={{ fontFamily: '"Source Han Serif TC", "Noto Serif TC", "Songti TC", "PMingLiU", serif', fontWeight: 700, fontSize: "18px", color: "#8e5752", marginBottom: "8px" }}>各選項分析</div>
-                <ScienceText text={solveData.options} />
+                <ScienceText text={solveData.options} stripAnnotations />
               </div>
             )}
 
