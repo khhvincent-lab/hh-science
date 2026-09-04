@@ -1392,7 +1392,7 @@ function StudentsSection(props: {
 }) {
   type Region = { id: string; name: string; active: boolean };
   type Institution = { id: string; region_id: string; name: string; active: boolean };
-  type ClassRow = { id: string; institution_id: string; name: string; active: boolean };
+  type ClassRow = { id: string; institution_id: string; name: string; active: boolean; academic_year?: number };
   type AssignmentDraft = { regionId: string; institutionId: string; classId: string };
 
   const [regions, setRegions] = useState<Region[]>([]);
@@ -1408,6 +1408,8 @@ function StudentsSection(props: {
   const [filterRegion, setFilterRegion] = useState("");
   const [filterInstitution, setFilterInstitution] = useState("");
   const [filterClass, setFilterClass] = useState("");
+  const [promotionSourceClass, setPromotionSourceClass] = useState("");
+  const [promotionTargetClass, setPromotionTargetClass] = useState("");
 
   const loadOrg = useCallback(async () => {
     const response = await fetch("/api/admin/organizations", { cache: "no-store" });
@@ -1481,6 +1483,19 @@ function StudentsSection(props: {
     );
   }
 
+  function isDraftDirty(student: StudentRow, draft = getStudentDraft(student)) {
+    return (
+      draft.regionId !== (student.region_id || "") ||
+      draft.institutionId !== (student.institution_id || "") ||
+      draft.classId !== (student.class_id || "")
+    );
+  }
+
+  const dirtyStudents = props.allStudents.filter((student) => {
+    const draft = assignmentDrafts[student.id];
+    return draft ? isDraftDirty(student, draft) : false;
+  });
+
   function changeStudentRegion(student: StudentRow, nextRegionId: string) {
     const nextInstitution = institutions.find((item) => item.region_id === nextRegionId);
     const nextClass = nextInstitution
@@ -1529,7 +1544,13 @@ function StudentsSection(props: {
     try {
       const body: Record<string, string> = { type, name: name.trim() };
       if (type === "institution") body.regionId = parent || "";
-      if (type === "class") body.institutionId = parent || "";
+      if (type === "class") {
+        body.institutionId = parent || "";
+        const suggestedYear = String(new Date().getFullYear());
+        const year = window.prompt("這個班級屬於哪個學年度？例如 2026", suggestedYear)?.trim();
+        if (!year) { setOrgBusy(false); return; }
+        body.academicYear = year;
+      }
 
       const response = await fetch("/api/admin/organizations", {
         method: "POST",
@@ -1605,6 +1626,53 @@ function StudentsSection(props: {
     }
   }
 
+  async function saveAllAssignments() {
+    const pending = props.allStudents
+      .map((student) => ({ student, draft: assignmentDrafts[student.id] }))
+      .filter(({ student, draft }) => draft && isDraftDirty(student, draft));
+
+    if (!pending.length) {
+      setOrgMessage("目前沒有尚未儲存的分班變更。");
+      return;
+    }
+
+    if (!confirm(`確定一次儲存 ${pending.length} 位學生的分班變更？`)) return;
+
+    setOrgBusy(true);
+    setOrgMessage(`正在儲存 ${pending.length} 位學生…`);
+    try {
+      const results = await Promise.all(
+        pending.map(async ({ student, draft }) => {
+          const response = await fetch("/api/admin/students", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              id: student.id,
+              regionId: draft!.regionId,
+              institutionId: draft!.institutionId,
+              classId: draft!.classId,
+            }),
+          });
+          const data = await response.json();
+          if (!response.ok) throw new Error(`${student.name}：${data.error || "更新失敗"}`);
+          return student.id;
+        }),
+      );
+
+      setAssignmentDrafts((current) => {
+        const next = { ...current };
+        results.forEach((id) => delete next[id]);
+        return next;
+      });
+      await props.reloadStudents();
+      setOrgMessage(`已一次儲存 ${results.length} 位學生的分班變更。`);
+    } catch (error) {
+      setOrgMessage(error instanceof Error ? error.message : "批次儲存分班失敗。");
+    } finally {
+      setOrgBusy(false);
+    }
+  }
+
   async function createStudent() {
     const name = props.newName.trim();
     if (!name || !regionId || !institutionId || !classId) {
@@ -1636,6 +1704,30 @@ function StudentsSection(props: {
     } finally {
       setOrgBusy(false);
     }
+  }
+
+  async function promoteWholeClass() {
+    if (!promotionSourceClass || !promotionTargetClass || promotionSourceClass === promotionTargetClass) {
+      setOrgMessage("請選擇不同的來源班級與目標班級。");
+      return;
+    }
+    const source = classes.find((item) => item.id === promotionSourceClass);
+    const target = classes.find((item) => item.id === promotionTargetClass);
+    const count = props.allStudents.filter((student) => student.class_id === promotionSourceClass).length;
+    if (!confirm(`確定將「${source?.academic_year ?? ""} ${source?.name ?? "來源班級"}」的 ${count} 位學生，整班升到「${target?.academic_year ?? ""} ${target?.name ?? "目標班級"}」？\n\n原班級不會被改名，升班紀錄會保留。`)) return;
+    setOrgBusy(true); setOrgMessage("正在整班升班…");
+    try {
+      const response = await fetch("/api/admin/organizations", {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "promote_class", sourceClassId: promotionSourceClass, targetClassId: promotionTargetClass }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "升班失敗。");
+      setOrgMessage(`升班完成：已移動 ${data.moved ?? 0} 位學生。`);
+      setAssignmentDrafts({});
+      await Promise.all([loadOrg(), props.reloadStudents()]);
+    } catch (error) { setOrgMessage(error instanceof Error ? error.message : "升班失敗。"); }
+    finally { setOrgBusy(false); }
   }
 
   const visibleInstitutions = institutions.filter((item) => item.region_id === regionId);
@@ -1685,7 +1777,7 @@ function StudentsSection(props: {
             <div className="org-chip-list">
               {visibleClasses.map((classRow) => (
                 <div className={`org-item ${classId === classRow.id ? "active" : ""}`} key={classRow.id}>
-                  <button onClick={() => setClassId(classRow.id)}>{classRow.name}</button>
+                  <button onClick={() => setClassId(classRow.id)}>{classRow.academic_year ? `${classRow.academic_year} · ` : ""}{classRow.name}</button>
                   <button className="del" onClick={() => void orgDelete("class", classRow.id, classRow.name)}>×</button>
                 </div>
               ))}
@@ -1693,6 +1785,22 @@ function StudentsSection(props: {
           </div>
         </div>
         {orgMessage && <div className="org-message">{orgMessage}</div>}
+      </section>
+
+      <section className="hh-card admin-panel org-compact-panel promotion-panel">
+        <PanelHeader eyebrow="ACADEMIC YEAR" title="學年度・整班升班" subtitle="不要改舊班級名稱；建立下一學年度班級後，一次把整班學生升過去" />
+        <div className="promotion-row">
+          <select className="hh-select" value={promotionSourceClass} onChange={(event) => setPromotionSourceClass(event.target.value)}>
+            <option value="">來源班級</option>
+            {classes.map((item) => <option key={item.id} value={item.id}>{item.academic_year ?? "—"} · {item.name}</option>)}
+          </select>
+          <span className="promotion-arrow">→</span>
+          <select className="hh-select" value={promotionTargetClass} onChange={(event) => setPromotionTargetClass(event.target.value)}>
+            <option value="">目標班級</option>
+            {classes.map((item) => <option key={item.id} value={item.id}>{item.academic_year ?? "—"} · {item.name}</option>)}
+          </select>
+          <button className="hh-button-primary promotion-button" disabled={orgBusy || !promotionSourceClass || !promotionTargetClass} onClick={() => void promoteWholeClass()}>整班升班</button>
+        </div>
       </section>
 
       <section className="hh-card admin-panel org-compact-panel">
@@ -1709,7 +1817,7 @@ function StudentsSection(props: {
             {visibleInstitutions.map((institution) => <option key={institution.id} value={institution.id}>{institution.name}</option>)}
           </select>
           <select value={classId} onChange={(event) => setClassId(event.target.value)} className="hh-select">
-            {visibleClasses.map((classRow) => <option key={classRow.id} value={classRow.id}>{classRow.name}</option>)}
+            {visibleClasses.map((classRow) => <option key={classRow.id} value={classRow.id}>{classRow.academic_year ? `${classRow.academic_year} · ` : ""}{classRow.name}</option>)}
           </select>
           <input className="hh-input" placeholder="學生姓名" value={props.newName} onChange={(event) => props.setNewName(event.target.value)} />
           <button className="hh-button-primary" onClick={() => void createStudent()} disabled={orgBusy}>新增</button>
@@ -1721,7 +1829,17 @@ function StudentsSection(props: {
       )}
 
       <section className="hh-card admin-panel org-compact-panel">
-        <PanelHeader eyebrow="STUDENT DIRECTORY" title="學生名單" subtitle={`目前顯示 ${filtered.length} / ${props.total} 位學生`} />
+        <div className="student-directory-head">
+          <PanelHeader eyebrow="STUDENT DIRECTORY" title="學生名單" subtitle={`目前顯示 ${filtered.length} / ${props.total} 位學生`} />
+          <button
+            type="button"
+            className={`bulk-save-button ${dirtyStudents.length ? "has-change" : ""}`}
+            disabled={orgBusy || dirtyStudents.length === 0}
+            onClick={() => void saveAllAssignments()}
+          >
+            {orgBusy ? "儲存中…" : dirtyStudents.length ? `儲存全部變更 (${dirtyStudents.length})` : "沒有待儲存變更"}
+          </button>
+        </div>
         <div className="org-filter-row">
           <select className="hh-select" value={filterRegion} onChange={(event) => { setFilterRegion(event.target.value); setFilterInstitution(""); setFilterClass(""); }}>
             <option value="">全部地區</option>
@@ -1733,7 +1851,7 @@ function StudentsSection(props: {
           </select>
           <select className="hh-select" value={filterClass} onChange={(event) => setFilterClass(event.target.value)}>
             <option value="">全部班級</option>
-            {classes.filter((item) => !filterInstitution || item.institution_id === filterInstitution).map((classRow) => <option key={classRow.id} value={classRow.id}>{classRow.name}</option>)}
+            {classes.filter((item) => !filterInstitution || item.institution_id === filterInstitution).map((classRow) => <option key={classRow.id} value={classRow.id}>{classRow.academic_year ? `${classRow.academic_year} · ` : ""}{classRow.name}</option>)}
           </select>
           <input className="hh-input" placeholder="搜尋學生…" value={props.query} onChange={(event) => props.setQuery(event.target.value)} />
           <select className="hh-select" value={props.statusFilter} onChange={(event) => props.setStatusFilter(event.target.value as "全部" | "啟用" | "停用")}>
@@ -1752,20 +1870,24 @@ function StudentsSection(props: {
               const studentClasses = classes.filter((item) => item.institution_id === draft.institutionId);
 
               return (
-                <article className={`compact-student ${open ? "open" : ""}`} key={student.id}>
+                <article className={`compact-student ${open ? "open" : ""} ${isDraftDirty(student, draft) ? "dirty" : ""}`} key={student.id}>
                   <button
                     className="compact-main"
                     onClick={() => {
                       setExpanded(open ? null : student.id);
                       if (!open) {
-                        setAssignmentDrafts((current) => ({
-                          ...current,
-                          [student.id]: {
-                            regionId: student.region_id || regions[0]?.id || "",
-                            institutionId: student.institution_id || "",
-                            classId: student.class_id || "",
-                          },
-                        }));
+                        setAssignmentDrafts((current) =>
+                          current[student.id]
+                            ? current
+                            : {
+                                ...current,
+                                [student.id]: {
+                                  regionId: student.region_id || regions[0]?.id || "",
+                                  institutionId: student.institution_id || "",
+                                  classId: student.class_id || "",
+                                },
+                              },
+                        );
                       }
                     }}
                   >
@@ -1789,7 +1911,7 @@ function StudentsSection(props: {
                           {studentInstitutions.map((institution) => <option key={institution.id} value={institution.id}>{institution.name}</option>)}
                         </select>
                         <select className="hh-select" value={draft.classId} onChange={(event) => changeStudentClass(student, event.target.value)}>
-                          {studentClasses.map((classRow) => <option key={classRow.id} value={classRow.id}>{classRow.name}</option>)}
+                          {studentClasses.map((classRow) => <option key={classRow.id} value={classRow.id}>{classRow.academic_year ? `${classRow.academic_year} · ` : ""}{classRow.name}</option>)}
                         </select>
                         <button className="admin-mini-button assign-save-button" disabled={orgBusy} onClick={() => void assign(student, draft)}>
                           {orgBusy ? "儲存中…" : "儲存分班"}
@@ -1798,8 +1920,8 @@ function StudentsSection(props: {
 
                       <div className="action-row">
                         <button className="admin-mini-button history" onClick={() => props.viewStudentHistory(student)}>紀錄</button>
-                        <button className="admin-mini-button" onClick={() => void props.resetStudentUsage(student)}>重置額度</button>
-                        <button className="admin-mini-button" onClick={() => void props.resetStudentPin(student)}>重設密碼</button>
+                        <button className="admin-mini-button usage-action" onClick={() => void props.resetStudentUsage(student)}>重置額度</button>
+                        <button className="admin-mini-button pin-action" onClick={() => void props.resetStudentPin(student)}>重設密碼</button>
                         <button className={`admin-mini-button ${student.active ? "danger" : "success"}`} onClick={() => void props.toggleStudent(student)}>{student.active ? "停用" : "啟用"}</button>
                       </div>
                     </div>
@@ -1840,6 +1962,19 @@ function StudentsSection(props: {
         .assign-row { display: grid; grid-template-columns: minmax(90px, .8fr) minmax(140px, 1.2fr) minmax(100px, .9fr) auto; gap: 7px; }
         .assign-save-button { white-space: nowrap; }
         .action-row { display: flex; gap: 6px; flex-wrap: wrap; }
+        .student-directory-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; }
+
+        .promotion-row { display:grid; grid-template-columns:minmax(0,1fr) auto minmax(0,1fr) auto; gap:8px; align-items:center; }
+        .promotion-arrow { font-weight:900; color:var(--text-secondary); text-align:center; }
+        .promotion-button { min-height:38px; white-space:nowrap; }
+        .bulk-save-button { min-height: 36px; padding: 0 13px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-soft); color: var(--text-secondary); font-weight: 800; white-space: nowrap; }
+        .bulk-save-button.has-change { background: color-mix(in srgb, #4f7d62 18%, var(--surface)); border-color: color-mix(in srgb, #4f7d62 55%, var(--border)); color: color-mix(in srgb, #8eb79b 80%, var(--text)); }
+        .compact-student.dirty { box-shadow: inset 3px 0 0 #c79b55; }
+        .action-row .history { background: color-mix(in srgb, #4f7fa7 18%, var(--surface)); border-color: color-mix(in srgb, #4f7fa7 52%, var(--border)); color: #9fc0dc; }
+        .action-row .usage-action { background: color-mix(in srgb, #b58a45 18%, var(--surface)); border-color: color-mix(in srgb, #b58a45 52%, var(--border)); color: #d8b878; }
+        .action-row .pin-action { background: color-mix(in srgb, #7d66a7 18%, var(--surface)); border-color: color-mix(in srgb, #7d66a7 52%, var(--border)); color: #b7a6d4; }
+        .action-row .danger { background: color-mix(in srgb, #aa5d5d 17%, var(--surface)); border-color: color-mix(in srgb, #aa5d5d 52%, var(--border)); color: #d98b8b; }
+        .action-row .success { background: color-mix(in srgb, #568665 18%, var(--surface)); border-color: color-mix(in srgb, #568665 52%, var(--border)); color: #91bd9d; }
 
         @media (max-width: 760px) {
           .org-students-v12 { width: calc(100% + 6px); margin-left: -3px; }
@@ -1856,20 +1991,39 @@ function StudentsSection(props: {
           .org-item { flex: 0 0 auto; min-width: 98px; max-width: 190px; margin: 0; grid-template-columns: minmax(0, 1fr) 25px; }
           .org-item > button { padding: 7px 8px; font-size: 12px; }
 
-          .org-add-row, .org-filter-row { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
-          .org-add-row > :nth-child(3), .org-filter-row > :nth-child(3) { grid-column: 1 / 2; }
-          .org-add-row input, .org-add-row button, .org-filter-row input { grid-column: auto; }
+          .student-directory-head { align-items: center; gap: 8px; }
+          .student-directory-head > :first-child { min-width: 0; flex: 1; }
+
+          .promotion-row { grid-template-columns:minmax(0,1fr) 22px minmax(0,1fr); gap:5px; }
+          .promotion-button { grid-column:1 / -1; min-height:34px; height:34px; }
+          .bulk-save-button { min-height: 34px; height: 34px; padding: 0 9px; font-size: 10.5px; }
+
+          .org-add-row { grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 5px; }
+          .org-add-row > select:nth-child(1) { grid-column: span 2; }
+          .org-add-row > select:nth-child(2) { grid-column: span 2; }
+          .org-add-row > select:nth-child(3) { grid-column: span 2; }
+          .org-add-row > input { grid-column: span 4; }
+          .org-add-row > button { grid-column: span 2; }
+
+          .org-filter-row { grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 5px; }
+          .org-filter-row > select:nth-child(1),
+          .org-filter-row > select:nth-child(2),
+          .org-filter-row > select:nth-child(3) { grid-column: span 2; }
+          .org-filter-row > input { grid-column: span 4; }
+          .org-filter-row > select:nth-child(5) { grid-column: span 2; }
+
           .org-add-row .hh-select, .org-add-row .hh-input, .org-add-row .hh-button-primary,
-          .org-filter-row .hh-select, .org-filter-row .hh-input { min-width: 0; width: 100%; height: 36px; min-height: 36px; font-size: 11.5px; }
+          .org-filter-row .hh-select, .org-filter-row .hh-input { min-width: 0; width: 100%; height: 34px; min-height: 34px; font-size: 10.8px; padding-left: 7px; padding-right: 7px; }
 
           .compact-main { grid-template-columns: 30px minmax(0, 1fr) 42px 9px 16px; padding: 8px 0; gap: 7px; }
           .mini-avatar { width: 28px; height: 28px; }
           .student-core strong { font-size: 13px; }
           .student-core small { font-size: 10.5px; }
           .compact-detail { padding: 7px 0 10px; }
-          .assign-row { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
-          .assign-row select:nth-child(3), .assign-row button { grid-column: 1 / -1; }
-          .assign-row .hh-select, .assign-row .admin-mini-button { width: 100%; min-height: 35px; }
+          .assign-row { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 5px; }
+          .assign-row button { grid-column: 1 / -1; }
+          .assign-row .hh-select { width: 100%; min-width: 0; min-height: 34px; height: 34px; padding: 0 6px; font-size: 10.5px; }
+          .assign-row .admin-mini-button { width: 100%; min-height: 33px; height: 33px; }
           .action-row { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 5px; }
           .action-row .admin-mini-button { min-width: 0; padding: 6px 4px; font-size: 10.5px; }
         }
@@ -1877,9 +2031,10 @@ function StudentsSection(props: {
         @media (max-width: 430px) {
           .org-students-v12 { width: calc(100% + 10px); margin-left: -5px; }
           .org-students-v12 .admin-panel { padding: 9px 8px !important; }
-          .org-add-row, .org-filter-row { gap: 5px; }
+          .org-add-row, .org-filter-row { gap: 4px; }
           .org-add-row .hh-select, .org-add-row .hh-input, .org-add-row .hh-button-primary,
-          .org-filter-row .hh-select, .org-filter-row .hh-input { font-size: 11px; padding-left: 7px; padding-right: 7px; }
+          .org-filter-row .hh-select, .org-filter-row .hh-input { font-size: 10px; padding-left: 5px; padding-right: 5px; }
+          .bulk-save-button { font-size: 9.5px; padding: 0 7px; }
           .org-item { min-width: 88px; }
           .action-row .admin-mini-button { font-size: 10px; }
         }

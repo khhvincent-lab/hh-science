@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
   const [{data:regions,error:re},{data:institutions,error:ie},{data:classes,error:ce},{data:students,error:se}] = await Promise.all([
     supabaseAdmin.from("regions").select("id,name,active,sort_order").order("sort_order").order("name"),
     supabaseAdmin.from("institutions").select("id,region_id,name,active,sort_order").order("sort_order").order("name"),
-    supabaseAdmin.from("classes").select("id,institution_id,name,active,sort_order").order("sort_order").order("name"),
+    supabaseAdmin.from("classes").select("id,institution_id,name,active,sort_order,academic_year").order("academic_year",{ascending:false}).order("sort_order").order("name"),
     supabaseAdmin.from("students").select("id,region_id,institution_id,class_id"),
   ]);
   const error=re||ie||ce||se; if(error) return NextResponse.json({error:`讀取組織資料失敗：${error.message}`},{status:500});
@@ -35,10 +35,56 @@ export async function POST(request: NextRequest) {
   }
   if(type==="class") {
     const institutionId=clean(body.institutionId); if(!institutionId) return NextResponse.json({error:"缺少合作單位。"},{status:400});
-    const {data,error}=await supabaseAdmin.from("classes").insert({institution_id:institutionId,name}).select().single();
+    const academicYearRaw=Number(body.academicYear);
+    const academicYear=Number.isInteger(academicYearRaw)&&academicYearRaw>=2020&&academicYearRaw<=2100?academicYearRaw:new Date().getFullYear();
+    const {data,error}=await supabaseAdmin.from("classes").insert({institution_id:institutionId,name,academic_year:academicYear}).select().single();
     return error?NextResponse.json({error:error.code==="23505"?"此合作單位已有同名班級。":error.message},{status:error.code==="23505"?409:500}):NextResponse.json({item:data});
   }
   return NextResponse.json({error:"未知的新增類型。"},{status:400});
+}
+
+export async function PATCH(request: NextRequest) {
+  if (!(await requireAdmin(request))) return NextResponse.json({error:"未登入管理員。"},{status:401});
+  const body=await request.json().catch(()=>null); if(!body) return NextResponse.json({error:"資料格式錯誤。"},{status:400});
+  const action=clean(body.action);
+  if(action!=="promote_class") return NextResponse.json({error:"未知操作。"},{status:400});
+  const sourceClassId=clean(body.sourceClassId), targetClassId=clean(body.targetClassId);
+  if(!sourceClassId||!targetClassId||sourceClassId===targetClassId) return NextResponse.json({error:"請選擇不同的來源班級與目標班級。"},{status:400});
+
+  const [{data:sourceClass,error:sourceError},{data:targetClass,error:targetError}] = await Promise.all([
+    supabaseAdmin.from("classes").select("id,name,institution_id,academic_year").eq("id",sourceClassId).maybeSingle(),
+    supabaseAdmin.from("classes").select("id,name,institution_id,academic_year,institutions(region_id,regions(name))").eq("id",targetClassId).maybeSingle(),
+  ]);
+  if(sourceError||targetError||!sourceClass||!targetClass) return NextResponse.json({error:"找不到來源或目標班級。"},{status:404});
+
+  const {data:students,error:studentsError}=await supabaseAdmin.from("students").select("id,class_id,institution_id,region_id,campus").eq("class_id",sourceClassId);
+  if(studentsError) return NextResponse.json({error:studentsError.message},{status:500});
+  const rows=students??[];
+  if(!rows.length) return NextResponse.json({success:true,moved:0});
+
+  const institution=(targetClass as any).institutions;
+  const regionId=institution?.region_id ?? null;
+  const regionName=institution?.regions?.name ?? null;
+  const ids=rows.map((r:any)=>r.id);
+  const {error:updateError}=await supabaseAdmin.from("students").update({
+    class_id:targetClassId,
+    institution_id:(targetClass as any).institution_id,
+    region_id:regionId,
+    ...(regionName?{campus:`${regionName}班`}:{}),
+  }).in("id",ids);
+  if(updateError) return NextResponse.json({error:`升班失敗：${updateError.message}`},{status:500});
+
+  const history=rows.map((r:any)=>({
+    student_id:r.id,
+    from_class_id:sourceClassId,
+    to_class_id:targetClassId,
+    from_academic_year:(sourceClass as any).academic_year ?? null,
+    to_academic_year:(targetClass as any).academic_year ?? null,
+    reason:"annual_promotion",
+  }));
+  const {error:historyError}=await supabaseAdmin.from("student_class_history").insert(history);
+  if(historyError) console.error("student_class_history insert failed",historyError);
+  return NextResponse.json({success:true,moved:ids.length,sourceClass,targetClass});
 }
 
 export async function DELETE(request: NextRequest) {
