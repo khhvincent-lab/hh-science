@@ -1390,37 +1390,502 @@ function StudentsSection(props: {
   resetStudentPin: (student: StudentRow) => Promise<void>; dailyLimit: number; viewStudentHistory: (student: StudentRow) => void;
   reloadStudents: () => Promise<void>;
 }) {
-  type Region={id:string;name:string;active:boolean}; type Institution={id:string;region_id:string;name:string;active:boolean}; type ClassRow={id:string;institution_id:string;name:string;active:boolean};
-  const [regions,setRegions]=useState<Region[]>([]); const [institutions,setInstitutions]=useState<Institution[]>([]); const [classes,setClasses]=useState<ClassRow[]>([]);
-  const [regionId,setRegionId]=useState(""); const [institutionId,setInstitutionId]=useState(""); const [classId,setClassId]=useState("");
-  const [orgBusy,setOrgBusy]=useState(false); const [orgMessage,setOrgMessage]=useState(""); const [expanded,setExpanded]=useState<string|null>(null);
-  const [filterRegion,setFilterRegion]=useState(""); const [filterInstitution,setFilterInstitution]=useState(""); const [filterClass,setFilterClass]=useState("");
+  type Region = { id: string; name: string; active: boolean };
+  type Institution = { id: string; region_id: string; name: string; active: boolean };
+  type ClassRow = { id: string; institution_id: string; name: string; active: boolean };
+  type AssignmentDraft = { regionId: string; institutionId: string; classId: string };
 
-  const loadOrg=useCallback(async()=>{const r=await fetch("/api/admin/organizations",{cache:"no-store"});const d=await r.json();if(!r.ok) throw new Error(d.error||"讀取組織資料失敗。");setRegions(d.regions||[]);setInstitutions(d.institutions||[]);setClasses(d.classes||[]);if(!regionId&&d.regions?.[0]) setRegionId(d.regions[0].id);},[regionId]);
-  useEffect(()=>{void loadOrg().catch(e=>setOrgMessage(e instanceof Error?e.message:"讀取組織資料失敗。"));},[loadOrg]);
-  useEffect(()=>{const list=institutions.filter(x=>x.region_id===regionId);if(!list.some(x=>x.id===institutionId))setInstitutionId(list[0]?.id||"");},[regionId,institutions,institutionId]);
-  useEffect(()=>{const list=classes.filter(x=>x.institution_id===institutionId);if(!list.some(x=>x.id===classId))setClassId(list[0]?.id||"");},[institutionId,classes,classId]);
-  const filtered=props.allStudents.filter(s=>{if(filterRegion&&s.region_id!==filterRegion)return false;if(filterInstitution&&s.institution_id!==filterInstitution)return false;if(filterClass&&s.class_id!==filterClass)return false;if(props.statusFilter==="啟用"&&!s.active)return false;if(props.statusFilter==="停用"&&s.active)return false;const q=props.query.trim().toLowerCase();return !q||s.name.toLowerCase().includes(q)||(s.classes?.name||"").toLowerCase().includes(q)||(s.institutions?.name||"").toLowerCase().includes(q);});
-  const todayKey=new Intl.DateTimeFormat("en-CA",{timeZone:"Asia/Taipei"}).format(new Date());
-  const todayActive=props.allStudents.filter(s=>s.last_login_at&&new Intl.DateTimeFormat("en-CA",{timeZone:"Asia/Taipei"}).format(new Date(s.last_login_at))===todayKey).length;
-  async function orgCreate(type:"region"|"institution"|"class",parent?:string){const label=type==="region"?"地區":type==="institution"?"合作單位":"班級";const name=window.prompt(`新增${label}名稱`);if(!name?.trim())return;setOrgBusy(true);setOrgMessage("");try{const body:any={type,name:name.trim()};if(type==="institution")body.regionId=parent;if(type==="class")body.institutionId=parent;const r=await fetch("/api/admin/organizations",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});const d=await r.json();if(!r.ok)throw new Error(d.error);setOrgMessage(`已新增${label}：${name}`);await loadOrg();}catch(e){setOrgMessage(e instanceof Error?e.message:"新增失敗。");}finally{setOrgBusy(false);}}
-  async function orgDelete(type:"region"|"institution"|"class",id:string,name:string){if(!confirm(`確定刪除「${name}」？有學生或下層資料時系統會阻止刪除。`))return;setOrgBusy(true);try{const r=await fetch("/api/admin/organizations",{method:"DELETE",headers:{"Content-Type":"application/json"},body:JSON.stringify({type,id})});const d=await r.json();if(!r.ok)throw new Error(d.error);setOrgMessage(`已刪除 ${name}`);await loadOrg();}catch(e){setOrgMessage(e instanceof Error?e.message:"刪除失敗。");}finally{setOrgBusy(false);}}
-  async function assign(student:StudentRow,rid:string,iid:string,cid:string){setOrgBusy(true);try{const r=await fetch("/api/admin/students",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:student.id,regionId:rid,institutionId:iid,classId:cid})});const d=await r.json();if(!r.ok)throw new Error(d.error);setOrgMessage(`已更新 ${student.name} 的班級`);await props.reloadStudents();}catch(e){setOrgMessage(e instanceof Error?e.message:"更新班級失敗。");}finally{setOrgBusy(false);}}
-  async function createStudent(){if(!props.newName.trim()||!regionId||!institutionId||!classId){setOrgMessage("請輸入姓名並完整選擇地區、合作單位、班級。");return;}setOrgBusy(true);try{const region=regions.find(r=>r.id===regionId)!;const r=await fetch("/api/admin/students",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({campus:`${region.name}班`,name:props.newName.trim()})});const d=await r.json();if(!r.ok)throw new Error(d.error);await assign(d.student,regionId,institutionId,classId);props.setNewName("");await props.reloadStudents();setOrgMessage(`已新增 ${props.newName.trim()}`);}catch(e){setOrgMessage(e instanceof Error?e.message:"新增學生失敗。");}finally{setOrgBusy(false);}}
-  return <div className="admin-stack org-students-v12">
-    <section className="admin-student-summary-strip"><article><span>學生總數</span><strong>{props.total}</strong><small>人</small></article><article><span>啟用中</span><strong>{props.active}</strong><small>人</small></article><article><span>今日活躍</span><strong>{todayActive}</strong><small>人</small></article></section>
-    <section className="hh-card admin-panel org-manager"><PanelHeader eyebrow="ORGANIZATION" title="地區・合作單位・班級" subtitle="可自由新增地區、合作補習班與班級；有學生時不可誤刪"/><div className="org-columns">
-      <div><div className="org-head"><b>地區</b><button onClick={()=>void orgCreate("region")} disabled={orgBusy}>＋</button></div>{regions.map(r=><div className={`org-item ${regionId===r.id?"active":""}`} key={r.id}><button onClick={()=>setRegionId(r.id)}>{r.name}</button><button className="del" onClick={()=>void orgDelete("region",r.id,r.name)}>×</button></div>)}</div>
-      <div><div className="org-head"><b>合作單位</b><button onClick={()=>void orgCreate("institution",regionId)} disabled={!regionId||orgBusy}>＋</button></div>{institutions.filter(i=>i.region_id===regionId).map(i=><div className={`org-item ${institutionId===i.id?"active":""}`} key={i.id}><button onClick={()=>setInstitutionId(i.id)}>{i.name}</button><button className="del" onClick={()=>void orgDelete("institution",i.id,i.name)}>×</button></div>)}</div>
-      <div><div className="org-head"><b>班級</b><button onClick={()=>void orgCreate("class",institutionId)} disabled={!institutionId||orgBusy}>＋</button></div>{classes.filter(c=>c.institution_id===institutionId).map(c=><div className={`org-item ${classId===c.id?"active":""}`} key={c.id}><button onClick={()=>setClassId(c.id)}>{c.name}</button><button className="del" onClick={()=>void orgDelete("class",c.id,c.name)}>×</button></div>)}</div>
-    </div>{orgMessage&&<div className="org-message">{orgMessage}</div>}</section>
-    <section className="hh-card admin-panel"><PanelHeader eyebrow="NEW STUDENT" title="新增學生" subtitle="學生端仍維持原本簡單登入；細部分班只供老師後台管理"/><div className="org-add-row"><select value={regionId} onChange={e=>setRegionId(e.target.value)} className="hh-select">{regions.map(r=><option key={r.id} value={r.id}>{r.name}</option>)}</select><select value={institutionId} onChange={e=>setInstitutionId(e.target.value)} className="hh-select">{institutions.filter(i=>i.region_id===regionId).map(i=><option key={i.id} value={i.id}>{i.name}</option>)}</select><select value={classId} onChange={e=>setClassId(e.target.value)} className="hh-select">{classes.filter(c=>c.institution_id===institutionId).map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select><input className="hh-input" placeholder="學生姓名" value={props.newName} onChange={e=>props.setNewName(e.target.value)}/><button className="hh-button-primary" onClick={()=>void createStudent()} disabled={orgBusy}>新增</button></div></section>
-    {(props.error||props.message)&&<div className={`admin-notice ${props.error?"danger":"success"}`}>{props.error||props.message}</div>}
-    <section className="hh-card admin-panel"><PanelHeader eyebrow="STUDENT DIRECTORY" title="學生名單" subtitle={`目前顯示 ${filtered.length} / ${props.total} 位學生`}/><div className="org-filter-row"><select className="hh-select" value={filterRegion} onChange={e=>{setFilterRegion(e.target.value);setFilterInstitution("");setFilterClass("");}}><option value="">全部地區</option>{regions.map(r=><option key={r.id} value={r.id}>{r.name}</option>)}</select><select className="hh-select" value={filterInstitution} onChange={e=>{setFilterInstitution(e.target.value);setFilterClass("");}}><option value="">全部合作單位</option>{institutions.filter(i=>!filterRegion||i.region_id===filterRegion).map(i=><option key={i.id} value={i.id}>{i.name}</option>)}</select><select className="hh-select" value={filterClass} onChange={e=>setFilterClass(e.target.value)}><option value="">全部班級</option>{classes.filter(c=>!filterInstitution||c.institution_id===filterInstitution).map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select><input className="hh-input" placeholder="搜尋學生…" value={props.query} onChange={e=>props.setQuery(e.target.value)}/><select className="hh-select" value={props.statusFilter} onChange={e=>props.setStatusFilter(e.target.value as any)}><option>全部</option><option>啟用</option><option>停用</option></select></div>
-      <div className="compact-student-list">{props.loading?<div className="admin-empty">讀取中…</div>:filtered.map(s=>{const open=expanded===s.id;return <article className={`compact-student ${open?"open":""}`} key={s.id}><button className="compact-main" onClick={()=>setExpanded(open?null:s.id)}><span className="mini-avatar">{s.name.slice(0,1)}</span><span className="student-core"><strong>{s.name}</strong><small>{s.regions?.name||s.campus} · {s.institutions?.name||"未指定單位"} · {s.classes?.name||"未分班"}</small></span><span className="usage-mini">{s.todayCount}/{props.dailyLimit}</span><span className={`dot ${s.active?"on":""}`}/><span className="chev">⌄</span></button>{open&&<div className="compact-detail"><div className="assign-row"><select defaultValue={s.region_id||""} id={`r-${s.id}`} className="hh-select" onChange={e=>{const rid=e.target.value;const ii=institutions.find(i=>i.region_id===rid)?.id||"";(document.getElementById(`i-${s.id}`) as HTMLSelectElement).value=ii;}}>{regions.map(r=><option key={r.id} value={r.id}>{r.name}</option>)}</select><select defaultValue={s.institution_id||""} id={`i-${s.id}`} className="hh-select">{institutions.map(i=><option key={i.id} value={i.id}>{i.name}</option>)}</select><select defaultValue={s.class_id||""} id={`c-${s.id}`} className="hh-select">{classes.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select><button className="admin-mini-button" onClick={()=>{const rid=(document.getElementById(`r-${s.id}`) as HTMLSelectElement).value;const iid=(document.getElementById(`i-${s.id}`) as HTMLSelectElement).value;const cid=(document.getElementById(`c-${s.id}`) as HTMLSelectElement).value;void assign(s,rid,iid,cid)}}>儲存分班</button></div><div className="action-row"><button className="admin-mini-button history" onClick={()=>props.viewStudentHistory(s)}>紀錄</button><button className="admin-mini-button" onClick={()=>void props.resetStudentUsage(s)}>重置額度</button><button className="admin-mini-button" onClick={()=>void props.resetStudentPin(s)}>重設密碼</button><button className={`admin-mini-button ${s.active?"danger":"success"}`} onClick={()=>void props.toggleStudent(s)}>{s.active?"停用":"啟用"}</button></div></div>}</article>})}</div>
-    </section>
-    <style jsx global>{`.org-columns{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.org-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:7px}.org-head button{border:1px solid var(--border);background:var(--surface);border-radius:8px;width:28px;height:28px}.org-item{display:grid;grid-template-columns:1fr 28px;border:1px solid var(--border);border-radius:9px;margin:5px 0;overflow:hidden}.org-item>button{border:0;background:transparent;text-align:left;padding:8px 10px;color:var(--text)}.org-item.active{border-color:var(--primary);background:color-mix(in srgb,var(--primary) 7%,var(--surface))}.org-item .del{text-align:center;padding:0;color:var(--text-secondary)}.org-add-row,.org-filter-row{display:grid;grid-template-columns:140px 1fr 140px 1fr auto;gap:8px}.org-message{margin-top:10px;font-size:13px;color:var(--primary)}.compact-student-list{display:grid;border-top:1px solid var(--border);margin-top:12px}.compact-student{border-bottom:1px solid var(--border)}.compact-main{width:100%;display:grid;grid-template-columns:34px minmax(0,1fr) 48px 12px 20px;gap:9px;align-items:center;padding:9px 4px;border:0;background:transparent;color:var(--text);text-align:left}.mini-avatar{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;background:var(--surface-soft);font-weight:700}.student-core{min-width:0;display:grid}.student-core strong{font-size:14px}.student-core small{font-size:11px;color:var(--text-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.usage-mini{text-align:right;font-size:12px;font-variant-numeric:tabular-nums}.dot{width:8px;height:8px;border-radius:50%;background:#aaa}.dot.on{background:#6f927a}.chev{text-align:center;color:var(--text-secondary)}.compact-detail{padding:8px 4px 12px 47px;display:grid;gap:8px}.assign-row{display:grid;grid-template-columns:100px 1fr 120px auto;gap:7px}.action-row{display:flex;gap:6px;flex-wrap:wrap}@media(max-width:700px){.org-columns{grid-template-columns:1fr}.org-add-row,.org-filter-row{grid-template-columns:1fr 1fr}.org-add-row input,.org-add-row button,.org-filter-row input{grid-column:1/-1}.compact-main{grid-template-columns:30px minmax(0,1fr) 42px 9px 16px;padding:8px 0}.mini-avatar{width:28px;height:28px}.student-core strong{font-size:13px}.student-core small{font-size:10px}.compact-detail{padding-left:0}.assign-row{grid-template-columns:1fr 1fr}.assign-row select:nth-child(3),.assign-row button{grid-column:1/-1}.action-row .admin-mini-button{padding:6px 8px;font-size:11px}.org-students-v12 .admin-panel{padding:14px}.org-students-v12 .admin-student-summary-strip article{padding:10px 12px}}`}</style>
-  </div>;
+  const [regions, setRegions] = useState<Region[]>([]);
+  const [institutions, setInstitutions] = useState<Institution[]>([]);
+  const [classes, setClasses] = useState<ClassRow[]>([]);
+  const [regionId, setRegionId] = useState("");
+  const [institutionId, setInstitutionId] = useState("");
+  const [classId, setClassId] = useState("");
+  const [orgBusy, setOrgBusy] = useState(false);
+  const [orgMessage, setOrgMessage] = useState("");
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const [assignmentDrafts, setAssignmentDrafts] = useState<Record<string, AssignmentDraft>>({});
+  const [filterRegion, setFilterRegion] = useState("");
+  const [filterInstitution, setFilterInstitution] = useState("");
+  const [filterClass, setFilterClass] = useState("");
+
+  const loadOrg = useCallback(async () => {
+    const response = await fetch("/api/admin/organizations", { cache: "no-store" });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "讀取組織資料失敗。");
+
+    const nextRegions = Array.isArray(data.regions) ? data.regions : [];
+    const nextInstitutions = Array.isArray(data.institutions) ? data.institutions : [];
+    const nextClasses = Array.isArray(data.classes) ? data.classes : [];
+
+    setRegions(nextRegions);
+    setInstitutions(nextInstitutions);
+    setClasses(nextClasses);
+
+    setRegionId((current) => current || nextRegions[0]?.id || "");
+  }, []);
+
+  useEffect(() => {
+    void loadOrg().catch((error) =>
+      setOrgMessage(error instanceof Error ? error.message : "讀取組織資料失敗。"),
+    );
+  }, [loadOrg]);
+
+  useEffect(() => {
+    const available = institutions.filter((item) => item.region_id === regionId);
+    if (!available.some((item) => item.id === institutionId)) {
+      setInstitutionId(available[0]?.id || "");
+    }
+  }, [regionId, institutions, institutionId]);
+
+  useEffect(() => {
+    const available = classes.filter((item) => item.institution_id === institutionId);
+    if (!available.some((item) => item.id === classId)) {
+      setClassId(available[0]?.id || "");
+    }
+  }, [institutionId, classes, classId]);
+
+  const filtered = props.allStudents.filter((student) => {
+    if (filterRegion && student.region_id !== filterRegion) return false;
+    if (filterInstitution && student.institution_id !== filterInstitution) return false;
+    if (filterClass && student.class_id !== filterClass) return false;
+    if (props.statusFilter === "啟用" && !student.active) return false;
+    if (props.statusFilter === "停用" && student.active) return false;
+
+    const keyword = props.query.trim().toLowerCase();
+    return (
+      !keyword ||
+      student.name.toLowerCase().includes(keyword) ||
+      (student.classes?.name || "").toLowerCase().includes(keyword) ||
+      (student.institutions?.name || "").toLowerCase().includes(keyword) ||
+      (student.regions?.name || "").toLowerCase().includes(keyword)
+    );
+  });
+
+  const todayKey = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Taipei" }).format(new Date());
+  const todayActive = props.allStudents.filter(
+    (student) =>
+      student.last_login_at &&
+      new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Taipei" }).format(
+        new Date(student.last_login_at),
+      ) === todayKey,
+  ).length;
+
+  function getStudentDraft(student: StudentRow): AssignmentDraft {
+    return (
+      assignmentDrafts[student.id] ?? {
+        regionId: student.region_id || regions[0]?.id || "",
+        institutionId: student.institution_id || "",
+        classId: student.class_id || "",
+      }
+    );
+  }
+
+  function changeStudentRegion(student: StudentRow, nextRegionId: string) {
+    const nextInstitution = institutions.find((item) => item.region_id === nextRegionId);
+    const nextClass = nextInstitution
+      ? classes.find((item) => item.institution_id === nextInstitution.id)
+      : undefined;
+
+    setAssignmentDrafts((current) => ({
+      ...current,
+      [student.id]: {
+        regionId: nextRegionId,
+        institutionId: nextInstitution?.id || "",
+        classId: nextClass?.id || "",
+      },
+    }));
+  }
+
+  function changeStudentInstitution(student: StudentRow, nextInstitutionId: string) {
+    const draft = getStudentDraft(student);
+    const nextClass = classes.find((item) => item.institution_id === nextInstitutionId);
+
+    setAssignmentDrafts((current) => ({
+      ...current,
+      [student.id]: {
+        ...draft,
+        institutionId: nextInstitutionId,
+        classId: nextClass?.id || "",
+      },
+    }));
+  }
+
+  function changeStudentClass(student: StudentRow, nextClassId: string) {
+    const draft = getStudentDraft(student);
+    setAssignmentDrafts((current) => ({
+      ...current,
+      [student.id]: { ...draft, classId: nextClassId },
+    }));
+  }
+
+  async function orgCreate(type: "region" | "institution" | "class", parent?: string) {
+    const label = type === "region" ? "地區" : type === "institution" ? "合作單位" : "班級";
+    const name = window.prompt(`新增${label}名稱`);
+    if (!name?.trim()) return;
+
+    setOrgBusy(true);
+    setOrgMessage("");
+    try {
+      const body: Record<string, string> = { type, name: name.trim() };
+      if (type === "institution") body.regionId = parent || "";
+      if (type === "class") body.institutionId = parent || "";
+
+      const response = await fetch("/api/admin/organizations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "新增失敗。");
+      setOrgMessage(`已新增${label}：${name.trim()}`);
+      await loadOrg();
+    } catch (error) {
+      setOrgMessage(error instanceof Error ? error.message : "新增失敗。");
+    } finally {
+      setOrgBusy(false);
+    }
+  }
+
+  async function orgDelete(type: "region" | "institution" | "class", id: string, name: string) {
+    if (!confirm(`確定刪除「${name}」？有學生或下層資料時系統會阻止刪除。`)) return;
+
+    setOrgBusy(true);
+    setOrgMessage("");
+    try {
+      const response = await fetch("/api/admin/organizations", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type, id }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "刪除失敗。");
+      setOrgMessage(`已刪除 ${name}`);
+      await loadOrg();
+    } catch (error) {
+      setOrgMessage(error instanceof Error ? error.message : "刪除失敗。");
+    } finally {
+      setOrgBusy(false);
+    }
+  }
+
+  async function assign(student: StudentRow, draft: AssignmentDraft) {
+    if (!draft.regionId || !draft.institutionId || !draft.classId) {
+      setOrgMessage("請完整選擇地區、合作單位與班級。");
+      return;
+    }
+
+    setOrgBusy(true);
+    setOrgMessage(`正在更新 ${student.name}…`);
+    try {
+      const response = await fetch("/api/admin/students", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: student.id,
+          regionId: draft.regionId,
+          institutionId: draft.institutionId,
+          classId: draft.classId,
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "更新班級失敗。");
+
+      setAssignmentDrafts((current) => {
+        const next = { ...current };
+        delete next[student.id];
+        return next;
+      });
+      setOrgMessage(`已更新 ${student.name} 的班級。`);
+      await props.reloadStudents();
+    } catch (error) {
+      setOrgMessage(error instanceof Error ? error.message : "更新班級失敗。");
+    } finally {
+      setOrgBusy(false);
+    }
+  }
+
+  async function createStudent() {
+    const name = props.newName.trim();
+    if (!name || !regionId || !institutionId || !classId) {
+      setOrgMessage("請輸入姓名並完整選擇地區、合作單位、班級。");
+      return;
+    }
+
+    setOrgBusy(true);
+    setOrgMessage("正在新增學生…");
+    try {
+      const response = await fetch("/api/admin/students", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name,
+          regionId,
+          institutionId,
+          classId,
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "新增學生失敗。");
+
+      props.setNewName("");
+      setOrgMessage(`已新增 ${name}`);
+      await props.reloadStudents();
+    } catch (error) {
+      setOrgMessage(error instanceof Error ? error.message : "新增學生失敗。");
+    } finally {
+      setOrgBusy(false);
+    }
+  }
+
+  const visibleInstitutions = institutions.filter((item) => item.region_id === regionId);
+  const visibleClasses = classes.filter((item) => item.institution_id === institutionId);
+
+  return (
+    <div className="admin-stack org-students-v12">
+      <section className="admin-student-summary-strip">
+        <article><span>學生總數</span><strong>{props.total}</strong><small>人</small></article>
+        <article><span>啟用中</span><strong>{props.active}</strong><small>人</small></article>
+        <article><span>今日活躍</span><strong>{todayActive}</strong><small>人</small></article>
+      </section>
+
+      <section className="hh-card admin-panel org-manager">
+        <PanelHeader
+          eyebrow="ORGANIZATION"
+          title="地區・合作單位・班級"
+          subtitle="可自由新增地區、合作補習班與班級；有學生時不可誤刪"
+        />
+        <div className="org-columns">
+          <div className="org-column-block">
+            <div className="org-head"><b>地區</b><button onClick={() => void orgCreate("region")} disabled={orgBusy}>＋</button></div>
+            <div className="org-chip-list">
+              {regions.map((region) => (
+                <div className={`org-item ${regionId === region.id ? "active" : ""}`} key={region.id}>
+                  <button onClick={() => setRegionId(region.id)}>{region.name}</button>
+                  <button className="del" onClick={() => void orgDelete("region", region.id, region.name)}>×</button>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="org-column-block">
+            <div className="org-head"><b>合作單位</b><button onClick={() => void orgCreate("institution", regionId)} disabled={!regionId || orgBusy}>＋</button></div>
+            <div className="org-chip-list">
+              {visibleInstitutions.map((institution) => (
+                <div className={`org-item ${institutionId === institution.id ? "active" : ""}`} key={institution.id}>
+                  <button onClick={() => setInstitutionId(institution.id)}>{institution.name}</button>
+                  <button className="del" onClick={() => void orgDelete("institution", institution.id, institution.name)}>×</button>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="org-column-block">
+            <div className="org-head"><b>班級</b><button onClick={() => void orgCreate("class", institutionId)} disabled={!institutionId || orgBusy}>＋</button></div>
+            <div className="org-chip-list">
+              {visibleClasses.map((classRow) => (
+                <div className={`org-item ${classId === classRow.id ? "active" : ""}`} key={classRow.id}>
+                  <button onClick={() => setClassId(classRow.id)}>{classRow.name}</button>
+                  <button className="del" onClick={() => void orgDelete("class", classRow.id, classRow.name)}>×</button>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+        {orgMessage && <div className="org-message">{orgMessage}</div>}
+      </section>
+
+      <section className="hh-card admin-panel org-compact-panel">
+        <PanelHeader
+          eyebrow="NEW STUDENT"
+          title="新增學生"
+          subtitle="細部分班只供老師後台管理"
+        />
+        <div className="org-add-row">
+          <select value={regionId} onChange={(event) => setRegionId(event.target.value)} className="hh-select">
+            {regions.map((region) => <option key={region.id} value={region.id}>{region.name}</option>)}
+          </select>
+          <select value={institutionId} onChange={(event) => setInstitutionId(event.target.value)} className="hh-select">
+            {visibleInstitutions.map((institution) => <option key={institution.id} value={institution.id}>{institution.name}</option>)}
+          </select>
+          <select value={classId} onChange={(event) => setClassId(event.target.value)} className="hh-select">
+            {visibleClasses.map((classRow) => <option key={classRow.id} value={classRow.id}>{classRow.name}</option>)}
+          </select>
+          <input className="hh-input" placeholder="學生姓名" value={props.newName} onChange={(event) => props.setNewName(event.target.value)} />
+          <button className="hh-button-primary" onClick={() => void createStudent()} disabled={orgBusy}>新增</button>
+        </div>
+      </section>
+
+      {(props.error || props.message) && (
+        <div className={`admin-notice ${props.error ? "danger" : "success"}`}>{props.error || props.message}</div>
+      )}
+
+      <section className="hh-card admin-panel org-compact-panel">
+        <PanelHeader eyebrow="STUDENT DIRECTORY" title="學生名單" subtitle={`目前顯示 ${filtered.length} / ${props.total} 位學生`} />
+        <div className="org-filter-row">
+          <select className="hh-select" value={filterRegion} onChange={(event) => { setFilterRegion(event.target.value); setFilterInstitution(""); setFilterClass(""); }}>
+            <option value="">全部地區</option>
+            {regions.map((region) => <option key={region.id} value={region.id}>{region.name}</option>)}
+          </select>
+          <select className="hh-select" value={filterInstitution} onChange={(event) => { setFilterInstitution(event.target.value); setFilterClass(""); }}>
+            <option value="">全部合作單位</option>
+            {institutions.filter((item) => !filterRegion || item.region_id === filterRegion).map((institution) => <option key={institution.id} value={institution.id}>{institution.name}</option>)}
+          </select>
+          <select className="hh-select" value={filterClass} onChange={(event) => setFilterClass(event.target.value)}>
+            <option value="">全部班級</option>
+            {classes.filter((item) => !filterInstitution || item.institution_id === filterInstitution).map((classRow) => <option key={classRow.id} value={classRow.id}>{classRow.name}</option>)}
+          </select>
+          <input className="hh-input" placeholder="搜尋學生…" value={props.query} onChange={(event) => props.setQuery(event.target.value)} />
+          <select className="hh-select" value={props.statusFilter} onChange={(event) => props.setStatusFilter(event.target.value as "全部" | "啟用" | "停用")}>
+            <option>全部</option><option>啟用</option><option>停用</option>
+          </select>
+        </div>
+
+        <div className="compact-student-list">
+          {props.loading ? (
+            <div className="admin-empty">讀取中…</div>
+          ) : (
+            filtered.map((student) => {
+              const open = expanded === student.id;
+              const draft = getStudentDraft(student);
+              const studentInstitutions = institutions.filter((item) => item.region_id === draft.regionId);
+              const studentClasses = classes.filter((item) => item.institution_id === draft.institutionId);
+
+              return (
+                <article className={`compact-student ${open ? "open" : ""}`} key={student.id}>
+                  <button
+                    className="compact-main"
+                    onClick={() => {
+                      setExpanded(open ? null : student.id);
+                      if (!open) {
+                        setAssignmentDrafts((current) => ({
+                          ...current,
+                          [student.id]: {
+                            regionId: student.region_id || regions[0]?.id || "",
+                            institutionId: student.institution_id || "",
+                            classId: student.class_id || "",
+                          },
+                        }));
+                      }
+                    }}
+                  >
+                    <span className="mini-avatar">{student.name.slice(0, 1)}</span>
+                    <span className="student-core">
+                      <strong>{student.name}</strong>
+                      <small>{student.regions?.name || student.campus} · {student.institutions?.name || "未指定單位"} · {student.classes?.name || "未分班"}</small>
+                    </span>
+                    <span className="usage-mini">{student.todayCount}/{props.dailyLimit}</span>
+                    <span className={`dot ${student.active ? "on" : ""}`} />
+                    <span className="chev">{open ? "⌃" : "⌄"}</span>
+                  </button>
+
+                  {open && (
+                    <div className="compact-detail">
+                      <div className="assign-row">
+                        <select className="hh-select" value={draft.regionId} onChange={(event) => changeStudentRegion(student, event.target.value)}>
+                          {regions.map((region) => <option key={region.id} value={region.id}>{region.name}</option>)}
+                        </select>
+                        <select className="hh-select" value={draft.institutionId} onChange={(event) => changeStudentInstitution(student, event.target.value)}>
+                          {studentInstitutions.map((institution) => <option key={institution.id} value={institution.id}>{institution.name}</option>)}
+                        </select>
+                        <select className="hh-select" value={draft.classId} onChange={(event) => changeStudentClass(student, event.target.value)}>
+                          {studentClasses.map((classRow) => <option key={classRow.id} value={classRow.id}>{classRow.name}</option>)}
+                        </select>
+                        <button className="admin-mini-button assign-save-button" disabled={orgBusy} onClick={() => void assign(student, draft)}>
+                          {orgBusy ? "儲存中…" : "儲存分班"}
+                        </button>
+                      </div>
+
+                      <div className="action-row">
+                        <button className="admin-mini-button history" onClick={() => props.viewStudentHistory(student)}>紀錄</button>
+                        <button className="admin-mini-button" onClick={() => void props.resetStudentUsage(student)}>重置額度</button>
+                        <button className="admin-mini-button" onClick={() => void props.resetStudentPin(student)}>重設密碼</button>
+                        <button className={`admin-mini-button ${student.active ? "danger" : "success"}`} onClick={() => void props.toggleStudent(student)}>{student.active ? "停用" : "啟用"}</button>
+                      </div>
+                    </div>
+                  )}
+                </article>
+              );
+            })
+          )}
+        </div>
+      </section>
+
+      <style jsx global>{`
+        .org-students-v12 { width: 100%; max-width: 100%; }
+        .org-manager, .org-compact-panel { width: 100%; box-sizing: border-box; }
+        .org-columns { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+        .org-column-block { min-width: 0; }
+        .org-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 7px; }
+        .org-head button { border: 1px solid var(--border); background: var(--surface); border-radius: 8px; width: 28px; height: 28px; }
+        .org-chip-list { min-width: 0; }
+        .org-item { display: grid; grid-template-columns: minmax(0, 1fr) 28px; border: 1px solid var(--border); border-radius: 9px; margin: 5px 0; overflow: hidden; }
+        .org-item > button { min-width: 0; border: 0; background: transparent; text-align: left; padding: 8px 10px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .org-item.active { border-color: var(--primary); background: color-mix(in srgb, var(--primary) 7%, var(--surface)); }
+        .org-item .del { text-align: center; padding: 0; color: var(--text-secondary); }
+        .org-add-row, .org-filter-row { display: grid; grid-template-columns: minmax(110px, .8fr) minmax(150px, 1.2fr) minmax(110px, .8fr) minmax(150px, 1.2fr) auto; gap: 8px; align-items: center; }
+        .org-message { margin-top: 10px; font-size: 13px; color: var(--primary); }
+        .compact-student-list { display: grid; border-top: 1px solid var(--border); margin-top: 12px; }
+        .compact-student { border-bottom: 1px solid var(--border); }
+        .compact-main { width: 100%; display: grid; grid-template-columns: 34px minmax(0, 1fr) 48px 12px 20px; gap: 9px; align-items: center; padding: 9px 4px; border: 0; background: transparent; color: var(--text); text-align: left; }
+        .mini-avatar { width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; background: var(--surface-soft); font-weight: 700; }
+        .student-core { min-width: 0; display: grid; }
+        .student-core strong { font-size: 14px; }
+        .student-core small { font-size: 11px; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .usage-mini { text-align: right; font-size: 12px; font-variant-numeric: tabular-nums; }
+        .dot { width: 8px; height: 8px; border-radius: 50%; background: #aaa; }
+        .dot.on { background: #6f927a; }
+        .chev { text-align: center; color: var(--text-secondary); }
+        .compact-detail { padding: 8px 4px 12px 47px; display: grid; gap: 8px; }
+        .assign-row { display: grid; grid-template-columns: minmax(90px, .8fr) minmax(140px, 1.2fr) minmax(100px, .9fr) auto; gap: 7px; }
+        .assign-save-button { white-space: nowrap; }
+        .action-row { display: flex; gap: 6px; flex-wrap: wrap; }
+
+        @media (max-width: 760px) {
+          .org-students-v12 { width: calc(100% + 6px); margin-left: -3px; }
+          .org-students-v12 .admin-panel { padding: 10px !important; border-radius: 12px !important; }
+          .org-students-v12 .admin-student-summary-strip { gap: 6px !important; }
+          .org-students-v12 .admin-student-summary-strip article { padding: 8px 9px !important; }
+
+          .org-columns { grid-template-columns: 1fr; gap: 8px; }
+          .org-column-block { border-bottom: 1px solid var(--border); padding-bottom: 7px; }
+          .org-column-block:last-child { border-bottom: 0; padding-bottom: 0; }
+          .org-head { margin-bottom: 5px; }
+          .org-chip-list { display: flex; gap: 6px; overflow-x: auto; padding: 1px 1px 4px; scrollbar-width: none; }
+          .org-chip-list::-webkit-scrollbar { display: none; }
+          .org-item { flex: 0 0 auto; min-width: 98px; max-width: 190px; margin: 0; grid-template-columns: minmax(0, 1fr) 25px; }
+          .org-item > button { padding: 7px 8px; font-size: 12px; }
+
+          .org-add-row, .org-filter-row { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+          .org-add-row > :nth-child(3), .org-filter-row > :nth-child(3) { grid-column: 1 / 2; }
+          .org-add-row input, .org-add-row button, .org-filter-row input { grid-column: auto; }
+          .org-add-row .hh-select, .org-add-row .hh-input, .org-add-row .hh-button-primary,
+          .org-filter-row .hh-select, .org-filter-row .hh-input { min-width: 0; width: 100%; height: 36px; min-height: 36px; font-size: 11.5px; }
+
+          .compact-main { grid-template-columns: 30px minmax(0, 1fr) 42px 9px 16px; padding: 8px 0; gap: 7px; }
+          .mini-avatar { width: 28px; height: 28px; }
+          .student-core strong { font-size: 13px; }
+          .student-core small { font-size: 10.5px; }
+          .compact-detail { padding: 7px 0 10px; }
+          .assign-row { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+          .assign-row select:nth-child(3), .assign-row button { grid-column: 1 / -1; }
+          .assign-row .hh-select, .assign-row .admin-mini-button { width: 100%; min-height: 35px; }
+          .action-row { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 5px; }
+          .action-row .admin-mini-button { min-width: 0; padding: 6px 4px; font-size: 10.5px; }
+        }
+
+        @media (max-width: 430px) {
+          .org-students-v12 { width: calc(100% + 10px); margin-left: -5px; }
+          .org-students-v12 .admin-panel { padding: 9px 8px !important; }
+          .org-add-row, .org-filter-row { gap: 5px; }
+          .org-add-row .hh-select, .org-add-row .hh-input, .org-add-row .hh-button-primary,
+          .org-filter-row .hh-select, .org-filter-row .hh-input { font-size: 11px; padding-left: 7px; padding-right: 7px; }
+          .org-item { min-width: 88px; }
+          .action-row .admin-mini-button { font-size: 10px; }
+        }
+      `}</style>
+    </div>
+  );
 }
 
 function AdminStudentHistoryPanel({

@@ -313,11 +313,11 @@ export async function POST(
 
 
   let body: {
-    campus?:
-      string;
-
-    name?:
-      string;
+    campus?: string;
+    name?: string;
+    regionId?: string;
+    institutionId?: string;
+    classId?: string;
   };
 
 
@@ -338,35 +338,58 @@ export async function POST(
   }
 
 
-  const campus =
-    body.campus
-      ?.trim() ??
-    "";
+  let campus = body.campus?.trim() ?? "";
+  const name = body.name?.trim() ?? "";
+  const regionId = body.regionId?.trim() ?? "";
+  const institutionId = body.institutionId?.trim() ?? "";
+  const classId = body.classId?.trim() ?? "";
 
-  const name =
-    body.name
-      ?.trim() ??
-    "";
+  let organizationUpdates: Record<string, string> = {};
 
+  if (regionId || institutionId || classId) {
+    if (!regionId || !institutionId || !classId) {
+      return NextResponse.json({ error: "請完整選擇地區、合作單位與班級。" }, { status: 400 });
+    }
 
-  if (
-    !CAMPUSES.includes(
-      campus as
-        (typeof CAMPUSES)[number]
-    )
-  ) {
-    return NextResponse.json(
-      {
-        error:
-          "請選擇正確班級。",
-      },
-      {
-        status:
-          400,
-      }
-    );
+    const { data: classRow, error: classError } = await supabaseAdmin
+      .from("classes")
+      .select("id,institution_id")
+      .eq("id", classId)
+      .maybeSingle();
+
+    if (classError || !classRow || classRow.institution_id !== institutionId) {
+      return NextResponse.json({ error: "班級與合作單位不一致，請重新選擇。" }, { status: 400 });
+    }
+
+    const { data: institutionRow, error: institutionError } = await supabaseAdmin
+      .from("institutions")
+      .select("id,region_id")
+      .eq("id", institutionId)
+      .maybeSingle();
+
+    if (institutionError || !institutionRow || institutionRow.region_id !== regionId) {
+      return NextResponse.json({ error: "合作單位與地區不一致，請重新選擇。" }, { status: 400 });
+    }
+
+    const { data: regionRow, error: regionError } = await supabaseAdmin
+      .from("regions")
+      .select("id,name")
+      .eq("id", regionId)
+      .maybeSingle();
+
+    if (regionError || !regionRow) {
+      return NextResponse.json({ error: "找不到選擇的地區。" }, { status: 400 });
+    }
+
+    campus = `${regionRow.name}班`;
+    organizationUpdates = {
+      region_id: regionId,
+      institution_id: institutionId,
+      class_id: classId,
+    };
+  } else if (!campus) {
+    return NextResponse.json({ error: "請選擇正確班級。" }, { status: 400 });
   }
-
 
   if (
     !name
@@ -487,9 +510,11 @@ export async function POST(
 
         must_change_pin:
           true,
+
+        ...organizationUpdates,
       })
       .select(
-        "id,campus,name,active,must_change_pin,created_at,updated_at"
+        "id,campus,name,active,must_change_pin,created_at,updated_at,region_id,institution_id,class_id,regions(name),institutions(name),classes(name)"
       )
       .single();
 
@@ -734,6 +759,70 @@ export async function PATCH(
 
   const updates:
     Record<string, any> = {};
+
+
+  const hasOrganizationChange =
+    typeof body.regionId === "string" ||
+    typeof body.institutionId === "string" ||
+    typeof body.classId === "string";
+
+  if (hasOrganizationChange) {
+    const regionId = body.regionId?.trim() ?? "";
+    const institutionId = body.institutionId?.trim() ?? "";
+    const classId = body.classId?.trim() ?? "";
+
+    if (!regionId || !institutionId || !classId) {
+      return NextResponse.json(
+        { error: "請完整選擇地區、合作單位與班級。" },
+        { status: 400 },
+      );
+    }
+
+    const { data: classRow, error: classError } = await supabaseAdmin
+      .from("classes")
+      .select("id,institution_id")
+      .eq("id", classId)
+      .maybeSingle();
+
+    if (classError || !classRow || classRow.institution_id !== institutionId) {
+      return NextResponse.json(
+        { error: "班級與合作單位不一致，請重新選擇。" },
+        { status: 400 },
+      );
+    }
+
+    const { data: institutionRow, error: institutionError } = await supabaseAdmin
+      .from("institutions")
+      .select("id,region_id")
+      .eq("id", institutionId)
+      .maybeSingle();
+
+    if (institutionError || !institutionRow || institutionRow.region_id !== regionId) {
+      return NextResponse.json(
+        { error: "合作單位與地區不一致，請重新選擇。" },
+        { status: 400 },
+      );
+    }
+
+    const { data: regionRow, error: regionError } = await supabaseAdmin
+      .from("regions")
+      .select("id,name")
+      .eq("id", regionId)
+      .maybeSingle();
+
+    if (regionError || !regionRow) {
+      return NextResponse.json(
+        { error: "找不到選擇的地區。" },
+        { status: 400 },
+      );
+    }
+
+    updates.region_id = regionId;
+    updates.institution_id = institutionId;
+    updates.class_id = classId;
+    // 保持舊版學生端仍使用 campus 時可以正常運作。
+    updates.campus = `${regionRow.name}班`;
+  }
 
 
   if (
