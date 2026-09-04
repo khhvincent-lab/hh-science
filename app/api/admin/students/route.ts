@@ -124,7 +124,7 @@ export async function GET(
         "students"
       )
       .select(
-        "id,campus,name,active,must_change_pin,pin_changed_at,last_login_at,created_at,updated_at"
+        "id,campus,name,active,must_change_pin,pin_changed_at,last_login_at,created_at,updated_at,region_id,institution_id,class_id,regions(name),institutions(name),classes(name)"
       )
       .order(
         "campus",
@@ -565,6 +565,10 @@ export async function PATCH(
 
     action?:
       string;
+
+    regionId?: string;
+    institutionId?: string;
+    classId?: string;
   };
 
 
@@ -729,11 +733,7 @@ export async function PATCH(
 
 
   const updates:
-    Record<
-      string,
-      string |
-      boolean
-    > = {};
+    Record<string, any> = {};
 
 
   if (
@@ -861,7 +861,7 @@ export async function PATCH(
         id
       )
       .select(
-        "id,campus,name,active,must_change_pin,pin_changed_at,last_login_at,created_at,updated_at"
+        "id,campus,name,active,must_change_pin,pin_changed_at,last_login_at,created_at,updated_at,region_id,institution_id,class_id,regions(name),institutions(name),classes(name)"
       )
       .single();
 

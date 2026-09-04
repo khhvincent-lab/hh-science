@@ -109,6 +109,12 @@ type StudentRow = {
   created_at: string;
   updated_at: string;
   todayCount: number;
+  region_id?: string | null;
+  institution_id?: string | null;
+  class_id?: string | null;
+  regions?: { name?: string } | null;
+  institutions?: { name?: string } | null;
+  classes?: { name?: string } | null;
 };
 
 type StudentSummary = {
@@ -214,8 +220,8 @@ type AnalyticsData = {
   models: AnalyticsModelMetric[];
 };
 
-const CAMPUSES = ["高雄班", "嘉義班", "員林班"] as const;
-const CAMPUS_FILTERS = ["全部班級", ...CAMPUSES] as const;
+const CAMPUSES: string[] = ["高雄班", "嘉義班", "員林班"];
+const CAMPUS_FILTERS: string[] = ["全部班級", ...CAMPUSES];
 
 function adminSubjectLabel(value: string) {
   if (value === "physics") return "物理";
@@ -1090,6 +1096,7 @@ export default function AdminPage() {
               resetStudentPin={resetStudentPin}
               dailyLimit={solverSettings?.dailyLimit ?? 10}
               viewStudentHistory={setHistoryStudent}
+              reloadStudents={loadStudents}
             />
           )}
 
@@ -1372,380 +1379,48 @@ function DashboardSection({
 }
 
 function StudentsSection(props: {
-  students: StudentRow[];
-  allStudents: StudentRow[];
-  total: number;
-  active: number;
-  inactive: number;
-  loading: boolean;
-  error: string;
-  message: string;
-  campusFilter: (typeof CAMPUS_FILTERS)[number];
-  setCampusFilter: (value: (typeof CAMPUS_FILTERS)[number]) => void;
-  statusFilter: "全部" | "啟用" | "停用";
-  setStatusFilter: (value: "全部" | "啟用" | "停用") => void;
-  query: string;
-  setQuery: (value: string) => void;
-  campusCount: (campus: string) => number;
-  newCampus: (typeof CAMPUSES)[number];
-  setNewCampus: (campus: (typeof CAMPUSES)[number]) => void;
-  newName: string;
-  setNewName: (name: string) => void;
-  adding: boolean;
-  addStudent: () => Promise<void>;
-  busyStudentId: string | null;
-  toggleStudent: (student: StudentRow) => Promise<void>;
-  resetStudentUsage: (student: StudentRow) => Promise<void>;
-  resetStudentPin: (student: StudentRow) => Promise<void>;
-  dailyLimit: number;
-  viewStudentHistory: (student: StudentRow) => void;
+  students: StudentRow[]; allStudents: StudentRow[]; total: number; active: number; inactive: number;
+  loading: boolean; error: string; message: string;
+  campusFilter: string; setCampusFilter: (value: string) => void;
+  statusFilter: "全部" | "啟用" | "停用"; setStatusFilter: (value: "全部" | "啟用" | "停用") => void;
+  query: string; setQuery: (value: string) => void; campusCount: (campus: string) => number;
+  newCampus: string; setNewCampus: (campus: string) => void; newName: string; setNewName: (name: string) => void;
+  adding: boolean; addStudent: () => Promise<void>; busyStudentId: string | null;
+  toggleStudent: (student: StudentRow) => Promise<void>; resetStudentUsage: (student: StudentRow) => Promise<void>;
+  resetStudentPin: (student: StudentRow) => Promise<void>; dailyLimit: number; viewStudentHistory: (student: StudentRow) => void;
+  reloadStudents: () => Promise<void>;
 }) {
-  const todayKey = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Taipei",
-  }).format(new Date());
+  type Region={id:string;name:string;active:boolean}; type Institution={id:string;region_id:string;name:string;active:boolean}; type ClassRow={id:string;institution_id:string;name:string;active:boolean};
+  const [regions,setRegions]=useState<Region[]>([]); const [institutions,setInstitutions]=useState<Institution[]>([]); const [classes,setClasses]=useState<ClassRow[]>([]);
+  const [regionId,setRegionId]=useState(""); const [institutionId,setInstitutionId]=useState(""); const [classId,setClassId]=useState("");
+  const [orgBusy,setOrgBusy]=useState(false); const [orgMessage,setOrgMessage]=useState(""); const [expanded,setExpanded]=useState<string|null>(null);
+  const [filterRegion,setFilterRegion]=useState(""); const [filterInstitution,setFilterInstitution]=useState(""); const [filterClass,setFilterClass]=useState("");
 
-  const todayActive = props.allStudents.filter((student) => {
-    if (!student.last_login_at) return false;
-    try {
-      return new Intl.DateTimeFormat("en-CA", {
-        timeZone: "Asia/Taipei",
-      }).format(new Date(student.last_login_at)) === todayKey;
-    } catch {
-      return false;
-    }
-  }).length;
-
-  return (
-    <div className="admin-stack">
-      <section className="admin-student-summary-strip">
-        <article><span>學生總數</span><strong>{props.total}</strong><small>人</small></article>
-        <article><span>啟用中</span><strong>{props.active}</strong><small>人</small></article>
-        <article><span>今日活躍</span><strong>{todayActive}</strong><small>人</small></article>
-      </section>
-
-      <section className="hh-card admin-panel admin-add-student">
-        <div>
-          <PanelHeader
-            eyebrow="NEW STUDENT"
-            title="新增學生"
-            subtitle="新增後套用初始密碼，首次登入會要求設定個人密碼"
-          />
-        </div>
-
-        <div className="admin-add-form">
-          <select
-            className="hh-select"
-            value={props.newCampus}
-            onChange={(event) =>
-              props.setNewCampus(event.target.value as (typeof CAMPUSES)[number])
-            }
-          >
-            {CAMPUSES.map((campus) => (
-              <option value={campus} key={campus}>
-                {campus}
-              </option>
-            ))}
-          </select>
-
-          <input
-            className="hh-input"
-            value={props.newName}
-            onChange={(event) => props.setNewName(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") void props.addStudent();
-            }}
-            placeholder="輸入學生姓名"
-          />
-
-          <button
-            type="button"
-            className="hh-button-primary"
-            disabled={props.adding}
-            onClick={() => void props.addStudent()}
-          >
-            {props.adding ? "新增中…" : "新增學生"}
-          </button>
-        </div>
-      </section>
-
-      {(props.message || props.error) && (
-        <div className={`admin-notice ${props.error ? "danger" : "success"}`}>
-          {props.error || props.message}
-        </div>
-      )}
-
-      <section className="hh-card admin-panel">
-        <PanelHeader
-          eyebrow="STUDENT DIRECTORY"
-          title="學生名單"
-          subtitle={`目前顯示 ${props.students.length} / ${props.total} 位學生`}
-        />
-
-        <div className="admin-student-filter-box">
-          <div className="admin-filter-tabs">
-            {CAMPUSES.map((campus) => (
-              <button
-                type="button"
-                key={campus}
-                className={`admin-filter-pill ${
-                  props.campusFilter === campus ? "active" : ""
-                }`}
-                onClick={() => props.setCampusFilter(campus)}
-              >
-                {campus}
-                <span>{props.campusCount(campus)}</span>
-              </button>
-            ))}
-          </div>
-
-          <div className="admin-student-search">
-            <input
-              className="hh-input"
-              placeholder="搜尋學生姓名…"
-              value={props.query}
-              onChange={(event) => props.setQuery(event.target.value)}
-            />
-            <select
-              className="hh-select"
-              value={props.statusFilter}
-              onChange={(event) =>
-                props.setStatusFilter(event.target.value as "全部" | "啟用" | "停用")
-              }
-            >
-              <option value="全部">全部狀態</option>
-              <option value="啟用">啟用中</option>
-              <option value="停用">已停用</option>
-            </select>
-          </div>
-        </div>
-
-        <div className="admin-table-wrap">
-          <table className="admin-table">
-            <thead>
-              <tr>
-                <th>學生</th>
-                <th>班級</th>
-                <th>今日使用</th>
-                <th>登入密碼</th>
-                <th>狀態</th>
-                <th className="align-right">管理</th>
-              </tr>
-            </thead>
-            <tbody>
-              {props.loading && (
-                <tr>
-                  <td colSpan={6}>
-                    <div className="admin-empty">正在讀取學生名單…</div>
-                  </td>
-                </tr>
-              )}
-
-              {!props.loading &&
-                props.students.map((student) => (
-                  <tr key={student.id}>
-                    <td>
-                      <div className="admin-student-cell">
-                        <div className="admin-avatar">{student.name.slice(0, 1)}</div>
-                        <div>
-                          <strong>{student.name}</strong>
-                          <span>{student.id.slice(0, 8)}</span>
-                        </div>
-                      </div>
-                    </td>
-                    <td>
-                      <span className={`admin-campus-tag tag-${student.campus}`}>
-                        {student.campus}
-                      </span>
-                    </td>
-                    <td>
-                      <div className="admin-usage-cell">
-                        <span>
-                          <strong>{student.todayCount}</strong> / {props.dailyLimit} 題
-                        </span>
-                        <div>
-                          <i
-                            style={{
-                              width: `${Math.min(100, (student.todayCount / Math.max(1, props.dailyLimit)) * 100)}%`,
-                            }}
-                          />
-                        </div>
-                      </div>
-                    </td>
-                    <td>
-                      <span
-                        className={`admin-status ${
-                          student.passwordStatus === "personal"
-                            ? "active"
-                            : "inactive"
-                        }`}
-                      >
-                        <i />
-                        {student.passwordStatus === "personal"
-                          ? "個人密碼已設定"
-                          : "待設定／初始密碼"}
-                      </span>
-                    </td>
-                    <td>
-                      <span
-                        className={`admin-status ${
-                          student.active ? "active" : "inactive"
-                        }`}
-                      >
-                        <i />
-                        {student.active ? "啟用中" : "已停用"}
-                      </span>
-                    </td>
-                    <td className="align-right">
-                      <div className="admin-student-actions">
-                        <button
-                          type="button"
-                          className="admin-mini-button history"
-                          onClick={() => props.viewStudentHistory(student)}
-                        >
-                          查看紀錄
-                        </button>
-
-                        <button
-                          type="button"
-                          className="admin-mini-button quota"
-                          disabled={
-                            props.busyStudentId === student.id ||
-                            student.todayCount === 0
-                          }
-                          onClick={() => void props.resetStudentUsage(student)}
-                          title={
-                            student.todayCount === 0
-                              ? "今天尚未使用額度"
-                              : "將今日使用量重置為 0 / 當前每日額度"
-                          }
-                        >
-                          {props.busyStudentId === student.id
-                            ? "處理中…"
-                            : student.todayCount === 0
-                              ? "額度未使用"
-                              : "重置額度"}
-                        </button>
-
-                        <button
-                          type="button"
-                          className="admin-mini-button"
-                          disabled={props.busyStudentId === student.id}
-                          onClick={() => void props.resetStudentPin(student)}
-                          title="恢復成共用初始密碼，並要求學生下次登入重新設定個人密碼"
-                        >
-                          {props.busyStudentId === student.id
-                            ? "處理中…"
-                            : "重設密碼"}
-                        </button>
-
-                        <button
-                          type="button"
-                          className={`admin-mini-button ${
-                            student.active ? "danger" : "success"
-                          }`}
-                          disabled={props.busyStudentId === student.id}
-                          onClick={() => void props.toggleStudent(student)}
-                        >
-                          {props.busyStudentId === student.id
-                            ? "處理中…"
-                            : student.active
-                              ? "停用"
-                              : "重新啟用"}
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-
-              {!props.loading && props.students.length === 0 && (
-                <tr>
-                  <td colSpan={6}>
-                    <div className="admin-empty">沒有符合目前條件的學生。</div>
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        <div className="admin-student-mobile-list">
-          {props.loading && (
-            <div className="admin-empty">正在讀取學生名單…</div>
-          )}
-
-          {!props.loading && props.students.map((student) => (
-            <article className="admin-student-mobile-card" key={`mobile-${student.id}`}>
-              <div className="admin-student-mobile-head">
-                <div className="admin-student-cell">
-                  <div className="admin-avatar">{student.name.slice(0, 1)}</div>
-                  <div>
-                    <strong>{student.name}</strong>
-                    <span>{student.campus} · {student.active ? "啟用中" : "已停用"}</span>
-                  </div>
-                </div>
-
-                <span className={`admin-status ${student.passwordStatus === "personal" ? "active" : "inactive"}`}>
-                  <i />
-                  {student.passwordStatus === "personal" ? "個人密碼" : "初始密碼"}
-                </span>
-              </div>
-
-              <div className="admin-student-mobile-usage">
-                <div>
-                  <span>今日使用</span>
-                  <strong>{student.todayCount} / {props.dailyLimit} 題</strong>
-                </div>
-                <div className="admin-student-mobile-progress">
-                  <i style={{ width: `${Math.min(100, (student.todayCount / Math.max(1, props.dailyLimit)) * 100)}%` }} />
-                </div>
-              </div>
-
-              <div className="admin-student-mobile-actions">
-                <button
-                  type="button"
-                  className="admin-mini-button history"
-                  onClick={() => props.viewStudentHistory(student)}
-                >
-                  查看紀錄
-                </button>
-
-                <button
-                  type="button"
-                  className="admin-mini-button quota"
-                  disabled={props.busyStudentId === student.id || student.todayCount === 0}
-                  onClick={() => void props.resetStudentUsage(student)}
-                >
-                  {student.todayCount === 0 ? "額度未使用" : "重置額度"}
-                </button>
-
-                <button
-                  type="button"
-                  className="admin-mini-button"
-                  disabled={props.busyStudentId === student.id}
-                  onClick={() => void props.resetStudentPin(student)}
-                >
-                  重設密碼
-                </button>
-
-                <button
-                  type="button"
-                  className={`admin-mini-button ${student.active ? "danger" : "success"}`}
-                  disabled={props.busyStudentId === student.id}
-                  onClick={() => void props.toggleStudent(student)}
-                >
-                  {student.active ? "停用" : "重新啟用"}
-                </button>
-              </div>
-            </article>
-          ))}
-
-          {!props.loading && props.students.length === 0 && (
-            <div className="admin-empty">沒有符合目前條件的學生。</div>
-          )}
-        </div>
-      </section>
-    </div>
-  );
+  const loadOrg=useCallback(async()=>{const r=await fetch("/api/admin/organizations",{cache:"no-store"});const d=await r.json();if(!r.ok) throw new Error(d.error||"讀取組織資料失敗。");setRegions(d.regions||[]);setInstitutions(d.institutions||[]);setClasses(d.classes||[]);if(!regionId&&d.regions?.[0]) setRegionId(d.regions[0].id);},[regionId]);
+  useEffect(()=>{void loadOrg().catch(e=>setOrgMessage(e instanceof Error?e.message:"讀取組織資料失敗。"));},[loadOrg]);
+  useEffect(()=>{const list=institutions.filter(x=>x.region_id===regionId);if(!list.some(x=>x.id===institutionId))setInstitutionId(list[0]?.id||"");},[regionId,institutions,institutionId]);
+  useEffect(()=>{const list=classes.filter(x=>x.institution_id===institutionId);if(!list.some(x=>x.id===classId))setClassId(list[0]?.id||"");},[institutionId,classes,classId]);
+  const filtered=props.allStudents.filter(s=>{if(filterRegion&&s.region_id!==filterRegion)return false;if(filterInstitution&&s.institution_id!==filterInstitution)return false;if(filterClass&&s.class_id!==filterClass)return false;if(props.statusFilter==="啟用"&&!s.active)return false;if(props.statusFilter==="停用"&&s.active)return false;const q=props.query.trim().toLowerCase();return !q||s.name.toLowerCase().includes(q)||(s.classes?.name||"").toLowerCase().includes(q)||(s.institutions?.name||"").toLowerCase().includes(q);});
+  const todayKey=new Intl.DateTimeFormat("en-CA",{timeZone:"Asia/Taipei"}).format(new Date());
+  const todayActive=props.allStudents.filter(s=>s.last_login_at&&new Intl.DateTimeFormat("en-CA",{timeZone:"Asia/Taipei"}).format(new Date(s.last_login_at))===todayKey).length;
+  async function orgCreate(type:"region"|"institution"|"class",parent?:string){const label=type==="region"?"地區":type==="institution"?"合作單位":"班級";const name=window.prompt(`新增${label}名稱`);if(!name?.trim())return;setOrgBusy(true);setOrgMessage("");try{const body:any={type,name:name.trim()};if(type==="institution")body.regionId=parent;if(type==="class")body.institutionId=parent;const r=await fetch("/api/admin/organizations",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});const d=await r.json();if(!r.ok)throw new Error(d.error);setOrgMessage(`已新增${label}：${name}`);await loadOrg();}catch(e){setOrgMessage(e instanceof Error?e.message:"新增失敗。");}finally{setOrgBusy(false);}}
+  async function orgDelete(type:"region"|"institution"|"class",id:string,name:string){if(!confirm(`確定刪除「${name}」？有學生或下層資料時系統會阻止刪除。`))return;setOrgBusy(true);try{const r=await fetch("/api/admin/organizations",{method:"DELETE",headers:{"Content-Type":"application/json"},body:JSON.stringify({type,id})});const d=await r.json();if(!r.ok)throw new Error(d.error);setOrgMessage(`已刪除 ${name}`);await loadOrg();}catch(e){setOrgMessage(e instanceof Error?e.message:"刪除失敗。");}finally{setOrgBusy(false);}}
+  async function assign(student:StudentRow,rid:string,iid:string,cid:string){setOrgBusy(true);try{const r=await fetch("/api/admin/students",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:student.id,regionId:rid,institutionId:iid,classId:cid})});const d=await r.json();if(!r.ok)throw new Error(d.error);setOrgMessage(`已更新 ${student.name} 的班級`);await props.reloadStudents();}catch(e){setOrgMessage(e instanceof Error?e.message:"更新班級失敗。");}finally{setOrgBusy(false);}}
+  async function createStudent(){if(!props.newName.trim()||!regionId||!institutionId||!classId){setOrgMessage("請輸入姓名並完整選擇地區、合作單位、班級。");return;}setOrgBusy(true);try{const region=regions.find(r=>r.id===regionId)!;const r=await fetch("/api/admin/students",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({campus:`${region.name}班`,name:props.newName.trim()})});const d=await r.json();if(!r.ok)throw new Error(d.error);await assign(d.student,regionId,institutionId,classId);props.setNewName("");await props.reloadStudents();setOrgMessage(`已新增 ${props.newName.trim()}`);}catch(e){setOrgMessage(e instanceof Error?e.message:"新增學生失敗。");}finally{setOrgBusy(false);}}
+  return <div className="admin-stack org-students-v12">
+    <section className="admin-student-summary-strip"><article><span>學生總數</span><strong>{props.total}</strong><small>人</small></article><article><span>啟用中</span><strong>{props.active}</strong><small>人</small></article><article><span>今日活躍</span><strong>{todayActive}</strong><small>人</small></article></section>
+    <section className="hh-card admin-panel org-manager"><PanelHeader eyebrow="ORGANIZATION" title="地區・合作單位・班級" subtitle="可自由新增地區、合作補習班與班級；有學生時不可誤刪"/><div className="org-columns">
+      <div><div className="org-head"><b>地區</b><button onClick={()=>void orgCreate("region")} disabled={orgBusy}>＋</button></div>{regions.map(r=><div className={`org-item ${regionId===r.id?"active":""}`} key={r.id}><button onClick={()=>setRegionId(r.id)}>{r.name}</button><button className="del" onClick={()=>void orgDelete("region",r.id,r.name)}>×</button></div>)}</div>
+      <div><div className="org-head"><b>合作單位</b><button onClick={()=>void orgCreate("institution",regionId)} disabled={!regionId||orgBusy}>＋</button></div>{institutions.filter(i=>i.region_id===regionId).map(i=><div className={`org-item ${institutionId===i.id?"active":""}`} key={i.id}><button onClick={()=>setInstitutionId(i.id)}>{i.name}</button><button className="del" onClick={()=>void orgDelete("institution",i.id,i.name)}>×</button></div>)}</div>
+      <div><div className="org-head"><b>班級</b><button onClick={()=>void orgCreate("class",institutionId)} disabled={!institutionId||orgBusy}>＋</button></div>{classes.filter(c=>c.institution_id===institutionId).map(c=><div className={`org-item ${classId===c.id?"active":""}`} key={c.id}><button onClick={()=>setClassId(c.id)}>{c.name}</button><button className="del" onClick={()=>void orgDelete("class",c.id,c.name)}>×</button></div>)}</div>
+    </div>{orgMessage&&<div className="org-message">{orgMessage}</div>}</section>
+    <section className="hh-card admin-panel"><PanelHeader eyebrow="NEW STUDENT" title="新增學生" subtitle="學生端仍維持原本簡單登入；細部分班只供老師後台管理"/><div className="org-add-row"><select value={regionId} onChange={e=>setRegionId(e.target.value)} className="hh-select">{regions.map(r=><option key={r.id} value={r.id}>{r.name}</option>)}</select><select value={institutionId} onChange={e=>setInstitutionId(e.target.value)} className="hh-select">{institutions.filter(i=>i.region_id===regionId).map(i=><option key={i.id} value={i.id}>{i.name}</option>)}</select><select value={classId} onChange={e=>setClassId(e.target.value)} className="hh-select">{classes.filter(c=>c.institution_id===institutionId).map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select><input className="hh-input" placeholder="學生姓名" value={props.newName} onChange={e=>props.setNewName(e.target.value)}/><button className="hh-button-primary" onClick={()=>void createStudent()} disabled={orgBusy}>新增</button></div></section>
+    {(props.error||props.message)&&<div className={`admin-notice ${props.error?"danger":"success"}`}>{props.error||props.message}</div>}
+    <section className="hh-card admin-panel"><PanelHeader eyebrow="STUDENT DIRECTORY" title="學生名單" subtitle={`目前顯示 ${filtered.length} / ${props.total} 位學生`}/><div className="org-filter-row"><select className="hh-select" value={filterRegion} onChange={e=>{setFilterRegion(e.target.value);setFilterInstitution("");setFilterClass("");}}><option value="">全部地區</option>{regions.map(r=><option key={r.id} value={r.id}>{r.name}</option>)}</select><select className="hh-select" value={filterInstitution} onChange={e=>{setFilterInstitution(e.target.value);setFilterClass("");}}><option value="">全部合作單位</option>{institutions.filter(i=>!filterRegion||i.region_id===filterRegion).map(i=><option key={i.id} value={i.id}>{i.name}</option>)}</select><select className="hh-select" value={filterClass} onChange={e=>setFilterClass(e.target.value)}><option value="">全部班級</option>{classes.filter(c=>!filterInstitution||c.institution_id===filterInstitution).map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select><input className="hh-input" placeholder="搜尋學生…" value={props.query} onChange={e=>props.setQuery(e.target.value)}/><select className="hh-select" value={props.statusFilter} onChange={e=>props.setStatusFilter(e.target.value as any)}><option>全部</option><option>啟用</option><option>停用</option></select></div>
+      <div className="compact-student-list">{props.loading?<div className="admin-empty">讀取中…</div>:filtered.map(s=>{const open=expanded===s.id;return <article className={`compact-student ${open?"open":""}`} key={s.id}><button className="compact-main" onClick={()=>setExpanded(open?null:s.id)}><span className="mini-avatar">{s.name.slice(0,1)}</span><span className="student-core"><strong>{s.name}</strong><small>{s.regions?.name||s.campus} · {s.institutions?.name||"未指定單位"} · {s.classes?.name||"未分班"}</small></span><span className="usage-mini">{s.todayCount}/{props.dailyLimit}</span><span className={`dot ${s.active?"on":""}`}/><span className="chev">⌄</span></button>{open&&<div className="compact-detail"><div className="assign-row"><select defaultValue={s.region_id||""} id={`r-${s.id}`} className="hh-select" onChange={e=>{const rid=e.target.value;const ii=institutions.find(i=>i.region_id===rid)?.id||"";(document.getElementById(`i-${s.id}`) as HTMLSelectElement).value=ii;}}>{regions.map(r=><option key={r.id} value={r.id}>{r.name}</option>)}</select><select defaultValue={s.institution_id||""} id={`i-${s.id}`} className="hh-select">{institutions.map(i=><option key={i.id} value={i.id}>{i.name}</option>)}</select><select defaultValue={s.class_id||""} id={`c-${s.id}`} className="hh-select">{classes.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select><button className="admin-mini-button" onClick={()=>{const rid=(document.getElementById(`r-${s.id}`) as HTMLSelectElement).value;const iid=(document.getElementById(`i-${s.id}`) as HTMLSelectElement).value;const cid=(document.getElementById(`c-${s.id}`) as HTMLSelectElement).value;void assign(s,rid,iid,cid)}}>儲存分班</button></div><div className="action-row"><button className="admin-mini-button history" onClick={()=>props.viewStudentHistory(s)}>紀錄</button><button className="admin-mini-button" onClick={()=>void props.resetStudentUsage(s)}>重置額度</button><button className="admin-mini-button" onClick={()=>void props.resetStudentPin(s)}>重設密碼</button><button className={`admin-mini-button ${s.active?"danger":"success"}`} onClick={()=>void props.toggleStudent(s)}>{s.active?"停用":"啟用"}</button></div></div>}</article>})}</div>
+    </section>
+    <style jsx global>{`.org-columns{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.org-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:7px}.org-head button{border:1px solid var(--border);background:var(--surface);border-radius:8px;width:28px;height:28px}.org-item{display:grid;grid-template-columns:1fr 28px;border:1px solid var(--border);border-radius:9px;margin:5px 0;overflow:hidden}.org-item>button{border:0;background:transparent;text-align:left;padding:8px 10px;color:var(--text)}.org-item.active{border-color:var(--primary);background:color-mix(in srgb,var(--primary) 7%,var(--surface))}.org-item .del{text-align:center;padding:0;color:var(--text-secondary)}.org-add-row,.org-filter-row{display:grid;grid-template-columns:140px 1fr 140px 1fr auto;gap:8px}.org-message{margin-top:10px;font-size:13px;color:var(--primary)}.compact-student-list{display:grid;border-top:1px solid var(--border);margin-top:12px}.compact-student{border-bottom:1px solid var(--border)}.compact-main{width:100%;display:grid;grid-template-columns:34px minmax(0,1fr) 48px 12px 20px;gap:9px;align-items:center;padding:9px 4px;border:0;background:transparent;color:var(--text);text-align:left}.mini-avatar{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;background:var(--surface-soft);font-weight:700}.student-core{min-width:0;display:grid}.student-core strong{font-size:14px}.student-core small{font-size:11px;color:var(--text-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.usage-mini{text-align:right;font-size:12px;font-variant-numeric:tabular-nums}.dot{width:8px;height:8px;border-radius:50%;background:#aaa}.dot.on{background:#6f927a}.chev{text-align:center;color:var(--text-secondary)}.compact-detail{padding:8px 4px 12px 47px;display:grid;gap:8px}.assign-row{display:grid;grid-template-columns:100px 1fr 120px auto;gap:7px}.action-row{display:flex;gap:6px;flex-wrap:wrap}@media(max-width:700px){.org-columns{grid-template-columns:1fr}.org-add-row,.org-filter-row{grid-template-columns:1fr 1fr}.org-add-row input,.org-add-row button,.org-filter-row input{grid-column:1/-1}.compact-main{grid-template-columns:30px minmax(0,1fr) 42px 9px 16px;padding:8px 0}.mini-avatar{width:28px;height:28px}.student-core strong{font-size:13px}.student-core small{font-size:10px}.compact-detail{padding-left:0}.assign-row{grid-template-columns:1fr 1fr}.assign-row select:nth-child(3),.assign-row button{grid-column:1/-1}.action-row .admin-mini-button{padding:6px 8px;font-size:11px}.org-students-v12 .admin-panel{padding:14px}.org-students-v12 .admin-student-summary-strip article{padding:10px 12px}}`}</style>
+  </div>;
 }
 
 function AdminStudentHistoryPanel({
