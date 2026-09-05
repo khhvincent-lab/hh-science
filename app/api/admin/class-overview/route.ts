@@ -53,6 +53,11 @@ export async function GET(request: NextRequest) {
     const yearPrefix = klass.academic_year && Number(klass.academic_year) !== currentYear ? `${klass.academic_year} · ` : "";
     return {
       classId: klass.id,
+      regionId: institution?.region_id || null,
+      regionName: region?.name || "未分區",
+      institutionName: institution?.name || "未指定單位",
+      className: `${yearPrefix}${klass.name}`,
+      academicYear: klass.academic_year || currentYear,
       label: `${yearPrefix}${region?.name || "未分區"} · ${institution?.name || "未指定單位"} · ${klass.name}`,
       students: members.length,
       todayActive: members.filter((s: any) => s.last_login_at && new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Taipei" }).format(new Date(s.last_login_at)) === todayKey).length,
