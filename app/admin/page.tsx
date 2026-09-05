@@ -4278,7 +4278,7 @@ const adminStyles = `
     font-weight: 900;
   }
 
-  [data-theme="dark"] .admin-model-orb {
+  html:is([data-theme="sage"],[data-theme="ocean"],[data-theme="graphite"],[data-theme="burgundy"]) .admin-model-orb {
     color: #142018;
   }
 
@@ -4412,7 +4412,7 @@ const adminStyles = `
     border-color: var(--primary);
   }
 
-  [data-theme="dark"] .admin-filter-pill.active {
+  html:is([data-theme="sage"],[data-theme="ocean"],[data-theme="graphite"],[data-theme="burgundy"]) .admin-filter-pill.active {
     color: #162019;
   }
 
@@ -5070,7 +5070,7 @@ const adminStyles = `
     color: var(--primary);
   }
 
-  [data-theme="dark"] .admin-filter-pill.active {
+  html:is([data-theme="sage"],[data-theme="ocean"],[data-theme="graphite"],[data-theme="burgundy"]) .admin-filter-pill.active {
     color: var(--primary-strong, #b5c6b9);
     background: color-mix(in srgb, var(--primary) 12%, var(--surface));
   }
@@ -5252,14 +5252,14 @@ const adminStyles = `
       );
   }
 
-  [data-theme="dark"] .admin-main {
+  html:is([data-theme="sage"],[data-theme="ocean"],[data-theme="graphite"],[data-theme="burgundy"]) .admin-main {
     background:
       radial-gradient(circle at 14% 0%, rgba(116, 150, 129, .075), transparent 32rem),
       radial-gradient(circle at 92% 10%, rgba(198, 163, 91, .055), transparent 28rem),
       var(--background);
   }
 
-  [data-theme="dark"] .admin-topbar {
+  html:is([data-theme="sage"],[data-theme="ocean"],[data-theme="graphite"],[data-theme="burgundy"]) .admin-topbar {
     background:
       linear-gradient(
         115deg,
@@ -5268,7 +5268,7 @@ const adminStyles = `
       );
   }
 
-  [data-theme="dark"] .admin-kpi {
+  html:is([data-theme="sage"],[data-theme="ocean"],[data-theme="graphite"],[data-theme="burgundy"]) .admin-kpi {
     background:
       linear-gradient(
         145deg,
@@ -5281,13 +5281,13 @@ const adminStyles = `
       0 14px 34px rgba(0,0,0,.12);
   }
 
-  [data-theme="dark"] .admin-panel {
+  html:is([data-theme="sage"],[data-theme="ocean"],[data-theme="graphite"],[data-theme="burgundy"]) .admin-panel {
     box-shadow:
       inset 0 1px 0 rgba(255,255,255,.025),
       0 16px 38px rgba(0,0,0,.11);
   }
 
-  [data-theme="dark"] .admin-dashboard-primary {
+  html:is([data-theme="sage"],[data-theme="ocean"],[data-theme="graphite"],[data-theme="burgundy"]) .admin-dashboard-primary {
     background:
       linear-gradient(
         148deg,
@@ -5297,7 +5297,7 @@ const adminStyles = `
       );
   }
 
-  [data-theme="dark"] .admin-compact-panel {
+  html:is([data-theme="sage"],[data-theme="ocean"],[data-theme="graphite"],[data-theme="burgundy"]) .admin-compact-panel {
     background:
       linear-gradient(
         145deg,
@@ -5307,7 +5307,7 @@ const adminStyles = `
   }
 
   /* Selected nav: soft sage bloom instead of a flat green block. */
-  [data-theme="dark"] .admin-nav-button.active {
+  html:is([data-theme="sage"],[data-theme="ocean"],[data-theme="graphite"],[data-theme="burgundy"]) .admin-nav-button.active {
     border: 1px solid rgba(145, 180, 157, .34);
     background:
       linear-gradient(
@@ -5321,13 +5321,13 @@ const adminStyles = `
       0 0 24px rgba(105, 151, 120, .16);
   }
 
-  [data-theme="dark"] .admin-nav-button.active span {
+  html:is([data-theme="sage"],[data-theme="ocean"],[data-theme="graphite"],[data-theme="burgundy"]) .admin-nav-button.active span {
     box-shadow:
       0 0 14px rgba(170, 205, 179, .18);
   }
 
   /* Filters become luminous but remain restrained. */
-  [data-theme="dark"] .admin-filter-pill.active {
+  html:is([data-theme="sage"],[data-theme="ocean"],[data-theme="graphite"],[data-theme="burgundy"]) .admin-filter-pill.active {
     background:
       linear-gradient(
         135deg,
@@ -5343,7 +5343,7 @@ const adminStyles = `
   }
 
   /* Model cards: each selected model gets its own quiet glow. */
-  [data-theme="dark"] .admin-model-card.selected {
+  html:is([data-theme="sage"],[data-theme="ocean"],[data-theme="graphite"],[data-theme="burgundy"]) .admin-model-card.selected {
     transform: translateY(-1px);
     background:
       linear-gradient(
@@ -5353,7 +5353,7 @@ const adminStyles = `
       );
   }
 
-  [data-theme="dark"] .admin-model-card.model-luna.selected {
+  html:is([data-theme="sage"],[data-theme="ocean"],[data-theme="graphite"],[data-theme="burgundy"]) .admin-model-card.model-luna.selected {
     border-color: rgba(126, 164, 200, .72);
     box-shadow:
       0 0 0 1px rgba(110,143,179,.16),
@@ -5361,7 +5361,7 @@ const adminStyles = `
       0 14px 34px rgba(0,0,0,.12);
   }
 
-  [data-theme="dark"] .admin-model-card.model-terra.selected {
+  html:is([data-theme="sage"],[data-theme="ocean"],[data-theme="graphite"],[data-theme="burgundy"]) .admin-model-card.model-terra.selected {
     border-color: rgba(132, 172, 145, .72);
     box-shadow:
       0 0 0 1px rgba(102,134,111,.16),
@@ -5369,7 +5369,7 @@ const adminStyles = `
       0 14px 34px rgba(0,0,0,.12);
   }
 
-  [data-theme="dark"] .admin-model-card.model-sol.selected {
+  html:is([data-theme="sage"],[data-theme="ocean"],[data-theme="graphite"],[data-theme="burgundy"]) .admin-model-card.model-sol.selected {
     border-color: rgba(217, 183, 101, .76);
     box-shadow:
       0 0 0 1px rgba(198,163,91,.17),
@@ -5378,7 +5378,7 @@ const adminStyles = `
   }
 
   /* Reasoning selector receives the same selection language. */
-  [data-theme="dark"] .admin-segmented button.active {
+  html:is([data-theme="sage"],[data-theme="ocean"],[data-theme="graphite"],[data-theme="burgundy"]) .admin-segmented button.active {
     border-color: rgba(150, 185, 160, .70);
     background:
       linear-gradient(
@@ -5391,7 +5391,7 @@ const adminStyles = `
       0 0 22px rgba(107, 155, 122, .15);
   }
 
-  [data-theme="dark"] .admin-pin-card {
+  html:is([data-theme="sage"],[data-theme="ocean"],[data-theme="graphite"],[data-theme="burgundy"]) .admin-pin-card {
     background:
       linear-gradient(
         145deg,
@@ -5400,15 +5400,15 @@ const adminStyles = `
       );
   }
 
-  [data-theme="dark"] .admin-campus-card.campus-高雄班 {
+  html:is([data-theme="sage"],[data-theme="ocean"],[data-theme="graphite"],[data-theme="burgundy"]) .admin-campus-card.campus-高雄班 {
     box-shadow: inset 3px 0 0 rgba(110,143,179,.70);
   }
 
-  [data-theme="dark"] .admin-campus-card.campus-嘉義班 {
+  html:is([data-theme="sage"],[data-theme="ocean"],[data-theme="graphite"],[data-theme="burgundy"]) .admin-campus-card.campus-嘉義班 {
     box-shadow: inset 3px 0 0 rgba(168,97,91,.70);
   }
 
-  [data-theme="dark"] .admin-campus-card.campus-員林班 {
+  html:is([data-theme="sage"],[data-theme="ocean"],[data-theme="graphite"],[data-theme="burgundy"]) .admin-campus-card.campus-員林班 {
     box-shadow: inset 3px 0 0 rgba(138,122,166,.72);
   }
 
@@ -5652,7 +5652,7 @@ const adminStyles = `
     border-bottom: 0;
   }
 
-  [data-theme="dark"] .admin-overview-panel {
+  html:is([data-theme="sage"],[data-theme="ocean"],[data-theme="graphite"],[data-theme="burgundy"]) .admin-overview-panel {
     background:
       linear-gradient(
         148deg,
@@ -5662,7 +5662,7 @@ const adminStyles = `
       );
   }
 
-  [data-theme="dark"] .admin-campus-row {
+  html:is([data-theme="sage"],[data-theme="ocean"],[data-theme="graphite"],[data-theme="burgundy"]) .admin-campus-row {
     background:
       linear-gradient(
         110deg,
@@ -5671,14 +5671,14 @@ const adminStyles = `
       );
   }
 
-  [data-theme="dark"] .admin-campus-row:hover {
+  html:is([data-theme="sage"],[data-theme="ocean"],[data-theme="graphite"],[data-theme="burgundy"]) .admin-campus-row:hover {
     border-color: rgba(139, 174, 149, .35);
     box-shadow:
       inset 0 1px 0 rgba(255,255,255,.03),
       0 0 22px rgba(103, 151, 118, .09);
   }
 
-  [data-theme="dark"] .admin-system-card {
+  html:is([data-theme="sage"],[data-theme="ocean"],[data-theme="graphite"],[data-theme="burgundy"]) .admin-system-card {
     background:
       linear-gradient(
         145deg,
@@ -5690,20 +5690,20 @@ const adminStyles = `
       0 14px 32px rgba(0,0,0,.10);
   }
 
-  [data-theme="dark"] .admin-system-card-ai {
+  html:is([data-theme="sage"],[data-theme="ocean"],[data-theme="graphite"],[data-theme="burgundy"]) .admin-system-card-ai {
     background:
       radial-gradient(circle at 95% 5%, rgba(112, 155, 125, .10), transparent 32%),
       linear-gradient(145deg, rgba(39,53,45,.96), rgba(30,41,35,.98));
   }
 
-  [data-theme="dark"] .admin-system-card-month {
+  html:is([data-theme="sage"],[data-theme="ocean"],[data-theme="graphite"],[data-theme="burgundy"]) .admin-system-card-month {
     background:
       radial-gradient(circle at 92% 4%, rgba(198,163,91,.09), transparent 32%),
       linear-gradient(145deg, rgba(39,53,45,.96), rgba(30,41,35,.98));
   }
 
-  [data-theme="dark"] .admin-system-card-actions button:hover,
-  [data-theme="dark"] .admin-text-link:hover {
+  html:is([data-theme="sage"],[data-theme="ocean"],[data-theme="graphite"],[data-theme="burgundy"]) .admin-system-card-actions button:hover,
+  html:is([data-theme="sage"],[data-theme="ocean"],[data-theme="graphite"],[data-theme="burgundy"]) .admin-text-link:hover {
     color: #d9e7dc;
     text-shadow: 0 0 12px rgba(154, 194, 166, .22);
   }
@@ -5885,14 +5885,14 @@ const adminStyles = `
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
-  [data-theme="dark"] .admin-period-panel {
+  html:is([data-theme="sage"],[data-theme="ocean"],[data-theme="graphite"],[data-theme="burgundy"]) .admin-period-panel {
     background:
       radial-gradient(circle at 8% 0%, rgba(138,122,166,.08), transparent 32%),
       radial-gradient(circle at 92% 0%, rgba(198,163,91,.07), transparent 30%),
       linear-gradient(145deg, rgba(39,53,45,.96), rgba(30,41,35,.99));
   }
 
-  [data-theme="dark"] .admin-period-card {
+  html:is([data-theme="sage"],[data-theme="ocean"],[data-theme="graphite"],[data-theme="burgundy"]) .admin-period-card {
     background:
       linear-gradient(
         145deg,
@@ -5904,13 +5904,13 @@ const adminStyles = `
       0 10px 24px rgba(0,0,0,.08);
   }
 
-  [data-theme="dark"] .admin-ai-control-panel {
+  html:is([data-theme="sage"],[data-theme="ocean"],[data-theme="graphite"],[data-theme="burgundy"]) .admin-ai-control-panel {
     background:
       radial-gradient(circle at 92% 4%, rgba(110,143,179,.08), transparent 29%),
       linear-gradient(145deg, rgba(39,53,45,.96), rgba(30,41,35,.99));
   }
 
-  [data-theme="dark"] .admin-pin-overview-panel {
+  html:is([data-theme="sage"],[data-theme="ocean"],[data-theme="graphite"],[data-theme="burgundy"]) .admin-pin-overview-panel {
     background:
       radial-gradient(circle at 8% 0%, rgba(198,163,91,.055), transparent 28%),
       linear-gradient(145deg, rgba(39,53,45,.96), rgba(30,41,35,.99));
@@ -5971,7 +5971,7 @@ const adminStyles = `
     cursor: default;
   }
 
-  [data-theme="dark"] .admin-mini-button.quota {
+  html:is([data-theme="sage"],[data-theme="ocean"],[data-theme="graphite"],[data-theme="burgundy"]) .admin-mini-button.quota {
     color: #e0bd69;
     background:
       linear-gradient(

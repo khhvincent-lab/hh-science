@@ -34,13 +34,21 @@ const themeScript = `
   (() => {
     try {
       const saved = localStorage.getItem("hh-science-theme");
+      const legacyMap = { light: "white", dark: "sage" };
+      const validThemes = ["white", "oatmeal", "sage", "ocean", "graphite", "burgundy"];
+      const migrated = legacyMap[saved] || saved;
       const systemDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-      const theme = saved === "light" || saved === "dark"
-        ? saved
+      const theme = validThemes.includes(migrated)
+        ? migrated
         : systemDark
-          ? "dark"
-          : "light";
+          ? "sage"
+          : "white";
+
       document.documentElement.dataset.theme = theme;
+
+      if (saved !== theme) {
+        localStorage.setItem("hh-science-theme", theme);
+      }
     } catch {}
   })();
 `;

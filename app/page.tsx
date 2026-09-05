@@ -10,6 +10,24 @@ import "katex/dist/katex.min.css";
 
 type Campus = "高雄班" | "嘉義班" | "員林班";
 
+type LoginRegion = {
+  id: string;
+  name: string;
+};
+
+type LoginInstitution = {
+  id: string;
+  region_id: string;
+  name: string;
+};
+
+type LoginClass = {
+  id: string;
+  institution_id: string;
+  name: string;
+  academic_year?: number | null;
+};
+
 type StudentSession = {
   id: string;
   campus: Campus;
@@ -86,6 +104,23 @@ const subjectPermissions: Record<Campus, SubjectOption[]> = {
   嘉義班: [{ value: "chemistry", label: "化學" }],
   員林班: [{ value: "chemistry", label: "化學" }],
 };
+
+function displayClassName(name: string) {
+  return name
+    .replace(/(?:19|20)\d{2}\s*年?/gu, "")
+    .replace(/^\s*[·・\-–—|｜/]+\s*/u, "")
+    .replace(/\s*[·・\-–—|｜/]+\s*$/u, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
+
+function regionSortWeight(name: string) {
+  const normalized = name.replace(/班$/u, "").trim();
+  if (normalized.includes("高雄")) return 0;
+  if (normalized.includes("嘉義")) return 1;
+  if (normalized.includes("員林")) return 2;
+  return 99;
+}
 
 function renderKatex(formula: string, displayMode: boolean) {
   try {
@@ -284,6 +319,13 @@ function StepHeader({
 
 export default function Home() {
   const [campus, setCampus] = useState<Campus | "">("");
+  const [regionId, setRegionId] = useState("");
+  const [institutionId, setInstitutionId] = useState("");
+  const [classId, setClassId] = useState("");
+  const [loginRegions, setLoginRegions] = useState<LoginRegion[]>([]);
+  const [loginInstitutions, setLoginInstitutions] = useState<LoginInstitution[]>([]);
+  const [loginClasses, setLoginClasses] = useState<LoginClass[]>([]);
+  const [loginOptionsLoading, setLoginOptionsLoading] = useState(true);
   const [name, setName] = useState("");
   const [pin, setPin] = useState("");
   const [student, setStudent] = useState<StudentSession | null>(null);
@@ -369,6 +411,66 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
+    async function loadLoginOptions() {
+      try {
+        const response = await fetch("/api/auth/login-options", { cache: "no-store" });
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error || "讀取班級資料失敗。");
+        }
+
+        const regions = (Array.isArray(data.regions) ? data.regions : [])
+          .slice()
+          .sort(
+            (a: LoginRegion, b: LoginRegion) =>
+              regionSortWeight(a.name) - regionSortWeight(b.name) ||
+              a.name.localeCompare(b.name, "zh-Hant"),
+          );
+
+        const institutions = Array.isArray(data.institutions)
+          ? data.institutions
+          : [];
+
+        const classes = Array.isArray(data.classes) ? data.classes : [];
+
+        setLoginRegions(regions);
+        setLoginInstitutions(institutions);
+        setLoginClasses(classes);
+        setRegionId((current) => current || regions[0]?.id || "");
+      } catch (error) {
+        setLoginError(
+          error instanceof Error ? error.message : "讀取班級資料失敗。",
+        );
+      } finally {
+        setLoginOptionsLoading(false);
+      }
+    }
+
+    void loadLoginOptions();
+  }, []);
+
+  useEffect(() => {
+    const available = loginInstitutions.filter(
+      (item) => item.region_id === regionId,
+    );
+
+    if (!available.some((item) => item.id === institutionId)) {
+      setInstitutionId(available[0]?.id || "");
+    }
+  }, [regionId, institutionId, loginInstitutions]);
+
+  useEffect(() => {
+    const available = loginClasses.filter(
+      (item) => item.institution_id === institutionId,
+    );
+
+    if (!available.some((item) => item.id === classId)) {
+      setClassId(available[0]?.id || "");
+    }
+  }, [institutionId, classId, loginClasses]);
+
+  useEffect(() => {
     if (student && activeView === "history") {
       void loadHistory();
     }
@@ -397,19 +499,33 @@ export default function Home() {
 
   async function handleLogin() {
     setLoginError("");
-    if (!campus) return setLoginError("請先選擇班級。");
+
+    if (!regionId) return setLoginError("請先選擇地區。");
+    if (!institutionId) return setLoginError("請先選擇補習班。");
+    if (!classId) return setLoginError("請先選擇班級。");
     if (!name.trim()) return setLoginError("請輸入學生姓名。");
-    if (!/^\d{4,6}$/.test(pin.trim())) return setLoginError("個人登入密碼必須為 4～6 位數字。");
+    if (!/^\d{4,6}$/.test(pin.trim())) {
+      return setLoginError("個人 PIN 必須為 4～6 位數字。");
+    }
 
     setLoginLoading(true);
+
     try {
       const response = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ campus, name: name.trim(), pin: pin.trim() }),
+        body: JSON.stringify({
+          classId,
+          name: name.trim(),
+          pin: pin.trim(),
+        }),
       });
+
       const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "登入失敗。");
+
+      if (!response.ok) {
+        throw new Error(data.error || "登入失敗。");
+      }
 
       const loggedIn: StudentSession = {
         id: data.student.id,
@@ -417,12 +533,16 @@ export default function Home() {
         name: data.student.name,
         mustChangePin: Boolean(data.student.mustChangePin ?? data.mustChangePin),
       };
+
       setStudent(loggedIn);
+      setCampus(loggedIn.campus);
       setupSubject(loggedIn);
       setPin("");
       await loadUsage();
     } catch (error) {
-      setLoginError(error instanceof Error ? error.message : "登入發生錯誤。");
+      setLoginError(
+        error instanceof Error ? error.message : "登入發生錯誤。",
+      );
     } finally {
       setLoginLoading(false);
     }
@@ -496,6 +616,8 @@ export default function Home() {
 
     setStudent(null);
     setCampus("");
+    setInstitutionId("");
+    setClassId("");
     setName("");
     setPin("");
     setNewPin("");
@@ -1334,7 +1456,7 @@ export default function Home() {
           </button>
 
           <div className="student-app-header-actions">
-            <div className="student-header-theme" aria-label="切換深色或淺色模式">
+            <div className="student-header-theme" aria-label="選擇介面主題">
               <ThemeToggle />
             </div>
 
@@ -1446,48 +1568,134 @@ export default function Home() {
               <div>
                 <div className="hh-eyebrow">STUDENT ACCESS</div>
                 <h2 className="hh-display student-login-title">學生登入</h2>
-                <p className="student-muted">選擇班級、輸入姓名與個人登入密碼</p>
               </div>
             </div>
 
-            <div className="student-login-grid">
-              <label className="student-field">
-                <span>班級</span>
-                <div className="student-select-wrap">
-                  <select value={campus} onChange={(event) => setCampus(event.target.value as Campus | "")} className="hh-select student-select">
-                    <option value="">選擇班級</option>
-                    <option value="高雄班">高雄班</option>
-                    <option value="嘉義班">嘉義班</option>
-                    <option value="員林班">員林班</option>
-                  </select>
-                  <span className="student-select-arrow" aria-hidden="true">⌄</span>
+            <div className="student-login-form">
+              <div className="student-field">
+                <span>地區</span>
+                <div className="student-region-segment" role="group" aria-label="選擇地區">
+                  {loginRegions.map((region) => (
+                    <button
+                      key={region.id}
+                      type="button"
+                      className={`student-region-button ${
+                        regionId === region.id ? "is-active" : ""
+                      }`}
+                      onClick={() => setRegionId(region.id)}
+                      disabled={loginOptionsLoading}
+                      aria-pressed={regionId === region.id}
+                    >
+                      <span className="student-region-dot" aria-hidden="true" />
+                      {region.name.replace(/班$/u, "")}
+                    </button>
+                  ))}
                 </div>
-              </label>
+              </div>
 
-              <label className="student-field">
-                <span>學生姓名</span>
-                <input value={name} onChange={(event) => setName(event.target.value)} autoComplete="name" placeholder="輸入姓名" className="hh-input" />
-              </label>
+              <div className="student-login-row student-login-row-org">
+                <label className="student-field">
+                  <span>補習班</span>
+                  <div className="student-select-wrap">
+                    <select
+                      value={institutionId}
+                      onChange={(event) => setInstitutionId(event.target.value)}
+                      className="hh-select student-select"
+                      disabled={loginOptionsLoading || !regionId}
+                    >
+                      <option value="">選擇補習班</option>
+                      {loginInstitutions
+                        .filter((item) => item.region_id === regionId)
+                        .map((item) => (
+                          <option key={item.id} value={item.id}>
+                            {item.name}
+                          </option>
+                        ))}
+                    </select>
+                    <span className="student-select-arrow" aria-hidden="true">⌄</span>
+                  </div>
+                </label>
 
-              <label className="student-field">
-                <span>個人登入密碼</span>
-                <input
-                  value={pin}
-                  onChange={(event) => setPin(event.target.value.replace(/\D/g, "").slice(0, 6))}
-                  type="password"
-                  inputMode="numeric"
-                  maxLength={6}
-                  autoComplete="current-password"
-                  placeholder="4～6 位數字"
-                  className="hh-input"
-                />
-              </label>
+                <label className="student-field">
+                  <span>班級</span>
+                  <div className="student-select-wrap">
+                    <select
+                      value={classId}
+                      onChange={(event) => setClassId(event.target.value)}
+                      className="hh-select student-select"
+                      disabled={loginOptionsLoading || !institutionId}
+                    >
+                      <option value="">選擇班級</option>
+                      {loginClasses
+                        .filter((item) => item.institution_id === institutionId)
+                        .map((item) => (
+                          <option key={item.id} value={item.id}>
+                            {displayClassName(item.name)}
+                          </option>
+                        ))}
+                    </select>
+                    <span className="student-select-arrow" aria-hidden="true">⌄</span>
+                  </div>
+                </label>
+              </div>
+
+              <div className="student-login-row student-login-row-identity">
+                <label className="student-field">
+                  <span>學生姓名</span>
+                  <input
+                    value={name}
+                    onChange={(event) => setName(event.target.value)}
+                    autoComplete="name"
+                    placeholder="輸入姓名"
+                    className="hh-input"
+                  />
+                </label>
+
+                <label className="student-field">
+                  <span>個人 PIN</span>
+                  <input
+                    value={pin}
+                    onChange={(event) =>
+                      setPin(event.target.value.replace(/\D/g, "").slice(0, 6))
+                    }
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" && !loginLoading) {
+                        void handleLogin();
+                      }
+                    }}
+                    type="password"
+                    inputMode="numeric"
+                    maxLength={6}
+                    autoComplete="current-password"
+                    placeholder="4～6 位數 PIN"
+                    className="hh-input"
+                  />
+                </label>
+              </div>
             </div>
 
-            {loginError && <div className="student-alert student-alert-danger">{loginError}</div>}
+            {loginError && (
+              <div className="student-alert student-alert-danger">
+                {loginError}
+              </div>
+            )}
 
-            <button type="button" onClick={handleLogin} disabled={loginLoading} className="hh-button-primary student-login-button">
-              {loginLoading ? "正在登入…" : "登入解題實驗室"}
+            <button
+              type="button"
+              onClick={handleLogin}
+              disabled={loginLoading || loginOptionsLoading}
+              className="hh-button-primary student-login-button"
+            >
+              {loginLoading
+                ? "正在登入…"
+                : loginOptionsLoading
+                  ? "讀取班級資料…"
+                  : "登入解題實驗室"}
+              {!loginLoading && !loginOptionsLoading && (
+                <span className="student-login-button-arrow" aria-hidden="true">
+                  →
+                </span>
+              )}
             </button>
           </section>
         )}
@@ -2363,8 +2571,10 @@ export default function Home() {
         .student-page {
           position: relative;
           overflow-x: hidden;
-          --student-sage: #477d77;
-          --student-sage-soft: #e1efec;
+          --student-blue: var(--info);
+          --student-blue-soft: var(--info-soft);
+          --student-sage: var(--action);
+          --student-sage-soft: var(--action-soft);
           --student-gold: #c7902f;
           --student-gold-soft: #f7e9c8;
           --student-terra: #b7634d;
@@ -2384,9 +2594,7 @@ export default function Home() {
           --quota-danger: #b95f59;
           --quota-danger-soft: #f5dfdd;
         }
-        html[data-theme="dark"] .student-page {
-          --student-sage: #7fb1aa;
-          --student-sage-soft: #203a36;
+        html:is([data-theme="sage"],[data-theme="ocean"],[data-theme="graphite"],[data-theme="burgundy"]) .student-page {
           --student-gold: #e1b457;
           --student-gold-soft: #3b301c;
           --student-terra: #dc8b72;
@@ -2421,8 +2629,7 @@ export default function Home() {
         .student-loading-title { margin-top: 6px; color: var(--primary); font-size: 28px; }
         .student-welcome-card { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 13px 15px; margin-bottom: 16px; border: 1px solid var(--border); border-radius: 16px; background: color-mix(in srgb, var(--surface) 94%, var(--primary-soft)); box-shadow: var(--shadow-sm); }
         .student-welcome-main { display: flex; align-items: center; gap: 13px; }
-        .student-avatar { width: 38px; height: 38px; border-radius: 11px; display: grid; place-items: center; background: var(--primary); color: #fff; font-family: var(--font-serif), serif; font-weight: 700; font-size: 16px; }
-        html[data-theme="dark"] .student-avatar { color: #172019; }
+        .student-avatar { width: 38px; height: 38px; border-radius: 11px; display: grid; place-items: center; background: var(--primary); color: var(--action-text); font-family: var(--font-serif), serif; font-weight: 700; font-size: 16px; }
         .student-welcome-label { color: var(--text-muted); font: 700 10px/1 var(--font-inter), sans-serif; letter-spacing: .13em; }
         .student-welcome-title { margin: 3px 0 1px; font-size: 18px; }
         .student-welcome-actions { display: flex; align-items: center; gap: 9px; }
@@ -2431,43 +2638,185 @@ export default function Home() {
         .student-usage-pill-warning { background: var(--quota-warning-soft); color: var(--quota-warning); border-color: color-mix(in srgb, var(--quota-warning) 38%, transparent); }
         .student-usage-pill-danger { background: var(--quota-danger-soft); color: var(--quota-danger); border-color: color-mix(in srgb, var(--quota-danger) 42%, transparent); }
         .student-switch-button { border-radius: 999px; padding: 9px 13px; font-size: 12px; }
-        .student-login-card { padding: 24px; margin-bottom: 18px; }
-        .student-login-intro { display: flex; gap: 14px; align-items: center; margin-bottom: 20px; }
-        .student-feature-mark, .student-step-number { display: grid; place-items: center; flex: 0 0 auto; width: 34px; height: 34px; border-radius: 11px; color: #fff; font-size: 12px; font-weight: 800; box-shadow: none; }
-        .student-feature-mark { background: var(--student-blue); }
+        .student-login-card {
+          padding: 22px;
+          margin-bottom: 18px;
+          border-radius: 20px;
+          background:
+            linear-gradient(
+              145deg,
+              color-mix(in srgb, var(--surface) 98%, transparent),
+              color-mix(in srgb, var(--surface-soft) 88%, var(--surface))
+            );
+        }
+        .student-login-intro {
+          display: flex;
+          gap: 12px;
+          align-items: flex-start;
+          margin-bottom: 16px;
+        }
+        .student-feature-mark, .student-step-number {
+          display: grid;
+          place-items: center;
+          flex: 0 0 auto;
+          width: 34px;
+          height: 34px;
+          border-radius: 11px;
+          color: var(--action-text);
+          font-size: 12px;
+          font-weight: 800;
+          box-shadow: none;
+        }
+        .student-feature-mark {
+          background: linear-gradient(145deg, var(--action), var(--action-hover));
+        }
         .student-step-number-sage { background: var(--primary); }
-        .student-step-number-gold { background: var(--primary); color: #fff; }
+        .student-step-number-gold { background: var(--primary); color: var(--action-text); }
         .student-step-number-terra { background: var(--primary); }
-        html[data-theme="dark"] .student-feature-mark, html[data-theme="dark"] .student-step-number-sage, html[data-theme="dark"] .student-step-number-gold, html[data-theme="dark"] .student-step-number-terra { color: #142019; }
-        .student-login-title { margin: 3px 0 2px; font-size: 24px; }
-        .student-login-grid, .student-form-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
-        .student-form-grid { grid-template-columns: 1fr; gap: 14px; }
-        .student-field { display: grid; gap: 7px; }
-        .student-field > span { color: var(--text-secondary); font-size: 12px; font-weight: 700; }
-        .student-field em { font-style: normal; color: var(--text-muted); font-weight: 500; }
-        .student-select-wrap { position: relative; }
-        .student-select { appearance: none; -webkit-appearance: none; padding-right: 42px !important; background: var(--surface) !important; background-image: none !important; box-shadow: none !important; }
-        .student-select:hover { border-color: var(--student-blue); }
-        .student-select:focus { border-color: var(--student-blue) !important; box-shadow: 0 0 0 3px color-mix(in srgb, var(--student-blue) 16%, transparent) !important; }
-        .student-select option { background: var(--surface); color: var(--text); }
-        .student-select-arrow { position: absolute; right: 14px; top: 50%; transform: translateY(-56%); pointer-events: none; color: var(--text-secondary); font-size: 16px; font-weight: 700; }
-        .student-subject-picker { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; min-height: 46px; }
-        .student-subject-option { position: relative; min-height: 48px; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 9px 42px 9px 12px; border: 1px solid currentColor; border-radius: 12px; cursor: pointer; font-size: 12px; font-weight: 760; transition: transform 140ms ease, border-color 140ms ease, background-color 140ms ease, color 140ms ease, box-shadow 140ms ease; }
-        .student-subject-option:hover { transform: translateY(-1px); box-shadow: var(--shadow-sm); }
-        .student-subject-dot { width: 8px; height: 8px; flex: 0 0 auto; border-radius: 999px; background: currentColor; opacity: .95; transition: width 140ms ease, height 140ms ease, box-shadow 140ms ease; }
-        .student-subject-check { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); min-width: 30px; height: 20px; padding: 0 7px; display: grid; place-items: center; border-radius: 999px; background: color-mix(in srgb, currentColor 12%, transparent); color: currentColor; border: 1px solid color-mix(in srgb, currentColor 42%, transparent); font-size: 9px; font-weight: 850; letter-spacing: .04em; box-shadow: none; }
-        .student-subject-physics { color: var(--subject-blue); background: color-mix(in srgb, var(--subject-blue-soft) 46%, var(--surface)); border-color: color-mix(in srgb, var(--subject-blue) 32%, var(--border)); }
-        .student-subject-chemistry { color: var(--subject-red); background: color-mix(in srgb, var(--subject-red-soft) 46%, var(--surface)); border-color: color-mix(in srgb, var(--subject-red) 32%, var(--border)); }
-        .student-subject-biology { color: var(--subject-yellow); background: color-mix(in srgb, var(--subject-yellow-soft) 50%, var(--surface)); border-color: color-mix(in srgb, var(--subject-yellow) 34%, var(--border)); }
-        .student-subject-earth { color: var(--subject-purple); background: color-mix(in srgb, var(--subject-purple-soft) 48%, var(--surface)); border-color: color-mix(in srgb, var(--subject-purple) 34%, var(--border)); }
-        .student-subject-option-selected { transform: translateY(-1px); font-weight: 850; border-width: 2px; box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 14%, transparent), inset 0 0 0 1px color-mix(in srgb, currentColor 24%, transparent), 0 8px 18px color-mix(in srgb, currentColor 8%, transparent); }
-        .student-subject-option-selected .student-subject-dot { width: 11px; height: 11px; box-shadow: 0 0 0 4px color-mix(in srgb, currentColor 14%, transparent); }
-        .student-subject-physics.student-subject-option-selected { background: color-mix(in srgb, var(--subject-blue-soft) 82%, var(--subject-blue) 18%); border-color: var(--subject-blue); }
-        .student-subject-chemistry.student-subject-option-selected { background: color-mix(in srgb, var(--subject-red-soft) 82%, var(--subject-red) 18%); border-color: var(--subject-red); }
-        .student-subject-biology.student-subject-option-selected { background: color-mix(in srgb, var(--subject-yellow-soft) 80%, var(--subject-yellow) 20%); border-color: var(--subject-yellow); }
-        .student-subject-earth.student-subject-option-selected { background: color-mix(in srgb, var(--subject-purple-soft) 82%, var(--subject-purple) 18%); border-color: var(--subject-purple); }
-        .student-field .hh-input:focus, .student-field .hh-textarea:focus { border-color: var(--student-gold); box-shadow: 0 0 0 3px color-mix(in srgb, var(--student-gold) 16%, transparent); }
-        .student-login-button { width: 100%; margin-top: 16px; min-height: 48px; }
+        .student-login-title {
+          margin: 3px 0 0;
+          font-size: clamp(25px, 3vw, 30px);
+          line-height: 1.08;
+        }
+        .student-login-form {
+          display: grid;
+          gap: 13px;
+        }
+        .student-login-row {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 10px;
+        }
+        .student-login-row-identity {
+          gap: 10px;
+        }
+        .student-region-segment {
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 8px;
+        }
+        .student-region-button {
+          position: relative;
+          min-height: 44px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 7px;
+          padding: 0 10px;
+          border: 1px solid var(--border);
+          border-radius: 13px;
+          background: color-mix(in srgb, var(--surface-soft) 94%, var(--primary) 6%);
+          color: var(--text-secondary);
+          font-size: 12px;
+          font-weight: 780;
+          cursor: pointer;
+          transition:
+            transform 130ms ease,
+            border-color 130ms ease,
+            background 130ms ease,
+            color 130ms ease,
+            box-shadow 130ms ease;
+        }
+        .student-region-button:hover:not(:disabled) {
+          transform: translateY(-1px);
+          border-color: color-mix(in srgb, var(--action) 50%, var(--border));
+        }
+        .student-region-button:disabled {
+          cursor: default;
+          opacity: .55;
+        }
+        .student-region-button.is-active {
+          border-color: transparent;
+          background: linear-gradient(135deg, var(--action), var(--action-hover));
+          color: var(--action-text);
+          box-shadow:
+            inset 0 1px 0 rgba(255,255,255,.12),
+            0 8px 18px color-mix(in srgb, var(--action) 18%, transparent);
+        }
+        .student-region-dot {
+          width: 6px;
+          height: 6px;
+          flex: 0 0 auto;
+          border-radius: 999px;
+          background: currentColor;
+          opacity: .8;
+        }
+        .student-form-grid {
+          display: grid;
+          grid-template-columns: 1fr;
+          gap: 14px;
+        }
+        .student-field {
+          display: grid;
+          gap: 6px;
+        }
+        .student-field > span {
+          color: var(--text-secondary);
+          font-size: 11px;
+          font-weight: 760;
+        }
+        .student-field em {
+          font-style: normal;
+          color: var(--text-muted);
+          font-weight: 500;
+        }
+        .student-select-wrap {
+          position: relative;
+        }
+        .student-select {
+          appearance: none;
+          -webkit-appearance: none;
+          padding-right: 40px !important;
+          background: var(--surface) !important;
+          background-image: none !important;
+          box-shadow: none !important;
+        }
+        .student-select:hover {
+          border-color: color-mix(in srgb, var(--action) 50%, var(--border-strong));
+        }
+        .student-select:focus {
+          border-color: var(--action) !important;
+          box-shadow: 0 0 0 3px color-mix(in srgb, var(--action) 15%, transparent) !important;
+        }
+        .student-select option {
+          background: var(--surface);
+          color: var(--text);
+        }
+        .student-select-arrow {
+          position: absolute;
+          right: 13px;
+          top: 50%;
+          transform: translateY(-56%);
+          pointer-events: none;
+          color: var(--text-secondary);
+          font-size: 15px;
+          font-weight: 700;
+        }
+        .student-login-card .hh-input,
+        .student-login-card .hh-select {
+          min-height: 46px;
+          border-radius: 13px;
+          padding-top: 10px;
+          padding-bottom: 10px;
+        }
+        .student-login-button {
+          width: 100%;
+          min-height: 48px;
+          margin-top: 14px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 12px;
+          border-radius: 14px;
+        }
+        .student-login-button-arrow {
+          font-size: 17px;
+          line-height: 1;
+          transition: transform 140ms ease;
+        }
+        .student-login-button:hover .student-login-button-arrow {
+          transform: translateX(3px);
+        }
 
         .student-pin-setup-card {
           position: relative;
@@ -2495,8 +2844,8 @@ export default function Home() {
           padding: 0 10px;
           margin-bottom: 14px;
           border-radius: 999px;
-          background: rgba(48, 70, 59, 0.08);
-          color: var(--hh-primary);
+          background: color-mix(in srgb, var(--action) 9%, var(--surface));
+          color: var(--action);
           font-size: 10px;
           font-weight: 800;
           letter-spacing: .14em;
@@ -2522,7 +2871,7 @@ export default function Home() {
 
         .student-pin-setup-note {
           margin-top: 12px;
-          color: var(--hh-muted);
+          color: var(--text-muted);
           font-size: 12px;
           line-height: 1.65;
         }
@@ -2580,8 +2929,12 @@ export default function Home() {
         .student-alert { margin-top: 12px; padding: 11px 13px; border-radius: 12px; font-size: 13px; }
         .student-alert-danger { background: var(--danger-soft); color: var(--danger); border: 1px solid color-mix(in srgb, var(--danger) 22%, transparent); }
         .student-solve-actions { margin-top: 15px; }
-        .student-solve-button { min-height: 48px; background: linear-gradient(135deg, #315b55, var(--student-sage)); color: #fff; box-shadow: 0 8px 20px color-mix(in srgb, var(--student-sage) 18%, transparent); }
-        html[data-theme="dark"] .student-solve-button { color: #f6faf7; }
+        .student-solve-button {
+          min-height: 48px;
+          background: linear-gradient(135deg, var(--action), var(--action-hover));
+          color: var(--action-text);
+          box-shadow: 0 8px 20px color-mix(in srgb, var(--action) 18%, transparent);
+        }
         .student-result-panel { scroll-margin-top: 20px; margin-top: 2px; }
         .student-result-empty { min-height: 190px; display: grid; place-items: center; align-content: center; gap: 4px; border: 1px dashed var(--border-strong); border-radius: 16px; color: var(--text-secondary); text-align: center; }
         .student-empty-symbol { font: 700 30px/1 var(--font-serif), serif; color: var(--text-muted); margin-bottom: 5px; }
@@ -2637,7 +2990,6 @@ export default function Home() {
           .student-container { width: min(100% - 24px, 900px); padding-top: 28px; }
           .student-brand-title { font-size: 38px; }
           .student-workspace { display: block; }
-          .student-login-grid,
           .student-pin-setup-grid { grid-template-columns: 1fr; }
           .student-welcome-card { align-items: center; flex-direction: row; }
           .student-welcome-actions { width: auto; justify-content: flex-end; }
@@ -2649,7 +3001,12 @@ export default function Home() {
           .student-brand-header { align-items: flex-start; margin-bottom: 20px; }
           .student-brand-title { font-size: 31px; }
           .student-brand-slogan { font-size: 11px; white-space: nowrap; }
-          .student-login-card, .student-panel { padding: 18px; border-radius: 17px; }
+          .student-login-card { padding: 16px; border-radius: 17px; }
+          .student-panel { padding: 18px; border-radius: 17px; }
+          .student-login-intro { margin-bottom: 14px; }
+          .student-login-row-identity { grid-template-columns: 1fr; }
+          .student-region-segment { gap: 6px; }
+          .student-region-button { min-height: 42px; padding-inline: 7px; font-size: 11px; }
           .student-form-grid, .student-two-actions, .student-result-actions { grid-template-columns: 1fr; }
           .student-image-actions { grid-template-columns: 1fr 1fr; }
           .student-image-actions .student-file-replace { grid-column: 1 / -1; }
@@ -2668,6 +3025,12 @@ export default function Home() {
           .student-footer { flex-direction: column; gap: 8px; }
           .student-modal-backdrop { align-items: flex-end; padding: 0; }
           .student-modal-card { border-radius: 22px 22px 0 0; padding-bottom: max(22px, env(safe-area-inset-bottom)); }
+        }
+
+        @media (max-width: 360px) {
+          .student-login-row-org {
+            grid-template-columns: 1fr;
+          }
         }
 
         /* JinXuan-style typography: titles first try licensed local/webfont, then stable TC fallbacks */
@@ -2709,7 +3072,7 @@ export default function Home() {
           background:
             radial-gradient(circle at 10% 0%, color-mix(in srgb, var(--student-blue) 7%, transparent), transparent 28rem),
             radial-gradient(circle at 90% 2%, color-mix(in srgb, var(--student-gold) 6%, transparent), transparent 26rem),
-            var(--background);
+            var(--bg);
         }
 
         .student-card,
@@ -2747,19 +3110,20 @@ export default function Home() {
 
         .student-solve-button,
         .student-primary-action {
-          background: linear-gradient(135deg, #315b55 0%, #54745d 100%);
-          color: #ffffff;
+          background: linear-gradient(135deg, var(--action) 0%, var(--action-hover) 100%);
+          color: var(--action-text);
+          border-color: transparent;
           box-shadow:
             inset 0 1px 0 rgba(255,255,255,.10),
-            0 10px 24px rgba(34, 62, 49, .10);
+            0 10px 24px color-mix(in srgb, var(--action) 17%, transparent);
         }
 
         .student-solve-button:hover,
         .student-primary-action:hover {
           transform: translateY(-1px);
           box-shadow:
-            inset 0 1px 0 rgba(255,255,255,.10),
-            0 14px 28px rgba(34, 62, 49, .14);
+            inset 0 1px 0 rgba(255,255,255,.12),
+            0 14px 30px color-mix(in srgb, var(--action) 23%, transparent);
         }
 
         .student-subject-button,
@@ -2797,105 +3161,76 @@ export default function Home() {
           transform: translateY(-1px);
         }
 
-        html[data-theme="dark"] .student-page {
+        html:is([data-theme="sage"],[data-theme="ocean"],[data-theme="graphite"],[data-theme="burgundy"]) .student-page {
           background:
-            radial-gradient(circle at 12% -4%, rgba(98, 143, 123, .10), transparent 30rem),
-            radial-gradient(circle at 88% 0%, rgba(190, 158, 86, .07), transparent 27rem),
-            var(--background);
+            radial-gradient(circle at 12% -4%, color-mix(in srgb, var(--primary) 11%, transparent), transparent 30rem),
+            radial-gradient(circle at 88% 0%, color-mix(in srgb, var(--accent) 7%, transparent), transparent 27rem),
+            var(--bg);
         }
 
-        html[data-theme="dark"] .student-step-card,
-        html[data-theme="dark"] .student-welcome-card,
-        html[data-theme="dark"] .student-login-card,
-        html[data-theme="dark"] .student-result-card,
-        html[data-theme="dark"] .student-card {
+        html:is([data-theme="sage"],[data-theme="ocean"],[data-theme="graphite"],[data-theme="burgundy"]) .student-step-card,
+        html:is([data-theme="sage"],[data-theme="ocean"],[data-theme="graphite"],[data-theme="burgundy"]) .student-welcome-card,
+        html:is([data-theme="sage"],[data-theme="ocean"],[data-theme="graphite"],[data-theme="burgundy"]) .student-login-card,
+        html:is([data-theme="sage"],[data-theme="ocean"],[data-theme="graphite"],[data-theme="burgundy"]) .student-result-card,
+        html:is([data-theme="sage"],[data-theme="ocean"],[data-theme="graphite"],[data-theme="burgundy"]) .student-card {
           background:
             linear-gradient(
               145deg,
-              rgba(38, 52, 44, .96),
-              rgba(28, 39, 33, .99)
+              color-mix(in srgb, var(--surface) 96%, var(--primary) 4%),
+              var(--surface)
             );
           box-shadow:
             inset 0 1px 0 rgba(255,255,255,.025),
-            0 16px 34px rgba(0,0,0,.10);
+            0 16px 34px rgba(0,0,0,.12);
         }
 
-        html[data-theme="dark"] .student-upload-zone {
+        html:is([data-theme="sage"],[data-theme="ocean"],[data-theme="graphite"],[data-theme="burgundy"]) .student-upload-zone {
           background:
-            radial-gradient(circle at 50% 0%, rgba(104, 151, 132, .09), transparent 36%),
+            radial-gradient(circle at 50% 0%, color-mix(in srgb, var(--primary) 9%, transparent), transparent 36%),
             linear-gradient(
               145deg,
-              rgba(39, 53, 45, .90),
-              rgba(31, 42, 36, .97)
+              color-mix(in srgb, var(--surface-soft) 95%, var(--primary) 5%),
+              var(--surface-soft)
             );
         }
 
-        html[data-theme="light"] .student-solve-button,
-        html[data-theme="light"] .student-primary-action {
-          background: linear-gradient(135deg, #315b55 0%, #54745d 100%);
-          color: #ffffff;
-          border-color: transparent;
-        }
-
-        html[data-theme="dark"] .student-solve-button,
-        html[data-theme="dark"] .student-primary-action {
-          background:
-            linear-gradient(
-              135deg,
-              #4f7f72,
-              #79aaa0
-            );
-          box-shadow:
-            inset 0 1px 0 rgba(255,255,255,.08),
-            0 0 24px rgba(108, 162, 139, .13),
-            0 12px 28px rgba(0,0,0,.14);
-        }
-
-        html[data-theme="dark"] .student-solve-button:hover,
-        html[data-theme="dark"] .student-primary-action:hover {
-          box-shadow:
-            inset 0 1px 0 rgba(255,255,255,.10),
-            0 0 30px rgba(116, 177, 151, .18),
-            0 15px 34px rgba(0,0,0,.16);
-        }
-
-        html[data-theme="dark"] .student-subject-physics.is-selected,
-        html[data-theme="dark"] .student-subject-physics.active {
+        html:is([data-theme="sage"],[data-theme="ocean"],[data-theme="graphite"],[data-theme="burgundy"]) .student-subject-physics.is-selected,
+        html:is([data-theme="sage"],[data-theme="ocean"],[data-theme="graphite"],[data-theme="burgundy"]) .student-subject-physics.active {
           box-shadow:
             0 0 0 1px rgba(140,169,199,.22),
             0 0 24px rgba(120,162,201,.18);
         }
 
-        html[data-theme="dark"] .student-subject-chemistry.is-selected,
-        html[data-theme="dark"] .student-subject-chemistry.active {
+        html:is([data-theme="sage"],[data-theme="ocean"],[data-theme="graphite"],[data-theme="burgundy"]) .student-subject-chemistry.is-selected,
+        html:is([data-theme="sage"],[data-theme="ocean"],[data-theme="graphite"],[data-theme="burgundy"]) .student-subject-chemistry.active {
           box-shadow:
             0 0 0 1px rgba(213,140,138,.22),
             0 0 24px rgba(196,117,114,.18);
         }
 
-        html[data-theme="dark"] .student-subject-biology.is-selected,
-        html[data-theme="dark"] .student-subject-biology.active {
+        html:is([data-theme="sage"],[data-theme="ocean"],[data-theme="graphite"],[data-theme="burgundy"]) .student-subject-biology.is-selected,
+        html:is([data-theme="sage"],[data-theme="ocean"],[data-theme="graphite"],[data-theme="burgundy"]) .student-subject-biology.active {
           box-shadow:
             0 0 0 1px rgba(221,187,101,.24),
             0 0 24px rgba(214,179,86,.18);
         }
 
-        html[data-theme="dark"] .student-subject-earth.is-selected,
-        html[data-theme="dark"] .student-subject-earth.active {
+        html:is([data-theme="sage"],[data-theme="ocean"],[data-theme="graphite"],[data-theme="burgundy"]) .student-subject-earth.is-selected,
+        html:is([data-theme="sage"],[data-theme="ocean"],[data-theme="graphite"],[data-theme="burgundy"]) .student-subject-earth.active {
           box-shadow:
             0 0 0 1px rgba(178,161,204,.22),
             0 0 24px rgba(158,139,192,.18);
         }
 
-        html[data-theme="dark"] .student-usage-pill,
-        html[data-theme="dark"] .student-quota-badge {
+        html:is([data-theme="sage"],[data-theme="ocean"],[data-theme="graphite"],[data-theme="burgundy"]) .student-usage-pill,
+        html:is([data-theme="sage"],[data-theme="ocean"],[data-theme="graphite"],[data-theme="burgundy"]) .student-quota-badge {
           box-shadow:
             inset 0 1px 0 rgba(255,255,255,.04),
             0 0 18px rgba(219, 178, 89, .09);
         }
 
-        html[data-theme="dark"] .student-annotation-trigger,
-        html[data-theme="dark"] .annotation-number {
+        html:is([data-theme="sage"],[data-theme="ocean"],[data-theme="graphite"],[data-theme="burgundy"]) .student-annotation-trigger,
+        html:is([data-theme="sage"],[data-theme="ocean"],[data-theme="graphite"],[data-theme="burgundy"]) .annotation-number {
           text-shadow: 0 0 10px rgba(224, 186, 97, .14);
         }
 
@@ -3138,7 +3473,7 @@ export default function Home() {
           gap: 10px;
           padding: 8px;
           border: 1px solid var(--border);
-          border-radius: 15px;
+          border-radius: 13px;
           background: color-mix(in srgb, var(--surface) 96%, var(--primary) 4%);
         }
 
@@ -4081,6 +4416,185 @@ export default function Home() {
 
           .student-followup-input-row .hh-button-primary {
             width: 100%;
+          }
+        }
+
+
+        /* v1.2.15 light theme refinements */
+        html[data-theme="white"] .student-page {
+          background:
+            radial-gradient(circle at 12% -4%, color-mix(in srgb, #505552 7%, transparent), transparent 29rem),
+            radial-gradient(circle at 88% 0%, color-mix(in srgb, #9ca19e 5%, transparent), transparent 25rem),
+            var(--bg);
+        }
+
+        html[data-theme="white"] .student-top-glow {
+          background:
+            radial-gradient(circle at 18% -12%, color-mix(in srgb, #4a4f4c 7%, transparent), transparent 52%),
+            radial-gradient(circle at 86% -18%, color-mix(in srgb, #a7aaa8 5%, transparent), transparent 48%);
+        }
+
+        html[data-theme="oatmeal"] .student-page {
+          background:
+            radial-gradient(circle at 11% -2%, color-mix(in srgb, #a48658 8%, transparent), transparent 29rem),
+            radial-gradient(circle at 88% 0%, color-mix(in srgb, #8b7863 5%, transparent), transparent 26rem),
+            var(--bg);
+        }
+
+        /* =======================================================
+           v1.2.15 SUBJECT PICKER — COMPACT 4 COLUMNS / GREEN BLUE YELLOW RED
+           ======================================================= */
+        .student-subject-picker {
+          display: grid !important;
+          grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+          gap: 8px !important;
+          width: 100%;
+          min-height: 0;
+        }
+
+        .student-subject-option {
+          --subject-accent: var(--primary);
+          --subject-soft: var(--surface-soft);
+          min-width: 0;
+          min-height: 50px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+          padding: 7px 8px !important;
+          overflow: hidden;
+          border: 1px solid color-mix(in srgb, var(--subject-accent) 42%, var(--border));
+          border-radius: 13px;
+          background: color-mix(in srgb, var(--subject-soft) 58%, var(--surface));
+          color: var(--subject-accent);
+          font-size: 13px;
+          font-weight: 800;
+          line-height: 1.15;
+          white-space: nowrap;
+          box-shadow: inset 0 1px 0 color-mix(in srgb, white 5%, transparent);
+        }
+
+        .student-subject-option > span:not(.student-subject-dot):not(.student-subject-check) {
+          min-width: 0;
+          overflow: hidden;
+          text-overflow: clip;
+          white-space: nowrap;
+        }
+
+        .student-subject-check {
+          display: none !important;
+        }
+
+        .student-subject-dot {
+          flex: 0 0 auto;
+          width: 8px;
+          height: 8px;
+          border-radius: 999px;
+          background: currentColor;
+          opacity: .96;
+          box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 12%, transparent);
+        }
+
+        .student-subject-option:hover {
+          transform: translateY(-1px);
+          border-color: color-mix(in srgb, var(--subject-accent) 66%, var(--border));
+          box-shadow: 0 8px 18px color-mix(in srgb, var(--subject-accent) 10%, transparent);
+        }
+
+        .student-subject-option-selected {
+          transform: translateY(-1px);
+          border-width: 1.5px;
+          border-color: var(--subject-accent) !important;
+          background: color-mix(in srgb, var(--subject-soft) 82%, var(--surface)) !important;
+          color: var(--subject-accent);
+          box-shadow:
+            0 0 0 2px color-mix(in srgb, var(--subject-accent) 13%, transparent),
+            0 9px 20px color-mix(in srgb, var(--subject-accent) 11%, transparent);
+        }
+
+        .student-subject-option-selected .student-subject-dot {
+          width: 9px;
+          height: 9px;
+          box-shadow: 0 0 0 4px color-mix(in srgb, currentColor 16%, transparent);
+        }
+
+        /* User-selected order: Physics green / Chemistry blue / Biology yellow / Earth red */
+        .student-subject-physics {
+          --subject-accent: #5f9877;
+          --subject-soft: #e4efe8;
+          color: var(--subject-accent);
+          background: color-mix(in srgb, var(--subject-soft) 58%, var(--surface));
+          border-color: color-mix(in srgb, var(--subject-accent) 42%, var(--border));
+        }
+
+        .student-subject-chemistry {
+          --subject-accent: #5f86b2;
+          --subject-soft: #e5edf6;
+          color: var(--subject-accent);
+          background: color-mix(in srgb, var(--subject-soft) 58%, var(--surface));
+          border-color: color-mix(in srgb, var(--subject-accent) 42%, var(--border));
+        }
+
+        .student-subject-biology {
+          --subject-accent: #bd9636;
+          --subject-soft: #f6edcf;
+          color: var(--subject-accent);
+          background: color-mix(in srgb, var(--subject-soft) 60%, var(--surface));
+          border-color: color-mix(in srgb, var(--subject-accent) 42%, var(--border));
+        }
+
+        .student-subject-earth {
+          --subject-accent: #b86464;
+          --subject-soft: #f3e3e2;
+          color: var(--subject-accent);
+          background: color-mix(in srgb, var(--subject-soft) 58%, var(--surface));
+          border-color: color-mix(in srgb, var(--subject-accent) 42%, var(--border));
+        }
+
+        html:is([data-theme="sage"],[data-theme="ocean"],[data-theme="graphite"],[data-theme="burgundy"]) .student-subject-physics {
+          --subject-accent: #82b495;
+          --subject-soft: #23382b;
+        }
+
+        html:is([data-theme="sage"],[data-theme="ocean"],[data-theme="graphite"],[data-theme="burgundy"]) .student-subject-chemistry {
+          --subject-accent: #8caccd;
+          --subject-soft: #243548;
+        }
+
+        html:is([data-theme="sage"],[data-theme="ocean"],[data-theme="graphite"],[data-theme="burgundy"]) .student-subject-biology {
+          --subject-accent: #dfbd66;
+          --subject-soft: #3d341f;
+        }
+
+        html:is([data-theme="sage"],[data-theme="ocean"],[data-theme="graphite"],[data-theme="burgundy"]) .student-subject-earth {
+          --subject-accent: #d58d8a;
+          --subject-soft: #422a2c;
+        }
+
+        @media (max-width: 600px) {
+          .student-subject-picker {
+            gap: 6px !important;
+          }
+
+          .student-subject-option {
+            min-height: 44px;
+            gap: 5px;
+            padding: 5px 4px !important;
+            border-radius: 11px;
+            font-size: 11px;
+            letter-spacing: -.02em;
+          }
+
+          .student-subject-dot {
+            width: 6px;
+            height: 6px;
+            box-shadow: 0 0 0 2px color-mix(in srgb, currentColor 12%, transparent);
+          }
+
+          .student-subject-option-selected .student-subject-dot {
+            width: 7px;
+            height: 7px;
+            box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 16%, transparent);
           }
         }
 

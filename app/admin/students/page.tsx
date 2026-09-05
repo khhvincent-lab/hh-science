@@ -660,7 +660,7 @@ export default function AdminStudentsPage() {
           border-color: var(--primary);
         }
 
-        [data-theme="dark"] .student-admin-filter-chip.is-active {
+        html:is([data-theme="sage"],[data-theme="ocean"],[data-theme="graphite"],[data-theme="burgundy"]) .student-admin-filter-chip.is-active {
           color: #152019;
         }
 
