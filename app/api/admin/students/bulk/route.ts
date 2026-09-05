@@ -263,7 +263,7 @@ export async function POST(request: NextRequest) {
     const { data: existingRows, error: existingError } = await supabaseAdmin
       .from("students")
       .select("name")
-      .eq("campus", organization.campus);
+      .eq("class_id", classId);
     if (existingError) throw new Error(`檢查既有學生失敗：${existingError.message}`);
 
     const existingSet = new Set((existingRows ?? []).map((row) => normalizeName(String(row.name ?? ""))));

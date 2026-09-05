@@ -424,13 +424,8 @@ export async function POST(
   }
 
 
-  const {
-    data:
-      existing,
-    error:
-      existingError,
-  } =
-    await supabaseAdmin
+  const existingQuery =
+    supabaseAdmin
       .from(
         "students"
       )
@@ -438,14 +433,18 @@ export async function POST(
         "id"
       )
       .eq(
-        "campus",
-        campus
-      )
-      .eq(
         "name",
         name
-      )
-      .maybeSingle();
+      );
+
+  const {
+    data:
+      existing,
+    error:
+      existingError,
+  } = classId
+    ? await existingQuery.eq("class_id", classId).maybeSingle()
+    : await existingQuery.eq("campus", campus).is("class_id", null).maybeSingle();
 
 
   if (
@@ -470,7 +469,9 @@ export async function POST(
     return NextResponse.json(
       {
         error:
-          `${campus} 已經有一位「${name}」。`,
+          classId
+            ? `這個班級已經有一位「${name}」。`
+            : `${campus} 的未分班名單已經有一位「${name}」。`,
       },
       {
         status:
@@ -978,7 +979,7 @@ export async function PATCH(
       {
         error:
           duplicate
-            ? "同一班級已經有同名學生。"
+            ? "同一班級已經有同名學生；不同班級可以使用相同姓名。"
             : `更新學生失敗：${error.message}`,
       },
       {
