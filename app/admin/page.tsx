@@ -1551,6 +1551,21 @@ function StudentsSection(props: {
   const [promotionSourceClass, setPromotionSourceClass] = useState("");
   const [promotionTargetClass, setPromotionTargetClass] = useState("");
   const currentAcademicYear = new Date().getFullYear();
+  type BulkPreview = {
+    totalRows: number;
+    validCount: number;
+    importableCount: number;
+    duplicateInFile: string[];
+    existing: string[];
+    invalid: Array<{ value: string; reason: string }>;
+    names: string[];
+  };
+  type BulkResult = { inserted: number; skipped: number; total: number };
+  const [bulkFile, setBulkFile] = useState<File | null>(null);
+  const [bulkPreview, setBulkPreview] = useState<BulkPreview | null>(null);
+  const [bulkResult, setBulkResult] = useState<BulkResult | null>(null);
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [bulkInputKey, setBulkInputKey] = useState(0);
   const [classOverview, setClassOverview] = useState<Array<{
     classId: string; label: string; students: number; todayActive: number; todayQuestions: number; monthQuestions: number; monthCostTwd: number;
   }>>([]);
@@ -1910,6 +1925,45 @@ function StudentsSection(props: {
     }
   }
 
+  async function sendBulkStudentFile(action: "preview" | "import") {
+    if (!bulkFile || !regionId || !institutionId || !classId) {
+      setOrgMessage("請先選擇地區、合作單位、班級，再選擇 CSV 或 Excel 名單。");
+      return;
+    }
+
+    setBulkBusy(true);
+    setBulkResult(null);
+    setOrgMessage(action === "preview" ? "正在檢查學生名單…" : "正在批次匯入學生…");
+    try {
+      const form = new FormData();
+      form.append("action", action);
+      form.append("regionId", regionId);
+      form.append("institutionId", institutionId);
+      form.append("classId", classId);
+      form.append("file", bulkFile);
+
+      const response = await fetch("/api/admin/students/bulk", { method: "POST", body: form });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "批次匯入失敗。");
+
+      if (action === "preview") {
+        setBulkPreview(data.preview as BulkPreview);
+        setOrgMessage(`名單檢查完成：可匯入 ${data.preview?.importableCount ?? 0} 位學生。`);
+      } else {
+        setBulkResult({ inserted: Number(data.inserted || 0), skipped: Number(data.skipped || 0), total: Number(data.total || 0) });
+        setOrgMessage(`批次匯入完成：新增 ${data.inserted ?? 0} 位，跳過 ${data.skipped ?? 0} 位。`);
+        setBulkPreview(null);
+        setBulkFile(null);
+        setBulkInputKey((value) => value + 1);
+        await props.reloadStudents();
+      }
+    } catch (error) {
+      setOrgMessage(error instanceof Error ? error.message : "批次匯入失敗。");
+    } finally {
+      setBulkBusy(false);
+    }
+  }
+
   async function promoteWholeClass() {
     if (!promotionSourceClass || !promotionTargetClass || promotionSourceClass === promotionTargetClass) {
       setOrgMessage("請選擇不同的來源班級與目標班級。");
@@ -2049,6 +2103,71 @@ function StudentsSection(props: {
           <input className="hh-input" placeholder="學生姓名" value={props.newName} onChange={(event) => props.setNewName(event.target.value)} />
           <button className="hh-button-primary" onClick={() => void createStudent()} disabled={orgBusy}>新增</button>
         </div>
+      </section>
+
+      <section className="hh-card admin-panel org-compact-panel student-only bulk-import-panel">
+        <PanelHeader
+          eyebrow="BULK IMPORT"
+          title="批次匯入學生"
+          subtitle="CSV 或 Excel (.xlsx) 都可以；先檢查名單，再一次建立學生帳號與初始密碼"
+        />
+        <div className="bulk-target-class">
+          <span>匯入目標</span>
+          <strong>{classId ? `${regions.find((item) => item.id === regionId)?.name || "地區"} · ${institutions.find((item) => item.id === institutionId)?.name || "合作單位"} · ${classes.find((item) => item.id === classId) ? compactClassLabel(classes.find((item) => item.id === classId)!) : "班級"}` : "請先選擇班級"}</strong>
+        </div>
+        <div className="bulk-import-controls">
+          <label className="bulk-file-picker">
+            <input
+              key={bulkInputKey}
+              type="file"
+              accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+              onChange={(event) => {
+                const file = event.target.files?.[0] || null;
+                setBulkFile(file);
+                setBulkPreview(null);
+                setBulkResult(null);
+              }}
+            />
+            <span>{bulkFile ? bulkFile.name : "選擇 CSV / Excel 名單"}</span>
+          </label>
+          <button className="hh-button-secondary" type="button" disabled={bulkBusy || !bulkFile || !classId} onClick={() => void sendBulkStudentFile("preview")}>
+            {bulkBusy ? "檢查中…" : "檢查名單"}
+          </button>
+        </div>
+
+        {bulkPreview && (
+          <div className="bulk-preview-box">
+            <div className="bulk-preview-stats">
+              <article><span>辨識</span><strong>{bulkPreview.totalRows}</strong><small>筆</small></article>
+              <article><span>可匯入</span><strong>{bulkPreview.importableCount}</strong><small>人</small></article>
+              <article><span>已存在</span><strong>{bulkPreview.existing.length}</strong><small>人</small></article>
+              <article><span>需略過</span><strong>{bulkPreview.duplicateInFile.length + bulkPreview.invalid.length}</strong><small>筆</small></article>
+            </div>
+            <div className="bulk-preview-names">
+              {bulkPreview.names.slice(0, 18).map((name) => <span key={name}>{name}</span>)}
+              {bulkPreview.names.length > 18 && <span>＋{bulkPreview.names.length - 18} 位</span>}
+            </div>
+            {(bulkPreview.existing.length > 0 || bulkPreview.duplicateInFile.length > 0 || bulkPreview.invalid.length > 0) && (
+              <div className="bulk-warning">
+                {bulkPreview.existing.length > 0 && <p>已存在，將跳過：{bulkPreview.existing.slice(0, 8).join("、")}{bulkPreview.existing.length > 8 ? "…" : ""}</p>}
+                {bulkPreview.duplicateInFile.length > 0 && <p>名單內重複：{bulkPreview.duplicateInFile.slice(0, 8).join("、")}{bulkPreview.duplicateInFile.length > 8 ? "…" : ""}</p>}
+                {bulkPreview.invalid.length > 0 && <p>格式需略過：{bulkPreview.invalid.slice(0, 5).map((item) => item.value || "空白").join("、")}{bulkPreview.invalid.length > 5 ? "…" : ""}</p>}
+              </div>
+            )}
+            <button
+              className="hh-button-primary bulk-confirm-button"
+              type="button"
+              disabled={bulkBusy || bulkPreview.importableCount === 0}
+              onClick={() => {
+                if (confirm(`確定將 ${bulkPreview.importableCount} 位學生匯入目前班級？\n\n每位學生都會套用目前的共用初始密碼，首次登入必須改成個人密碼。`)) void sendBulkStudentFile("import");
+              }}
+            >
+              {bulkBusy ? "匯入中…" : `確認匯入 ${bulkPreview.importableCount} 位學生`}
+            </button>
+          </div>
+        )}
+
+        {bulkResult && <div className="admin-notice success">匯入完成：成功新增 {bulkResult.inserted} 位，跳過 {bulkResult.skipped} 位。</div>}
       </section>
 
       <div className="student-only integrated-pin-section">
@@ -9085,6 +9204,36 @@ const adminStyles = `
   .org-filter-row .hh-select, .org-add-row .hh-select, .assign-row .hh-select { padding-right: 28px !important; }
   .action-row { grid-template-columns: repeat(4, minmax(0,1fr)) !important; gap:4px !important; }
   .action-row .admin-mini-button { width:100% !important; min-width:0 !important; font-size:9.5px !important; padding:7px 1px !important; white-space:nowrap !important; }
+}
+
+
+/* v1.2.7 bulk student import */
+.bulk-import-panel { display: grid; gap: 16px; }
+.bulk-target-class { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 12px 14px; border: 1px solid var(--border); border-radius: 16px; background: var(--surface-soft); }
+.bulk-target-class span { color: var(--muted); font-size: 13px; font-weight: 800; }
+.bulk-target-class strong { text-align: right; font-size: 14px; }
+.bulk-import-controls { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; }
+.bulk-file-picker { min-width: 0; min-height: 48px; display: flex; align-items: center; padding: 0 16px; border: 1px dashed var(--border-strong); border-radius: 16px; cursor: pointer; background: var(--surface-soft); }
+.bulk-file-picker input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.bulk-file-picker span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 800; color: var(--text); }
+.bulk-preview-box { display: grid; gap: 12px; padding: 14px; border: 1px solid var(--border); border-radius: 18px; background: var(--surface-soft); }
+.bulk-preview-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.bulk-preview-stats article { padding: 10px; border-radius: 14px; background: var(--surface); border: 1px solid var(--border); }
+.bulk-preview-stats span, .bulk-preview-stats small { display: block; color: var(--muted); font-size: 11px; font-weight: 800; }
+.bulk-preview-stats strong { display: inline-block; margin: 2px 4px 0 0; font-size: 22px; }
+.bulk-preview-names { display: flex; flex-wrap: wrap; gap: 6px; }
+.bulk-preview-names span { padding: 5px 8px; border-radius: 999px; background: var(--surface); border: 1px solid var(--border); font-size: 12px; font-weight: 800; }
+.bulk-warning { padding: 10px 12px; border-radius: 14px; border: 1px solid rgba(184, 135, 58, .35); background: rgba(184, 135, 58, .08); }
+.bulk-warning p { margin: 3px 0; color: var(--muted); font-size: 12px; line-height: 1.55; }
+.bulk-confirm-button { width: 100%; }
+@media (max-width: 760px) {
+  .bulk-target-class { align-items: flex-start; flex-direction: column; gap: 4px; }
+  .bulk-target-class strong { text-align: left; }
+  .bulk-import-controls { grid-template-columns: 1fr; }
+  .bulk-preview-stats { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .bulk-preview-stats article { padding: 8px 6px; }
+  .bulk-preview-stats strong { font-size: 18px; }
+  .bulk-preview-stats span, .bulk-preview-stats small { font-size: 10px; }
 }
 
 `;
