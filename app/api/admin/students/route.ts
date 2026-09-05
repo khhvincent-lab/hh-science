@@ -996,3 +996,60 @@ export async function PATCH(
       data,
   });
 }
+
+export async function DELETE(request: NextRequest) {
+  const admin = await requireAdmin(request);
+  if (!admin) {
+    return NextResponse.json({ error: "未登入管理員。" }, { status: 401 });
+  }
+
+  let body: { id?: string };
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "資料格式錯誤。" }, { status: 400 });
+  }
+
+  const id = body.id?.trim() || "";
+  if (!id) return NextResponse.json({ error: "缺少學生 ID。" }, { status: 400 });
+
+  const { data: student, error: studentReadError } = await supabaseAdmin
+    .from("students")
+    .select("id,name")
+    .eq("id", id)
+    .maybeSingle();
+
+  if (studentReadError || !student) {
+    return NextResponse.json({ error: "找不到學生資料。" }, { status: 404 });
+  }
+
+  const { data: histories } = await supabaseAdmin
+    .from("solve_history")
+    .select("id,image_paths")
+    .eq("student_id", id);
+
+  const historyIds = (histories ?? []).map((row) => row.id as string);
+  const imagePaths = (histories ?? [])
+    .flatMap((row) => Array.isArray(row.image_paths) ? row.image_paths : [])
+    .map((item: any) => typeof item === "string" ? item : item?.path)
+    .filter((value): value is string => Boolean(value));
+
+  if (historyIds.length) {
+    await supabaseAdmin.from("teacher_correction_queue").delete().in("solve_history_id", historyIds);
+    await supabaseAdmin.from("solve_followups").delete().in("solve_history_id", historyIds);
+  }
+  await supabaseAdmin.from("api_usage").delete().eq("student_id", id);
+  await supabaseAdmin.from("daily_usage").delete().eq("student_id", id);
+  await supabaseAdmin.from("solve_history").delete().eq("student_id", id);
+
+  const { error } = await supabaseAdmin.from("students").delete().eq("id", id);
+  if (error) {
+    return NextResponse.json({ error: `刪除學生失敗：${error.message}` }, { status: 500 });
+  }
+
+  if (imagePaths.length) {
+    await supabaseAdmin.storage.from("solve-images").remove(imagePaths);
+  }
+
+  return NextResponse.json({ ok: true, deletedId: id, name: student.name });
+}

@@ -7,7 +7,7 @@ import "katex/dist/katex.min.css";
 
 const USD_TO_TWD_RATE = 32.5;
 
-type AdminSection = "dashboard" | "students" | "ai" | "pin" | "analytics";
+type AdminSection = "dashboard" | "classes" | "students" | "ai" | "pin" | "corrections" | "analytics";
 
 type DashboardData = {
   today: {
@@ -219,6 +219,40 @@ type AnalyticsData = {
   };
   models: AnalyticsModelMetric[];
 };
+
+type LatencyModelMetric = {
+  model: string;
+  provider: string;
+  calls: number;
+  averageMs: number;
+  minMs: number;
+  maxMs: number;
+};
+
+type LatencyData = {
+  range: AnalyticsRange;
+  label: string;
+  totalCalls: number;
+  averageMs: number;
+  models: LatencyModelMetric[];
+};
+
+function modelDisplayName(model: string) {
+  if (model === "gpt-5.6-luna") return "GPT-5.6 Luna";
+  if (model === "gpt-5.6-terra") return "GPT-5.6 Terra";
+  if (model === "gpt-5.6-sol") return "GPT-5.6 Sol";
+  if (model === "gemini-3.8-flash") return "Gemini 3.8 Flash";
+  if (model === "gemini-3.6-flash") return "Gemini 3.6 Flash";
+  if (model === "gemini-2.5-flash") return "Gemini 2.5 Flash";
+  return model;
+}
+
+function formatDuration(ms: number | null | undefined) {
+  const value = Number(ms || 0);
+  if (!Number.isFinite(value) || value <= 0) return "—";
+  if (value < 1000) return `${Math.round(value)} ms`;
+  return `${(value / 1000).toFixed(value >= 10000 ? 1 : 2)} 秒`;
+}
 
 const CAMPUSES: string[] = ["高雄班", "嘉義班", "員林班"];
 const CAMPUS_FILTERS: string[] = ["全部班級", ...CAMPUSES];
@@ -558,7 +592,7 @@ export default function AdminPage() {
   }, [isLoggedIn, loadAllAdminData]);
 
   useEffect(() => {
-    if (isLoggedIn && activeSection === "students" && !studentsLoaded) {
+    if (isLoggedIn && (activeSection === "students" || activeSection === "classes") && !studentsLoaded) {
       void loadStudents();
     }
   }, [activeSection, isLoggedIn, studentsLoaded, loadStudents]);
@@ -961,17 +995,22 @@ export default function AdminPage() {
           <small>H.H. SCIENCE LAB</small>
         </button>
 
-        <button
-          type="button"
-          className="admin-mobile-menu-button"
-          aria-label="開啟教師管理選單"
-          aria-expanded={mobileMenuOpen}
-          onClick={() => setMobileMenuOpen((current) => !current)}
-        >
-          <span />
-          <span />
-          <span />
-        </button>
+        <div className="admin-mobile-header-actions">
+          <div className="admin-mobile-theme-toggle" aria-label="切換外觀">
+            <ThemeToggle />
+          </div>
+          <button
+            type="button"
+            className="admin-mobile-menu-button"
+            aria-label="開啟教師管理選單"
+            aria-expanded={mobileMenuOpen}
+            onClick={() => setMobileMenuOpen((current) => !current)}
+          >
+            <span />
+            <span />
+            <span />
+          </button>
+        </div>
       </header>
 
       {mobileMenuOpen && (
@@ -998,26 +1037,38 @@ export default function AdminPage() {
             onClick={() => { setActiveSection("dashboard"); setMobileMenuOpen(false); }}
           />
           <NavButton
-            active={activeSection === "students"}
+            active={activeSection === "classes"}
             icon="02"
+            label="班級管理"
+            onClick={() => { setActiveSection("classes"); setMobileMenuOpen(false); }}
+          />
+          <NavButton
+            active={activeSection === "students"}
+            icon="03"
             label="學生管理"
             onClick={() => { setActiveSection("students"); setMobileMenuOpen(false); }}
           />
           <NavButton
             active={activeSection === "ai"}
-            icon="03"
+            icon="04"
             label="AI 設定"
             onClick={() => { setActiveSection("ai"); setMobileMenuOpen(false); }}
           />
           <NavButton
             active={activeSection === "pin"}
-            icon="04"
+            icon="05"
             label="學生密碼"
             onClick={() => { setActiveSection("pin"); setMobileMenuOpen(false); }}
           />
           <NavButton
+            active={activeSection === "corrections"}
+            icon="06"
+            label="解題修正"
+            onClick={() => { setActiveSection("corrections"); setMobileMenuOpen(false); }}
+          />
+          <NavButton
             active={activeSection === "analytics"}
-            icon="05"
+            icon="07"
             label="AI 數據分析"
             onClick={() => { setActiveSection("analytics"); setMobileMenuOpen(false); }}
           />
@@ -1049,7 +1100,7 @@ export default function AdminPage() {
               type="button"
               className="hh-button-secondary"
               onClick={() => {
-                if (activeSection === "students") void loadStudents();
+                if (activeSection === "students" || activeSection === "classes") void loadStudents();
                 else void loadAllAdminData();
               }}
             >
@@ -1059,16 +1110,58 @@ export default function AdminPage() {
         </header>
 
         <div className="admin-content">
+          {(activeSection === "classes" || activeSection === "students") && (
+            <div className="management-tabs" role="tablist" aria-label="班級與學生管理">
+              <button type="button" className={activeSection === "classes" ? "active" : ""} onClick={() => setActiveSection("classes")}>班級管理</button>
+              <button type="button" className={activeSection === "students" ? "active" : ""} onClick={() => setActiveSection("students")}>學生管理</button>
+            </div>
+          )}
           {activeSection === "dashboard" && (
             <DashboardSection
               dashboard={dashboard}
+              solverSettings={solverSettings}
               loading={dashboardLoading}
               error={dashboardError}
             />
           )}
 
+          {activeSection === "classes" && (
+            <StudentsSection
+              mode="classes"
+              students={filteredStudents}
+              total={studentSummary.total}
+              active={studentSummary.active}
+              inactive={studentSummary.inactive}
+              allStudents={students}
+              loading={studentsLoading}
+              error={studentError}
+              message={studentMessage}
+              campusFilter={studentCampusFilter}
+              setCampusFilter={setStudentCampusFilter}
+              statusFilter={studentStatusFilter}
+              setStatusFilter={setStudentStatusFilter}
+              query={studentQuery}
+              setQuery={setStudentQuery}
+              campusCount={campusStudentCount}
+              newCampus={newCampus}
+              setNewCampus={setNewCampus}
+              newName={newName}
+              setNewName={setNewName}
+              adding={addingStudent}
+              addStudent={addStudent}
+              busyStudentId={busyStudentId}
+              toggleStudent={toggleStudent}
+              resetStudentUsage={resetStudentUsage}
+              resetStudentPin={resetStudentPin}
+              dailyLimit={solverSettings?.dailyLimit ?? 10}
+              viewStudentHistory={setHistoryStudent}
+              reloadStudents={loadStudents}
+            />
+          )}
+
           {activeSection === "students" && (
             <StudentsSection
+              mode="students"
               students={filteredStudents}
               total={studentSummary.total}
               active={studentSummary.active}
@@ -1125,6 +1218,10 @@ export default function AdminPage() {
             />
           )}
 
+          {activeSection === "corrections" && (
+            <CorrectionSection />
+          )}
+
           {activeSection === "analytics" && (
             <AnalyticsSection />
           )}
@@ -1145,10 +1242,12 @@ export default function AdminPage() {
 
 function DashboardSection({
   dashboard,
+  solverSettings,
   loading,
   error,
 }: {
   dashboard: DashboardData | null;
+  solverSettings: SolverSettingsData | null;
   loading: boolean;
   error: string;
 }) {
@@ -1338,6 +1437,32 @@ function DashboardSection({
         )}
       </section>
 
+      <section className="hh-card admin-panel admin-routing-overview">
+        <div className="admin-section-head compact">
+          <div>
+            <div className="hh-eyebrow">CURRENT AI ROUTING</div>
+            <h2 className="hh-display">目前解題方式</h2>
+          </div>
+        </div>
+        <div className="admin-routing-overview-grid">
+          <article>
+            <span>解題模式</span>
+            <strong>{solverSettings?.mode === "single" ? "單模型" : "多模型"}</strong>
+            <small>{solverSettings?.mode === "single" ? "只使用主要解題模型" : "依規則啟動驗算與仲裁"}</small>
+          </article>
+          <article>
+            <span>主要解題模型</span>
+            <strong>{solverSettings ? modelDisplayName(solverSettings.primary.model) : "讀取中…"}</strong>
+            <small>{solverSettings ? `${solverSettings.primary.provider === "gemini" ? "Google" : "OpenAI"} · ${solverSettings.primary.reasoning}` : ""}</small>
+          </article>
+          <article>
+            <span>驗算模型</span>
+            <strong>{solverSettings?.mode === "multi" ? modelDisplayName(solverSettings.verifier.model) : "未啟用"}</strong>
+            <small>{solverSettings?.mode === "multi" ? "發生需要驗算的題目時啟動" : "單模型模式"}</small>
+          </article>
+        </div>
+      </section>
+
       <section className="hh-card admin-panel admin-overview-panel">
         <div className="admin-section-head">
           <div>
@@ -1379,6 +1504,7 @@ function DashboardSection({
 }
 
 function StudentsSection(props: {
+  mode: "classes" | "students";
   students: StudentRow[]; allStudents: StudentRow[]; total: number; active: number; inactive: number;
   loading: boolean; error: string; message: string;
   campusFilter: string; setCampusFilter: (value: string) => void;
@@ -1410,6 +1536,31 @@ function StudentsSection(props: {
   const [filterClass, setFilterClass] = useState("");
   const [promotionSourceClass, setPromotionSourceClass] = useState("");
   const [promotionTargetClass, setPromotionTargetClass] = useState("");
+  const currentAcademicYear = new Date().getFullYear();
+  const [classOverview, setClassOverview] = useState<Array<{
+    classId: string; label: string; students: number; todayActive: number; todayQuestions: number; monthQuestions: number; monthCostTwd: number;
+  }>>([]);
+
+  const institutionById = useMemo(() => new Map(institutions.map((item) => [item.id, item])), [institutions]);
+  const regionById = useMemo(() => new Map(regions.map((item) => [item.id, item])), [regions]);
+
+  function compactClassLabel(classRow: ClassRow) {
+    return classRow.academic_year && classRow.academic_year !== currentAcademicYear
+      ? `${classRow.academic_year} · ${classRow.name}`
+      : classRow.name;
+  }
+
+  function contextualClassLabel(classRow: ClassRow, mode: "full" | "filter" = "full") {
+    const institution = institutionById.get(classRow.institution_id);
+    const region = institution ? regionById.get(institution.region_id) : undefined;
+    const year = classRow.academic_year && classRow.academic_year !== currentAcademicYear ? `${classRow.academic_year} · ` : "";
+    if (mode === "filter") {
+      if (filterInstitution) return `${year}${classRow.name}`;
+      if (filterRegion) return `${year}${institution?.name ?? "合作單位"} · ${classRow.name}`;
+      return `${year}${region?.name ?? "地區"} · ${institution?.name ?? "合作單位"} · ${classRow.name}`;
+    }
+    return `${year}${region?.name ?? "地區"} · ${institution?.name ?? "合作單位"} · ${classRow.name}`;
+  }
 
   const loadOrg = useCallback(async () => {
     const response = await fetch("/api/admin/organizations", { cache: "no-store" });
@@ -1446,6 +1597,19 @@ function StudentsSection(props: {
       setClassId(available[0]?.id || "");
     }
   }, [institutionId, classes, classId]);
+
+  const loadClassOverview = useCallback(async () => {
+    if (props.mode !== "classes") return;
+    try {
+      const response = await fetch("/api/admin/class-overview", { cache: "no-store" });
+      const data = await response.json();
+      if (response.ok) setClassOverview(Array.isArray(data.rows) ? data.rows : []);
+    } catch {
+      // 班級統計失敗不阻斷班級管理
+    }
+  }, [props.mode]);
+
+  useEffect(() => { void loadClassOverview(); }, [loadClassOverview]);
 
   const filtered = props.allStudents.filter((student) => {
     if (filterRegion && student.region_id !== filterRegion) return false;
@@ -1673,6 +1837,30 @@ function StudentsSection(props: {
     }
   }
 
+  async function deleteStudent(student: StudentRow) {
+    const typed = window.prompt(`確定要永久刪除「${student.name}」嗎？\n這會一併刪除他的額度與解題紀錄。\n請輸入學生姓名「${student.name}」確認：`);
+    if (typed !== student.name) return;
+    setOrgBusy(true);
+    setOrgMessage(`正在刪除 ${student.name}…`);
+    try {
+      const response = await fetch("/api/admin/students", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: student.id }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "刪除學生失敗。");
+      setAssignmentDrafts((current) => { const next = { ...current }; delete next[student.id]; return next; });
+      setExpanded(null);
+      setOrgMessage(`已永久刪除 ${student.name}。`);
+      await props.reloadStudents();
+    } catch (error) {
+      setOrgMessage(error instanceof Error ? error.message : "刪除學生失敗。");
+    } finally {
+      setOrgBusy(false);
+    }
+  }
+
   async function createStudent() {
     const name = props.newName.trim();
     if (!name || !regionId || !institutionId || !classId) {
@@ -1714,7 +1902,7 @@ function StudentsSection(props: {
     const source = classes.find((item) => item.id === promotionSourceClass);
     const target = classes.find((item) => item.id === promotionTargetClass);
     const count = props.allStudents.filter((student) => student.class_id === promotionSourceClass).length;
-    if (!confirm(`確定將「${source?.academic_year ?? ""} ${source?.name ?? "來源班級"}」的 ${count} 位學生，整班升到「${target?.academic_year ?? ""} ${target?.name ?? "目標班級"}」？\n\n原班級不會被改名，升班紀錄會保留。`)) return;
+    if (!confirm(`確定將「${source ? contextualClassLabel(source) : "來源班級"}」的 ${count} 位學生，整班升到「${target ? contextualClassLabel(target) : "目標班級"}」？\n\n原班級不會被改名，升班紀錄會保留。`)) return;
     setOrgBusy(true); setOrgMessage("正在整班升班…");
     try {
       const response = await fetch("/api/admin/organizations", {
@@ -1730,18 +1918,26 @@ function StudentsSection(props: {
     finally { setOrgBusy(false); }
   }
 
+  const promotionSource = classes.find((item) => item.id === promotionSourceClass);
+  const promotionSourceInstitution = promotionSource ? institutionById.get(promotionSource.institution_id) : undefined;
+  const promotionSourceRegion = promotionSourceInstitution ? regionById.get(promotionSourceInstitution.region_id) : undefined;
+  const promotionSourceCount = props.allStudents.filter((student) => student.class_id === promotionSourceClass).length;
+  const promotionTargets = promotionSource
+    ? classes.filter((item) => item.id !== promotionSource.id && item.institution_id === promotionSource.institution_id && (item.academic_year || currentAcademicYear) >= (promotionSource.academic_year || currentAcademicYear))
+    : [];
+
   const visibleInstitutions = institutions.filter((item) => item.region_id === regionId);
   const visibleClasses = classes.filter((item) => item.institution_id === institutionId);
 
   return (
-    <div className="admin-stack org-students-v12">
-      <section className="admin-student-summary-strip">
+    <div className={`admin-stack org-students-v12 mode-${props.mode}`}>
+      <section className="admin-student-summary-strip student-only">
         <article><span>學生總數</span><strong>{props.total}</strong><small>人</small></article>
         <article><span>啟用中</span><strong>{props.active}</strong><small>人</small></article>
         <article><span>今日活躍</span><strong>{todayActive}</strong><small>人</small></article>
       </section>
 
-      <section className="hh-card admin-panel org-manager">
+      <section className="hh-card admin-panel org-manager class-only">
         <PanelHeader
           eyebrow="ORGANIZATION"
           title="地區・合作單位・班級"
@@ -1777,7 +1973,7 @@ function StudentsSection(props: {
             <div className="org-chip-list">
               {visibleClasses.map((classRow) => (
                 <div className={`org-item ${classId === classRow.id ? "active" : ""}`} key={classRow.id}>
-                  <button onClick={() => setClassId(classRow.id)}>{classRow.academic_year ? `${classRow.academic_year} · ` : ""}{classRow.name}</button>
+                  <button onClick={() => setClassId(classRow.id)}>{compactClassLabel(classRow)}</button>
                   <button className="del" onClick={() => void orgDelete("class", classRow.id, classRow.name)}>×</button>
                 </div>
               ))}
@@ -1787,23 +1983,38 @@ function StudentsSection(props: {
         {orgMessage && <div className="org-message">{orgMessage}</div>}
       </section>
 
-      <section className="hh-card admin-panel org-compact-panel promotion-panel">
-        <PanelHeader eyebrow="ACADEMIC YEAR" title="學年度・整班升班" subtitle="不要改舊班級名稱；建立下一學年度班級後，一次把整班學生升過去" />
-        <div className="promotion-row">
-          <select className="hh-select" value={promotionSourceClass} onChange={(event) => setPromotionSourceClass(event.target.value)}>
-            <option value="">來源班級</option>
-            {classes.map((item) => <option key={item.id} value={item.id}>{item.academic_year ?? "—"} · {item.name}</option>)}
-          </select>
-          <span className="promotion-arrow">→</span>
-          <select className="hh-select" value={promotionTargetClass} onChange={(event) => setPromotionTargetClass(event.target.value)}>
-            <option value="">目標班級</option>
-            {classes.map((item) => <option key={item.id} value={item.id}>{item.academic_year ?? "—"} · {item.name}</option>)}
-          </select>
-          <button className="hh-button-primary promotion-button" disabled={orgBusy || !promotionSourceClass || !promotionTargetClass} onClick={() => void promoteWholeClass()}>整班升班</button>
+      <section className="hh-card admin-panel org-compact-panel promotion-panel class-only">
+        <PanelHeader eyebrow="ACADEMIC YEAR" title="班級升班" subtitle="先選原班級，再只顯示同一合作單位可升入的目標班級；舊班級與歷史紀錄都會保留" />
+        <div className="promotion-flow">
+          <label><span>1 · 選擇原班級</span><select className="hh-select" value={promotionSourceClass} onChange={(event) => { setPromotionSourceClass(event.target.value); setPromotionTargetClass(""); }}>
+            <option value="">選擇地區・合作單位・班級</option>
+            {classes.map((item) => <option key={item.id} value={item.id}>{contextualClassLabel(item)}</option>)}
+          </select></label>
+          <div className="promotion-summary">
+            <strong>{promotionSource ? `${promotionSourceRegion?.name || ""} · ${promotionSourceInstitution?.name || ""} · ${compactClassLabel(promotionSource)}` : "尚未選擇原班級"}</strong>
+            <span>{promotionSource ? `目前 ${promotionSourceCount} 位學生` : "選擇後會顯示班級資訊"}</span>
+          </div>
+          <label><span>2 · 選擇升入班級</span><select className="hh-select" value={promotionTargetClass} disabled={!promotionSourceClass} onChange={(event) => setPromotionTargetClass(event.target.value)}>
+            <option value="">{promotionSourceClass ? "選擇同單位的目標班級" : "請先選原班級"}</option>
+            {promotionTargets.map((item) => <option key={item.id} value={item.id}>{compactClassLabel(item)}</option>)}
+          </select></label>
+          <button className="hh-button-primary promotion-button" disabled={orgBusy || !promotionSourceClass || !promotionTargetClass || promotionSourceCount === 0} onClick={() => void promoteWholeClass()}>3 · 確認整班升班</button>
         </div>
       </section>
 
-      <section className="hh-card admin-panel org-compact-panel">
+      <section className="hh-card admin-panel org-compact-panel class-only">
+        <PanelHeader eyebrow="CLASS OVERVIEW" title="各班級總覽" subtitle="學生數、今日活躍與解題量、月解題量與本月 AI 成本一眼查看" />
+        <div className="class-overview-table">
+          <div className="class-overview-head"><span>班級</span><span>學生</span><span>今活躍</span><span>今日題</span><span>本月題</span><span>月成本</span></div>
+          {classOverview.length === 0 ? <div className="admin-empty">目前沒有班級統計資料。</div> : classOverview.map((row) => (
+            <div className="class-overview-row" key={row.classId}>
+              <strong>{row.label}</strong><span>{row.students}</span><span>{row.todayActive}</span><span>{row.todayQuestions}</span><span>{row.monthQuestions}</span><span>NT$ {row.monthCostTwd.toFixed(1)}</span>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="hh-card admin-panel org-compact-panel student-only">
         <PanelHeader
           eyebrow="NEW STUDENT"
           title="新增學生"
@@ -1817,7 +2028,7 @@ function StudentsSection(props: {
             {visibleInstitutions.map((institution) => <option key={institution.id} value={institution.id}>{institution.name}</option>)}
           </select>
           <select value={classId} onChange={(event) => setClassId(event.target.value)} className="hh-select">
-            {visibleClasses.map((classRow) => <option key={classRow.id} value={classRow.id}>{classRow.academic_year ? `${classRow.academic_year} · ` : ""}{classRow.name}</option>)}
+            {visibleClasses.map((classRow) => <option key={classRow.id} value={classRow.id}>{compactClassLabel(classRow)}</option>)}
           </select>
           <input className="hh-input" placeholder="學生姓名" value={props.newName} onChange={(event) => props.setNewName(event.target.value)} />
           <button className="hh-button-primary" onClick={() => void createStudent()} disabled={orgBusy}>新增</button>
@@ -1828,7 +2039,7 @@ function StudentsSection(props: {
         <div className={`admin-notice ${props.error ? "danger" : "success"}`}>{props.error || props.message}</div>
       )}
 
-      <section className="hh-card admin-panel org-compact-panel">
+      <section className="hh-card admin-panel org-compact-panel student-only">
         <div className="student-directory-head">
           <PanelHeader eyebrow="STUDENT DIRECTORY" title="學生名單" subtitle={`目前顯示 ${filtered.length} / ${props.total} 位學生`} />
           <button
@@ -1851,7 +2062,7 @@ function StudentsSection(props: {
           </select>
           <select className="hh-select" value={filterClass} onChange={(event) => setFilterClass(event.target.value)}>
             <option value="">全部班級</option>
-            {classes.filter((item) => !filterInstitution || item.institution_id === filterInstitution).map((classRow) => <option key={classRow.id} value={classRow.id}>{classRow.academic_year ? `${classRow.academic_year} · ` : ""}{classRow.name}</option>)}
+            {classes.filter((item) => !filterInstitution || item.institution_id === filterInstitution).map((classRow) => <option key={classRow.id} value={classRow.id}>{contextualClassLabel(classRow, "filter")}</option>)}
           </select>
           <input className="hh-input" placeholder="搜尋學生…" value={props.query} onChange={(event) => props.setQuery(event.target.value)} />
           <select className="hh-select" value={props.statusFilter} onChange={(event) => props.setStatusFilter(event.target.value as "全部" | "啟用" | "停用")}>
@@ -1911,7 +2122,7 @@ function StudentsSection(props: {
                           {studentInstitutions.map((institution) => <option key={institution.id} value={institution.id}>{institution.name}</option>)}
                         </select>
                         <select className="hh-select" value={draft.classId} onChange={(event) => changeStudentClass(student, event.target.value)}>
-                          {studentClasses.map((classRow) => <option key={classRow.id} value={classRow.id}>{classRow.academic_year ? `${classRow.academic_year} · ` : ""}{classRow.name}</option>)}
+                          {studentClasses.map((classRow) => <option key={classRow.id} value={classRow.id}>{compactClassLabel(classRow)}</option>)}
                         </select>
                         <button className="admin-mini-button assign-save-button" disabled={orgBusy} onClick={() => void assign(student, draft)}>
                           {orgBusy ? "儲存中…" : "儲存分班"}
@@ -1923,6 +2134,7 @@ function StudentsSection(props: {
                         <button className="admin-mini-button usage-action" onClick={() => void props.resetStudentUsage(student)}>重置額度</button>
                         <button className="admin-mini-button pin-action" onClick={() => void props.resetStudentPin(student)}>重設密碼</button>
                         <button className={`admin-mini-button ${student.active ? "danger" : "success"}`} onClick={() => void props.toggleStudent(student)}>{student.active ? "停用" : "啟用"}</button>
+                        <button className="admin-mini-button delete-student" onClick={() => void deleteStudent(student)}>刪除學生</button>
                       </div>
                     </div>
                   )}
@@ -1935,6 +2147,21 @@ function StudentsSection(props: {
 
       <style jsx global>{`
         .org-students-v12 { width: 100%; max-width: 100%; }
+        .mode-classes .student-only { display:none !important; }
+        .mode-students .class-only { display:none !important; }
+        .promotion-flow { display:grid; grid-template-columns:minmax(0,1.2fr) minmax(180px,.8fr) minmax(0,1fr) auto; gap:10px; align-items:end; }
+        .promotion-flow label { display:grid; gap:6px; min-width:0; }
+        .promotion-flow label > span { font-size:12px; color:var(--text-secondary); font-weight:800; }
+        .promotion-summary { min-height:48px; display:grid; align-content:center; gap:2px; padding:8px 10px; border:1px solid var(--border); border-radius:10px; background:var(--surface-soft); min-width:0; }
+        .promotion-summary strong,.promotion-summary span { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .promotion-summary span { font-size:11px; color:var(--text-secondary); }
+        .class-overview-table { display:grid; margin-top:10px; border:1px solid var(--border); border-radius:12px; overflow:hidden; }
+        .class-overview-head,.class-overview-row { display:grid; grid-template-columns:minmax(180px,2.2fr) repeat(4,minmax(64px,.7fr)) minmax(90px,.9fr); gap:8px; align-items:center; padding:10px 12px; }
+        .class-overview-head { background:var(--surface-soft); color:var(--text-secondary); font-size:11px; font-weight:900; }
+        .class-overview-row { border-top:1px solid var(--border); font-size:13px; }
+        .class-overview-row span:not(:last-child) { text-align:center; }
+        .class-overview-row span:last-child { text-align:right; font-variant-numeric:tabular-nums; }
+        .action-row .delete-student { background:color-mix(in srgb,#a84d4d 15%,var(--surface)); border-color:color-mix(in srgb,#a84d4d 55%,var(--border)); color:#df9a9a; }
         .org-manager, .org-compact-panel { width: 100%; box-sizing: border-box; }
         .org-columns { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
         .org-column-block { min-width: 0; }
@@ -1995,6 +2222,18 @@ function StudentsSection(props: {
           .student-directory-head > :first-child { min-width: 0; flex: 1; }
 
           .promotion-row { grid-template-columns:minmax(0,1fr) 22px minmax(0,1fr); gap:5px; }
+          .promotion-flow { grid-template-columns:1fr; gap:8px; }
+          .promotion-summary { min-height:42px; }
+          .class-overview-table { border:0; gap:7px; overflow:visible; }
+          .class-overview-head { display:none; }
+          .class-overview-row { grid-template-columns:minmax(0,1.4fr) repeat(2,54px); gap:5px; border:1px solid var(--border); border-radius:10px; padding:9px; }
+          .class-overview-row strong { grid-column:1 / -1; font-size:13px; }
+          .class-overview-row span { text-align:left !important; font-size:11px; }
+          .class-overview-row span:nth-of-type(1)::before { content:"學生 "; color:var(--text-secondary); }
+          .class-overview-row span:nth-of-type(2)::before { content:"活躍 "; color:var(--text-secondary); }
+          .class-overview-row span:nth-of-type(3)::before { content:"今日 "; color:var(--text-secondary); }
+          .class-overview-row span:nth-of-type(4)::before { content:"本月 "; color:var(--text-secondary); }
+          .class-overview-row span:nth-of-type(5) { grid-column:2 / -1; text-align:right !important; }
           .promotion-button { grid-column:1 / -1; min-height:34px; height:34px; }
           .bulk-save-button { min-height: 34px; height: 34px; padding: 0 9px; font-size: 10.5px; }
 
@@ -2058,6 +2297,8 @@ function AdminStudentHistoryPanel({
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [keyword, setKeyword] = useState("");
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [correctionMessage, setCorrectionMessage] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -2147,7 +2388,13 @@ function AdminStudentHistoryPanel({
 
         {!selected ? (
           <>
-            <div className="admin-history-filterbar">
+            <div className="admin-history-filter-toggle-row">
+              <button type="button" className="hh-button-secondary admin-history-filter-toggle" onClick={() => setFiltersOpen((value) => !value)}>
+                {filtersOpen ? "收合搜尋條件" : "搜尋與篩選"}
+              </button>
+              {(keyword || subject || from || to) && <span>已套用篩選</span>}
+            </div>
+            {filtersOpen && <div className="admin-history-filterbar">
               <label className="admin-history-search-field">
                 <span>搜尋</span>
                 <input
@@ -2214,7 +2461,7 @@ function AdminStudentHistoryPanel({
                   清除
                 </button>
               </div>
-            </div>
+            </div>}
 
             {error && <div className="admin-notice danger">{error}</div>}
 
@@ -2305,6 +2552,16 @@ function AdminStudentHistoryPanel({
                     ? "已仲裁"
                     : "一般"}
               </div>
+              <button type="button" className="admin-correction-add" onClick={async () => {
+                setCorrectionMessage("儲存中…");
+                try {
+                  const response = await fetch("/api/admin/corrections", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ solveHistoryId:selected.id, studentId:student.id }) });
+                  const data = await response.json();
+                  if (!response.ok) throw new Error(data.error || "加入待修正失敗");
+                  setCorrectionMessage("已加入待修正題庫");
+                } catch (error) { setCorrectionMessage(error instanceof Error ? error.message : "加入待修正失敗"); }
+              }}>＋ 加入待修正</button>
+              {correctionMessage && <span className="admin-correction-message">{correctionMessage}</span>}
             </div>
 
             {selected.imagePaths.length > 0 && (
@@ -2985,9 +3242,57 @@ function NavButton({
   );
 }
 
+function CorrectionSection() {
+  type CorrectionRow = { id:string; status:string; issueType:string; teacherNote:string; correctedAnswer:string; correctedExplanation:string; createdAt:string; studentName:string; subject:string; answer:string; explanation:string; imageUrl?:string|null; };
+  const [items, setItems] = useState<CorrectionRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [message, setMessage] = useState("");
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const response = await fetch("/api/admin/corrections", { cache:"no-store" });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "讀取待修正題庫失敗");
+      setItems(Array.isArray(data.items) ? data.items : []);
+    } catch (error) { setMessage(error instanceof Error ? error.message : "讀取失敗"); }
+    finally { setLoading(false); }
+  }, []);
+  useEffect(() => { void load(); }, [load]);
+
+  async function save(item: CorrectionRow, patch: Partial<CorrectionRow>) {
+    const next = { ...item, ...patch };
+    setItems((rows) => rows.map((row) => row.id === item.id ? next : row));
+    const response = await fetch("/api/admin/corrections", { method:"PATCH", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ id:item.id, status:next.status, issueType:next.issueType, teacherNote:next.teacherNote, correctedAnswer:next.correctedAnswer, correctedExplanation:next.correctedExplanation }) });
+    const data = await response.json();
+    setMessage(response.ok ? "已儲存老師修正內容。" : (data.error || "儲存失敗"));
+  }
+
+  return <div className="admin-stack">
+    <section className="hh-card admin-panel">
+      <PanelHeader eyebrow="TEACHING CORRECTIONS" title="待修正題庫" subtitle="把學生真實問過、AI 解錯或解法可改善的題目留下來，整理成之後可餵回解題規則與提示詞的教師資料" />
+      {message && <div className="admin-notice success">{message}</div>}
+      {loading ? <div className="admin-empty">讀取中…</div> : items.length === 0 ? <div className="admin-empty">目前沒有待修正題目。從學生解題紀錄點「加入待修正」即可。</div> : <div className="correction-list">
+        {items.map((item) => <article className="correction-card" key={item.id}>
+          <div className="correction-card-head"><div><strong>{item.studentName} · {adminSubjectLabel(item.subject)}</strong><small>{item.answer || "尚無答案"}</small></div><select className="hh-select" value={item.status} onChange={(e) => void save(item,{status:e.target.value})}><option value="pending">待修正</option><option value="reviewed">已檢視</option><option value="applied">已套用規則</option></select></div>
+          <select className="hh-select" value={item.issueType} onChange={(e) => void save(item,{issueType:e.target.value})}><option value="wrong_answer">答案錯誤</option><option value="better_method">解法可更好</option><option value="unclear">說明不清楚</option><option value="format">格式問題</option><option value="other">其他</option></select>
+          <textarea className="hh-input correction-textarea" placeholder="老師備註：錯在哪裡、希望 AI 下次怎麼解…" value={item.teacherNote} onChange={(e) => setItems(rows=>rows.map(r=>r.id===item.id?{...r,teacherNote:e.target.value}:r))} onBlur={() => void save(item,{teacherNote:items.find(r=>r.id===item.id)?.teacherNote || ""})} />
+          <input className="hh-input" placeholder="老師認定的正確答案（可選）" value={item.correctedAnswer} onChange={(e)=>setItems(rows=>rows.map(r=>r.id===item.id?{...r,correctedAnswer:e.target.value}:r))} onBlur={() => void save(item,{correctedAnswer:items.find(r=>r.id===item.id)?.correctedAnswer || ""})} />
+          <textarea className="hh-input correction-textarea" placeholder="建議解法／要補強的解題規則（可選）" value={item.correctedExplanation} onChange={(e)=>setItems(rows=>rows.map(r=>r.id===item.id?{...r,correctedExplanation:e.target.value}:r))} onBlur={() => void save(item,{correctedExplanation:items.find(r=>r.id===item.id)?.correctedExplanation || ""})} />
+        </article>)}
+      </div>}
+    </section>
+    <style jsx global>{`
+      .correction-list{display:grid;gap:10px;margin-top:12px}.correction-card{display:grid;gap:8px;padding:12px;border:1px solid var(--border);border-radius:12px;background:var(--surface-soft)}.correction-card-head{display:flex;justify-content:space-between;gap:10px;align-items:center}.correction-card-head>div{display:grid;gap:2px}.correction-card-head small{color:var(--text-secondary)}.correction-card-head .hh-select{width:auto;min-width:120px}.correction-textarea{min-height:76px;resize:vertical;padding-top:10px!important}
+      @media(max-width:760px){.correction-card-head{align-items:stretch;flex-direction:column}.correction-card-head .hh-select{width:100%}}
+    `}</style>
+  </div>;
+}
+
 function AnalyticsSection() {
   const [range, setRange] = useState<AnalyticsRange>("7d");
   const [data, setData] = useState<AnalyticsData | null>(null);
+  const [latency, setLatency] = useState<LatencyData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -2995,10 +3300,14 @@ function AnalyticsSection() {
     setLoading(true);
     setError("");
     try {
-      const response = await fetch(`/api/admin/analytics?range=${encodeURIComponent(range)}`, { cache: "no-store" });
-      const payload = await response.json();
+      const [response, latencyResponse] = await Promise.all([
+        fetch(`/api/admin/analytics?range=${encodeURIComponent(range)}`, { cache: "no-store" }),
+        fetch(`/api/admin/latency-analytics?range=${encodeURIComponent(range)}`, { cache: "no-store" }),
+      ]);
+      const [payload, latencyPayload] = await Promise.all([response.json(), latencyResponse.json()]);
       if (!response.ok) throw new Error(payload.error || "讀取 AI 數據分析失敗。");
       setData(payload);
+      setLatency(latencyResponse.ok ? latencyPayload : null);
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "讀取 AI 數據分析失敗。");
     } finally {
@@ -3060,6 +3369,7 @@ function AnalyticsSection() {
                   <tr><td>模型呼叫</td><td>{formatInteger(data.totals.apiCalls)} 次</td><td>全部 AI 角色合計</td></tr>
                   <tr><td>估算總成本</td><td>{formatTwdFromUsd(data.totals.totalCostUsd)}</td><td>依 api_usage 加總</td></tr>
                   <tr><td>平均每題成本</td><td>{formatTwdFromUsd(data.totals.averageCostPerSolveUsd)}</td><td>總成本 ÷ 解題數</td></tr>
+                  <tr><td>AI 平均回應時間</td><td>{formatDuration(latency?.averageMs)}</td><td>依已記錄 latency_ms 的模型呼叫計算</td></tr>
                 </tbody>
               </table>
             </div>
@@ -3109,6 +3419,35 @@ function AnalyticsSection() {
                   <tr><td>仍有爭議</td><td>{data.quality.disputedQuestions}</td><td>disputed</td></tr>
                 </tbody>
               </table>
+            </div>
+          </section>
+
+          <section className="hh-card admin-panel admin-data-table-panel">
+            <PanelHeader eyebrow="AI LATENCY" title="各模型平均解題時間" subtitle="比較不同 AI 與版本的實際 API 回應時間" />
+            <div className="admin-model-performance-mobile latency-mobile-list">
+              {(latency?.models || []).length === 0 ? (
+                <div className="admin-empty">這個區間尚無延遲資料。</div>
+              ) : latency!.models.map((model) => (
+                <article className="admin-model-performance-row" key={`latency-${model.provider}-${model.model}`}>
+                  <div className="admin-model-performance-head">
+                    <div><strong>{modelDisplayName(model.model)}</strong><span>{providerLabel(model.provider)}</span></div>
+                    <b>{formatDuration(model.averageMs)}</b>
+                  </div>
+                  <div className="admin-model-performance-metrics latency-metrics">
+                    <div><span>呼叫</span><strong>{formatInteger(model.calls)} 次</strong></div>
+                    <div><span>平均</span><strong>{formatDuration(model.averageMs)}</strong></div>
+                    <div><span>最快</span><strong>{formatDuration(model.minMs)}</strong></div>
+                    <div><span>最慢</span><strong>{formatDuration(model.maxMs)}</strong></div>
+                  </div>
+                </article>
+              ))}
+            </div>
+            <div className="admin-data-table-wrap admin-model-performance-desktop">
+              <table className="admin-data-table"><thead><tr><th>模型</th><th>呼叫</th><th>平均時間</th><th>最快</th><th>最慢</th></tr></thead><tbody>
+                {(latency?.models || []).length === 0 ? <tr><td colSpan={5}>這個區間尚無延遲資料。</td></tr> : latency!.models.map((model) => (
+                  <tr key={`latency-table-${model.provider}-${model.model}`}><td><strong>{modelDisplayName(model.model)}</strong><small>{providerLabel(model.provider)}</small></td><td>{formatInteger(model.calls)} 次</td><td>{formatDuration(model.averageMs)}</td><td>{formatDuration(model.minMs)}</td><td>{formatDuration(model.maxMs)}</td></tr>
+                ))}
+              </tbody></table>
             </div>
           </section>
 
@@ -3397,17 +3736,21 @@ function QuickAction({
 }
 
 function sectionEyebrow(section: AdminSection) {
+  if (section === "classes") return "CLASS MANAGEMENT";
   if (section === "students") return "STUDENT MANAGEMENT";
   if (section === "ai") return "AI CONTROL";
   if (section === "pin") return "STUDENT ACCESS";
+  if (section === "corrections") return "TEACHING CORRECTIONS";
   if (section === "analytics") return "AI ANALYTICS";
   return "OVERVIEW";
 }
 
 function sectionTitle(section: AdminSection) {
+  if (section === "classes") return "班級管理";
   if (section === "students") return "學生管理";
   if (section === "ai") return "AI 設定";
   if (section === "pin") return "學生密碼";
+  if (section === "corrections") return "解題修正";
   if (section === "analytics") return "AI 數據分析";
   return "管理總覽";
 }
@@ -3415,6 +3758,11 @@ function sectionTitle(section: AdminSection) {
 
 
 const adminStyles = `
+  .management-tabs { display:inline-flex; gap:4px; padding:4px; border:1px solid var(--border); background:var(--surface-soft); border-radius:12px; margin-bottom:4px; }
+  .management-tabs button { border:0; background:transparent; color:var(--text-secondary); min-height:34px; padding:0 16px; border-radius:9px; font-weight:850; }
+  .management-tabs button.active { background:var(--surface); color:var(--text); box-shadow:0 0 0 1px var(--border); }
+  @media(max-width:760px){ .management-tabs { width:100%; display:grid; grid-template-columns:1fr 1fr; } .management-tabs button { width:100%; } }
+
   .admin-shell {
     min-height: 100vh;
     display: grid;
@@ -5968,6 +6316,10 @@ const adminStyles = `
     cursor: pointer;
   }
 
+  .admin-history-filter-toggle-row { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px; }
+  .admin-history-filter-toggle-row > span { font-size:12px; color:var(--text-secondary); }
+  .admin-correction-add { border:1px solid color-mix(in srgb,#c79b55 55%,var(--border)); background:color-mix(in srgb,#c79b55 14%,var(--surface)); color:var(--text); border-radius:10px; min-height:36px; padding:0 12px; font-weight:850; }
+  .admin-correction-message { font-size:11px; color:var(--text-secondary); }
   .admin-history-filterbar {
     display: grid;
     grid-template-columns: minmax(230px, 1.7fr) 1fr 1fr 1fr auto;
@@ -8011,6 +8363,14 @@ const adminStyles = `
   .admin-analytics-toolbar h2 { margin: 4px 0 0; font-size: 22px; }
   .admin-data-table-panel .admin-panel-header { margin-bottom: 9px; }
   .admin-model-performance-table { min-width: 760px; }
+  .admin-routing-overview-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; }
+  .admin-routing-overview-grid article { padding:12px 13px; border:1px solid var(--border); border-radius:13px; background:var(--surface-soft); min-width:0; }
+  .admin-routing-overview-grid span, .admin-routing-overview-grid small { display:block; color:var(--text-secondary); }
+  .admin-routing-overview-grid span { font-size:10px; font-weight:800; }
+  .admin-routing-overview-grid strong { display:block; margin-top:5px; font-size:15px; line-height:1.25; overflow-wrap:anywhere; }
+  .admin-routing-overview-grid small { margin-top:4px; font-size:9px; line-height:1.35; }
+  .admin-mobile-header-actions { display:flex; align-items:center; gap:5px; margin-left:auto; }
+  .admin-mobile-theme-toggle { display:none; }
 
   @media (max-width: 760px) {
     html, body { font-size: 14px; }
@@ -8031,6 +8391,9 @@ const adminStyles = `
     .admin-mobile-brand span { font-size: 16px !important; line-height: 1.08 !important; }
     .admin-mobile-brand small { font-size: 7.5px !important; line-height: 1 !important; }
     .admin-mobile-menu-button { width: 36px !important; height: 36px !important; border-radius: 11px !important; }
+    .admin-mobile-theme-toggle { display:block !important; }
+    .admin-mobile-theme-toggle button { width:36px !important; height:36px !important; min-width:36px !important; min-height:36px !important; border-radius:11px !important; }
+    .admin-sidebar-theme-row { display:none !important; }
 
     .admin-topbar { display: none !important; }
     .admin-content { width: min(100% - 14px, 1180px) !important; padding: 7px 0 26px !important; }
@@ -8090,6 +8453,14 @@ const adminStyles = `
     .admin-add-form { grid-template-columns: 86px minmax(0,1fr) 74px !important; gap: 5px !important; }
     .admin-add-form .hh-select, .admin-add-form .hh-input, .admin-add-form .hh-button-primary { min-height: 38px !important; height: 38px !important; padding: 0 8px !important; font-size: 11px !important; }
     .admin-add-form .hh-button-primary { padding: 0 5px !important; }
+    .admin-add-form .hh-select, .admin-student-search .hh-select, .student-assignment-grid .hh-select, .promotion-row .hh-select {
+      min-width:0 !important; padding-left:10px !important; padding-right:28px !important; font-size:12px !important; line-height:1.2 !important; font-family:inherit !important; text-align:left !important;
+    }
+    .admin-routing-overview-grid { grid-template-columns:repeat(3,minmax(0,1fr)) !important; gap:5px !important; }
+    .admin-routing-overview-grid article { padding:8px 7px !important; border-radius:10px !important; }
+    .admin-routing-overview-grid span { font-size:8px !important; }
+    .admin-routing-overview-grid strong { font-size:11px !important; }
+    .admin-routing-overview-grid small { display:none !important; }
 
     .admin-student-filter-box { padding: 8px !important; gap: 7px !important; margin-bottom: 8px !important; border-radius: 11px !important; }
     .admin-filter-tabs { display: grid !important; grid-template-columns: repeat(3,minmax(0,1fr)) !important; gap: 5px !important; }
