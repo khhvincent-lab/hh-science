@@ -967,3 +967,41 @@ button {
   }
 
 }
+/* v1.3.1 theme picker mobile fix */
+@media (max-width: 700px) {
+  .hh-theme-picker { position: relative; }
+  .hh-theme-menu {
+    position: fixed !important;
+    top: max(72px, calc(env(safe-area-inset-top) + 58px)) !important;
+    right: 14px !important;
+    left: auto !important;
+    width: min(300px, calc(100vw - 28px)) !important;
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 7px !important;
+    padding: 10px !important;
+    border-radius: 18px !important;
+    z-index: 9999 !important;
+  }
+  .hh-theme-menu-title {
+    grid-column: 1 / -1 !important;
+    padding: 5px 6px 7px !important;
+    font-size: 10px !important;
+  }
+  .hh-theme-option {
+    min-height: 48px !important;
+    grid-template-columns: 27px minmax(0,1fr) 14px !important;
+    gap: 7px !important;
+    padding: 6px 7px !important;
+    border: 1px solid var(--border) !important;
+    background: color-mix(in srgb, var(--surface) 94%, transparent) !important;
+  }
+  .hh-theme-option-label {
+    writing-mode: horizontal-tb !important;
+    white-space: nowrap !important;
+    word-break: keep-all !important;
+    font-size: 12px !important;
+    line-height: 1.2 !important;
+  }
+  .hh-theme-swatch { width: 25px !important; height: 25px !important; }
+}

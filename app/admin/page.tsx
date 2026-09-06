@@ -3552,6 +3552,8 @@ function TeachingQuestionsSection() {
   const [issueType,setIssueType]=useState("better_method");
   const [message,setMessage]=useState("");
   const [saving,setSaving]=useState(false);
+  const [aiRevising,setAiRevising]=useState(false);
+  const [aiReviseNote,setAiReviseNote]=useState("");
   const load=useCallback(async()=>{
     setLoading(true); setMessage("");
     try {
@@ -3562,7 +3564,18 @@ function TeachingQuestionsSection() {
     } catch(e){setMessage(e instanceof Error?e.message:"讀取全站題目失敗。");} finally{setLoading(false);}
   },[q,subject,issues,range]);
   useEffect(()=>{void load();},[load]);
-  function open(item:TeachingQuestionRow){setSelected(item);setTeacherAnswer(item.referenceAnswer||item.answer||"");setTeacherNote("");setTeacherExplanation("");setIssueType(item.issue?"wrong_answer":"better_method");setMessage("");}
+  function open(item:TeachingQuestionRow){setSelected(item);setTeacherAnswer(item.referenceAnswer||item.answer||"");setTeacherNote("");setTeacherExplanation("");setIssueType(item.issue?"wrong_answer":"better_method");setMessage("");setAiReviseNote("");}
+  async function reviseWithAI(){
+    if(!selected)return;
+    setAiRevising(true); setAiReviseNote(""); setMessage("");
+    try{
+      const response=await fetch("/api/admin/teaching-revise",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({subject:selected.subject,questionNote:selected.questionNote,referenceAnswer:selected.referenceAnswer,aiAnswer:selected.answer,aiExplanation:selected.explanation,aiOptions:selected.options,teacherAnswer,teacherNote,teacherExplanation})});
+      const data=await response.json(); if(!response.ok) throw new Error(data.error||"AI 協助修正失敗。");
+      if(data.answer)setTeacherAnswer(data.answer);
+      if(data.explanation)setTeacherExplanation(data.explanation);
+      setAiReviseNote(data.note?`AI 建議：${data.note}`:"AI 已協助整理老師版解法，可再自行微調後儲存。");
+    }catch(e){setMessage(e instanceof Error?e.message:"AI 協助修正失敗。");}finally{setAiRevising(false);}
+  }
   async function saveTeacherSolution(){
     if(!selected) return; setSaving(true); setMessage("");
     try{
@@ -3578,6 +3591,7 @@ function TeachingQuestionsSection() {
     {message && <div className={`admin-notice ${message.startsWith("已儲存")?"success":"danger"}`}>{message}</div>}
     <section className="hh-card admin-panel"><div className="teaching-detail-head"><div><div className="hh-eyebrow">QUESTION DETAIL</div><h2 className="hh-display">{selected.studentName} · {adminSubjectLabel(selected.subject)}</h2><p>{[selected.regionName,selected.institutionName,selected.className].filter(Boolean).join(" · ") || selected.campus} · {new Date(selected.createdAt).toLocaleString("zh-TW")}</p></div>{selected.issue&&<span className="teaching-issue-badge">需要留意</span>}</div>
       {selected.imageUrl && <div className="teaching-question-image"><img src={selected.imageUrl} alt="題目圖片" /></div>}
+      <div className="teaching-context-strip"><span>學生補充敘述</span><p>{selected.questionNote||"學生沒有另外補充敘述。"}</p></div>
       <div className="teaching-answer-grid"><div><span>標準答案</span><strong>{selected.referenceAnswer||"未提供"}</strong></div><div><span>AI 最終答案</span><strong>{selected.answer||"—"}</strong></div></div>
     </section>
     <section className="hh-card admin-panel"><PanelHeader eyebrow="AI RESPONSE" title="AI 原始回答" />
@@ -3589,7 +3603,8 @@ function TeachingQuestionsSection() {
       <div className="teacher-solution-grid"><label><span>問題類型</span><select className="hh-select" value={issueType} onChange={e=>setIssueType(e.target.value)}><option value="wrong_answer">答案錯誤</option><option value="better_method">解法可更好</option><option value="unclear">說明不清楚</option><option value="format">格式問題</option><option value="other">其他</option></select></label><label><span>老師認定答案</span><input className="hh-input" value={teacherAnswer} onChange={e=>setTeacherAnswer(e.target.value)} placeholder="例如 B、2.5 mol"/></label></div>
       <label className="teacher-solution-field"><span>老師備註</span><textarea className="hh-input" value={teacherNote} onChange={e=>setTeacherNote(e.target.value)} placeholder="簡短說明 AI 哪裡可以更好"/></label>
       <label className="teacher-solution-field"><span>老師解法</span><textarea className="hh-input teacher-method-textarea" value={teacherExplanation} onChange={e=>setTeacherExplanation(e.target.value)} placeholder="例如：這題不要直接代公式。先判斷限制試劑，再由莫耳數比求生成物，最後換算質量。"/></label>
-      <button type="button" className="hh-button-primary teacher-save-button" onClick={()=>void saveTeacherSolution()} disabled={saving||!teacherExplanation.trim()}>{saving?"儲存中…":"儲存我的解法"}</button>
+      {aiReviseNote&&<div className="teaching-ai-revise-note">{aiReviseNote}</div>}
+      <div className="teacher-solution-actions"><button type="button" className="hh-button-secondary teaching-ai-revise-button" onClick={()=>void reviseWithAI()} disabled={aiRevising}>{aiRevising?"AI 整理中…":"AI 協助修正回答"}</button><button type="button" className="hh-button-primary teacher-save-button" onClick={()=>void saveTeacherSolution()} disabled={saving||!teacherExplanation.trim()}>{saving?"儲存中…":"儲存我的解法"}</button></div>
     </section>
   </div>}
   return <div className="admin-stack">
@@ -3597,12 +3612,12 @@ function TeachingQuestionsSection() {
       <div className="teaching-filter-row"><div className="teaching-range-switch"><button type="button" className={range==="today"?"active":""} onClick={()=>setRange("today")}>今天</button><button type="button" className={range==="all"?"active":""} onClick={()=>setRange("all")}>全部</button></div><input className="hh-input" placeholder="搜尋學生、答案或解析內容…" value={q} onChange={e=>setQ(e.target.value)}/><select className="hh-select" value={subject} onChange={e=>setSubject(e.target.value)}><option value="">全部科目</option><option value="physics">物理</option><option value="chemistry">化學</option><option value="biology">生物</option><option value="earth">地球科學</option></select><button type="button" className={issues?"hh-button-primary":"hh-button-secondary"} onClick={()=>setIssues(v=>!v)}>只看異常題</button></div>
     </section>
     {message&&<div className="admin-notice danger">{message}</div>}
-    <section className="teaching-question-list">{loading?<div className="hh-card admin-panel admin-empty">正在讀取全站題目…</div>:items.length===0?<div className="hh-card admin-panel admin-empty">目前沒有符合條件的題目。</div>:items.map(item=><button key={item.id} type="button" className="hh-card teaching-question-row" onClick={()=>open(item)}>{item.imageUrl?<img src={item.imageUrl} alt="題目縮圖"/>:<span className="teaching-thumb-empty">SCI</span>}<span className="teaching-question-main"><span className="teaching-row-meta">{new Date(item.createdAt).toLocaleString("zh-TW",{month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"})} · {item.studentName} · {adminSubjectLabel(item.subject)}</span><strong>{item.questionNote||item.explanation.replace(/\$+/g,"").slice(0,90)||"查看完整題目與 AI 解法"}</strong><small>{[item.regionName,item.institutionName,item.className].filter(Boolean).join(" · ")||item.campus}</small></span><span className="teaching-row-answer"><b>{item.answer||"—"}</b>{item.issue&&<em>異常</em>}<span>查看 →</span></span></button>)}</section>
+    <section className="teaching-question-list">{loading?<div className="hh-card admin-panel admin-empty">正在讀取全站題目…</div>:items.length===0?<div className="hh-card admin-panel admin-empty">目前沒有符合條件的題目。</div>:items.map(item=><button key={item.id} type="button" className="hh-card teaching-question-row teaching-question-row-v131" onClick={()=>open(item)}>{item.imageUrl?<img src={item.imageUrl} alt="題目縮圖"/>:<span className="teaching-thumb-empty">SCI</span>}<span className="teaching-question-main"><span className="teaching-row-topline"><span>{new Date(item.createdAt).toLocaleString("zh-TW",{month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"})}</span><span className={`teaching-subject-chip teaching-subject-${item.subject}`}>{adminSubjectLabel(item.subject)}</span>{item.issue&&<em className="teaching-inline-issue">異常</em>}</span><strong>{item.studentName}</strong><span className="teaching-question-preview">{item.questionNote?`學生補充：${item.questionNote}`:(item.explanation.replace(/\$+/g,"").slice(0,82)||"查看完整題目與 AI 解法")}</span><small>{[item.regionName,item.institutionName,item.className].filter(Boolean).join(" · ")||item.campus}</small></span><span className="teaching-row-answer"><small>AI 答案</small><b>{item.answer||"—"}</b><span>查看 →</span></span></button>)}</section>
   </div>;
 }
 
 function TeachingRulesSection(){
-  const [settings,setSettings]=useState<any>(null); const [loading,setLoading]=useState(true); const [saving,setSaving]=useState(false); const [message,setMessage]=useState("");
+  const [settings,setSettings]=useState<any>(null); const [loading,setLoading]=useState(true); const [saving,setSaving]=useState(false); const [message,setMessage]=useState(""); const [activeSubject,setActiveSubject]=useState("physics");
   const load=useCallback(async()=>{setLoading(true);try{const r=await fetch("/api/admin/teaching-settings",{cache:"no-store"});const d=await r.json();if(!r.ok)throw new Error(d.error||"讀取解題規則失敗。");setSettings(d.settings);}catch(e){setMessage(e instanceof Error?e.message:"讀取失敗。");}finally{setLoading(false);}},[]);
   useEffect(()=>{void load();},[load]);
   async function save(){if(!settings)return;setSaving(true);setMessage("");try{const r=await fetch("/api/admin/teaching-settings",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({settings})});const d=await r.json();if(!r.ok)throw new Error(d.error||"儲存失敗。");setSettings(d.settings);setMessage("解題規則已更新，下一題開始套用。 ");}catch(e){setMessage(e instanceof Error?e.message:"儲存失敗。");}finally{setSaving(false);}}
@@ -3610,9 +3625,11 @@ function TeachingRulesSection(){
   const modes=[{key:"concise",name:"精簡解題",desc:"簡單題只保留核心觀念與必要步驟"},{key:"standard",name:"標準教學",desc:"答案、觀念解析、選項分析兼顧可讀性"},{key:"deep",name:"深度解析",desc:"難題增加條件整理、完整推導與常見錯誤"},{key:"correction",name:"訂正模式",desc:"優先找出衝突點並重建正確解法"}];
   const general=[['noGuessing','禁止猜測'],['requestRetakeWhenIncomplete','資訊不足要求重新拍照'],['highSchoolFirst','優先使用高中課綱方法'],['keepUnits','計算保留單位'],['keepKeySteps','保留必要中間步驟'],['avoidOverreach','避免不必要超綱']];
   const subjects=[['physics','物理'],['chemistry','化學'],['biology','生物'],['earth','地球科學']];
-  return <div className="admin-stack teaching-rules-page">{message&&<div className={`admin-notice ${message.includes("已更新")?"success":"danger"}`}>{message}</div>}<section className="hh-card admin-panel"><PanelHeader eyebrow="TEACHING MODE" title="解題模式" subtitle="設定整個解題實驗室預設的教學深度。"/><div className="teaching-mode-grid">{modes.map(m=><button key={m.key} type="button" className={settings.mode===m.key?"active":""} onClick={()=>setSettings({...settings,mode:m.key})}><strong>{m.name}</strong><span>{m.desc}</span></button>)}</div></section>
+  const activeMode=modes.find(m=>m.key===settings.mode)||modes[1];
+  const activeSubjectLabel=subjects.find(([key])=>key===activeSubject)?.[1]||"物理";
+  return <div className="admin-stack teaching-rules-page">{message&&<div className={`admin-notice ${message.includes("已更新")?"success":"danger"}`}>{message}</div>}<section className="hh-card admin-panel"><PanelHeader eyebrow="TEACHING MODE" title="解題模式" subtitle="設定整個解題實驗室預設的教學深度。"/><div className="teaching-mode-list">{modes.map(m=><button key={m.key} type="button" className={settings.mode===m.key?"active":""} onClick={()=>setSettings({...settings,mode:m.key})}><span className="teaching-mode-radio"/><strong>{m.name}</strong><span>{m.desc}</span></button>)}</div><div className="teaching-mode-current">目前模式：<strong>{activeMode.name}</strong> · {activeMode.desc}</div></section>
     <section className="hh-card admin-panel"><PanelHeader eyebrow="GENERAL RULES" title="通用解題規則"/><div className="teaching-rule-checks">{general.map(([key,label])=><label key={key}><input type="checkbox" checked={Boolean(settings.general[key])} onChange={e=>setSettings({...settings,general:{...settings.general,[key]:e.target.checked}})}/><span>{label}</span></label>)}</div></section>
-    <section className="hh-card admin-panel"><PanelHeader eyebrow="SUBJECT RULES" title="科目規則" subtitle="這些文字會與通用規則一起提供給 Primary、Verifier、Arbiter 與 Follow-up。"/><div className="teaching-subject-rules">{subjects.map(([key,label])=><label key={key}><span>{label}</span><textarea className="hh-input" value={settings.subjects[key]||""} onChange={e=>setSettings({...settings,subjects:{...settings.subjects,[key]:e.target.value}})}/></label>)}</div><button type="button" className="hh-button-primary teaching-rules-save" onClick={()=>void save()} disabled={saving}>{saving?"儲存中…":"儲存解題規則"}</button></section>
+    <section className="hh-card admin-panel"><PanelHeader eyebrow="SUBJECT RULES" title="科目規則" subtitle="切換科目後只編輯該科規則，Primary、Verifier、Arbiter 與 Follow-up 都會共用。"/><div className="teaching-subject-tabs">{subjects.map(([key,label])=><button key={key} type="button" className={activeSubject===key?"active":""} onClick={()=>setActiveSubject(key)}>{label}</button>)}</div><label className="teaching-subject-editor"><span>{activeSubjectLabel}規則</span><textarea className="hh-input" value={settings.subjects[activeSubject]||""} onChange={e=>setSettings({...settings,subjects:{...settings.subjects,[activeSubject]:e.target.value}})}/></label><button type="button" className="hh-button-primary teaching-rules-save" onClick={()=>void save()} disabled={saving}>{saving?"儲存中…":"儲存解題規則"}</button></section>
   </div>;
 }
 
@@ -3620,7 +3637,7 @@ function CostAnalyticsSection(){
   const [range,setRange]=useState<AnalyticsRange>("month"); const [data,setData]=useState<AnalyticsData|null>(null); const [loading,setLoading]=useState(true); const [error,setError]=useState("");
   const load=useCallback(async()=>{setLoading(true);setError("");try{const r=await fetch(`/api/admin/analytics?range=${range}`,{cache:"no-store"});const d=await r.json();if(!r.ok)throw new Error(d.error||"讀取成本分析失敗。");setData(d);}catch(e){setError(e instanceof Error?e.message:"讀取成本分析失敗。");}finally{setLoading(false);}},[range]);useEffect(()=>{void load();},[load]);
   const ranges:[AnalyticsRange,string][]=[["today","今天"],["7d","7 天"],["30d","30 天"],["month","本月"]];
-  return <div className="admin-stack"><section className="hh-card admin-panel admin-analytics-toolbar"><div><div className="hh-eyebrow">COST ANALYTICS</div><h2 className="hh-display">成本分析</h2></div><div className="admin-analytics-range">{ranges.map(([v,l])=><button key={v} className={range===v?"active":""} onClick={()=>setRange(v)}>{l}</button>)}</div></section>{error&&<div className="admin-notice danger">{error}</div>}{loading&&!data?<div className="hh-card admin-panel admin-empty">正在整理成本資料…</div>:data&&<><section className="admin-kpi-grid"><AnalyticsKpi eyebrow="TOTAL" label="估算總成本" value={formatTwdFromUsd(data.totals.totalCostUsd)} note={data.label}/><AnalyticsKpi eyebrow="PER SOLVE" label="平均每題成本" value={formatTwdFromUsd(data.totals.averageCostPerSolveUsd)} note={`${formatInteger(data.totals.solvedQuestions)} 題解題`}/><AnalyticsKpi eyebrow="CALLS" label="模型呼叫" value={`${formatInteger(data.totals.apiCalls)} 次`} note="全部 AI 角色合計"/></section><section className="hh-card admin-panel admin-data-table-panel"><PanelHeader eyebrow="COST BY MODEL" title="各模型成本"/><div className="admin-data-table-wrap"><table className="admin-data-table"><thead><tr><th>模型</th><th>呼叫</th><th>總成本</th><th>平均／次</th></tr></thead><tbody>{data.models.map(m=><tr key={`${m.provider}-${m.model}`}><td><strong>{modelDisplayName(m.model)}</strong><small>{providerLabel(m.provider)}</small></td><td>{formatInteger(m.calls)}</td><td>{formatTwdFromUsd(m.costUsd)}</td><td>{formatTwdFromUsd(m.averageCostUsd)}</td></tr>)}</tbody></table></div></section></>}</div>;
+  return <div className="admin-stack"><section className="hh-card admin-panel admin-analytics-toolbar"><div><div className="hh-eyebrow">COST ANALYTICS</div><h2 className="hh-display">成本分析</h2></div><div className="admin-analytics-range">{ranges.map(([v,l])=><button key={v} className={range===v?"active":""} onClick={()=>setRange(v)}>{l}</button>)}</div></section>{error&&<div className="admin-notice danger">{error}</div>}{loading&&!data?<div className="hh-card admin-panel admin-empty">正在整理成本資料…</div>:data&&<><section className="admin-kpi-grid cost-kpi-grid"><AnalyticsKpi eyebrow="TOTAL" label="估算總成本" value={formatTwdFromUsd(data.totals.totalCostUsd)} note={data.label}/><AnalyticsKpi eyebrow="PER SOLVE" label="平均每題成本" value={formatTwdFromUsd(data.totals.averageCostPerSolveUsd)} note={`${formatInteger(data.totals.solvedQuestions)} 題解題`}/><AnalyticsKpi eyebrow="CALLS" label="模型呼叫" value={`${formatInteger(data.totals.apiCalls)} 次`} note="全部 AI 角色合計"/></section><section className="hh-card admin-panel admin-data-table-panel"><PanelHeader eyebrow="COST BY MODEL" title="各模型成本"/><div className="admin-data-table-wrap"><table className="admin-data-table"><thead><tr><th>模型</th><th>呼叫</th><th>總成本</th><th>平均／次</th></tr></thead><tbody>{data.models.map(m=><tr key={`${m.provider}-${m.model}`}><td><strong>{modelDisplayName(m.model)}</strong><small>{providerLabel(m.provider)}</small></td><td>{formatInteger(m.calls)}</td><td>{formatTwdFromUsd(m.costUsd)}</td><td>{formatTwdFromUsd(m.averageCostUsd)}</td></tr>)}</tbody></table></div></section></>}</div>;
 }
 
 function NavButton({
@@ -9558,6 +9575,100 @@ const adminStyles = `
   .teaching-rules-save { width:100%; margin-top:14px; }
   @media(max-width:900px){.admin-usage-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.teaching-mode-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.teaching-rule-checks{grid-template-columns:repeat(2,minmax(0,1fr))}}
   @media(max-width:760px){.teaching-filter-row{grid-template-columns:1fr}.teaching-question-row{grid-template-columns:68px minmax(0,1fr)}.teaching-question-row>img,.teaching-thumb-empty{width:68px;height:58px}.teaching-row-answer{grid-column:2;display:flex;justify-content:space-between;align-items:center}.teacher-solution-grid,.teaching-subject-rules{grid-template-columns:1fr}.teaching-rule-checks{grid-template-columns:1fr 1fr}.teaching-answer-grid{grid-template-columns:1fr}.admin-nav-children{margin-left:38px}}
+
+  /* v1.3.1 mobile UI + teaching engine refinement */
+  .management-tabs { display:grid !important; grid-template-columns:repeat(3,minmax(0,1fr)) !important; gap:6px !important; padding:6px !important; }
+  .management-tabs button { min-width:0 !important; width:100% !important; min-height:42px !important; padding:6px 4px !important; font-size:12px !important; white-space:nowrap !important; }
+
+  .teaching-question-row-v131 { grid-template-columns:88px minmax(0,1fr) 86px; min-height:92px; padding:10px 12px; border-radius:15px; }
+  .teaching-question-row-v131>img,.teaching-question-row-v131>.teaching-thumb-empty { width:88px; height:70px; }
+  .teaching-row-topline { display:flex; align-items:center; flex-wrap:wrap; gap:6px; color:var(--text-muted); font-size:10px; font-weight:800; }
+  .teaching-subject-chip { display:inline-flex; align-items:center; padding:3px 7px; border-radius:999px; font-size:9px; font-weight:900; }
+  .teaching-subject-physics { color:#527eaa; background:color-mix(in srgb,#527eaa 13%,var(--surface)); }
+  .teaching-subject-chemistry { color:#c86763; background:color-mix(in srgb,#c86763 13%,var(--surface)); }
+  .teaching-subject-biology { color:#b88f2e; background:color-mix(in srgb,#d5ad43 14%,var(--surface)); }
+  .teaching-subject-earth { color:#4e9970; background:color-mix(in srgb,#4e9970 13%,var(--surface)); }
+  .teaching-inline-issue { padding:3px 7px; border-radius:999px; background:var(--danger-soft); color:var(--danger); font-size:9px; font-style:normal; font-weight:900; }
+  .teaching-question-preview { overflow:hidden; color:var(--text-secondary); font-size:11px; line-height:1.45; text-overflow:ellipsis; white-space:nowrap; }
+  .teaching-row-answer small { color:var(--text-muted); font-size:9px; font-weight:800; }
+  .teaching-context-strip { margin-top:12px; padding:11px 13px; border:1px solid var(--border); border-radius:12px; background:color-mix(in srgb,var(--accent-soft) 45%,var(--surface-soft)); }
+  .teaching-context-strip span { display:block; margin-bottom:4px; color:var(--text-muted); font-size:10px; font-weight:850; }
+  .teaching-context-strip p { margin:0; color:var(--text); font-size:12px; line-height:1.65; }
+  .teacher-solution-actions { display:grid; grid-template-columns:1fr 1fr; gap:9px; margin-top:12px; }
+  .teacher-solution-actions .teacher-save-button { margin-top:0; }
+  .teaching-ai-revise-note { margin-top:10px; padding:10px 12px; border-radius:11px; background:var(--info-soft); color:var(--text-secondary); border:1px solid color-mix(in srgb,var(--info) 25%,var(--border)); font-size:11px; line-height:1.6; }
+
+  .teaching-mode-list { display:grid; gap:7px; }
+  .teaching-mode-list button { width:100%; min-height:54px; display:grid; grid-template-columns:18px 92px minmax(0,1fr); align-items:center; gap:10px; padding:9px 12px; border:1px solid var(--border); border-radius:12px; background:var(--surface-soft); color:var(--text); text-align:left; cursor:pointer; }
+  .teaching-mode-list button.active { border-color:var(--primary); background:color-mix(in srgb,var(--primary) 8%,var(--surface)); box-shadow:0 0 0 2px color-mix(in srgb,var(--primary) 9%,transparent); }
+  .teaching-mode-radio { width:13px; height:13px; border-radius:999px; border:2px solid var(--border-strong); }
+  .teaching-mode-list button.active .teaching-mode-radio { border-color:var(--primary); background:var(--primary); box-shadow:inset 0 0 0 3px var(--surface); }
+  .teaching-mode-list strong { font-size:12px; }
+  .teaching-mode-list button>span:last-child { color:var(--text-secondary); font-size:10px; line-height:1.45; }
+  .teaching-mode-current { margin-top:9px; color:var(--text-secondary); font-size:10px; }
+  .teaching-subject-tabs { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:6px; margin-bottom:10px; }
+  .teaching-subject-tabs button { min-height:40px; border:1px solid var(--border); border-radius:11px; background:var(--surface-soft); color:var(--text-secondary); font-size:11px; font-weight:850; cursor:pointer; }
+  .teaching-subject-tabs button.active { border-color:var(--primary); background:color-mix(in srgb,var(--primary) 10%,var(--surface)); color:var(--primary); }
+  .teaching-subject-editor { display:grid; gap:6px; }
+  .teaching-subject-editor>span { color:var(--text-secondary); font-size:11px; font-weight:850; }
+  .teaching-subject-editor textarea { min-height:130px; padding-top:11px!important; resize:vertical; }
+
+  html:is([data-theme="white"],[data-theme="oatmeal"]) .admin-nav-group-toggle { color:var(--text) !important; }
+  html:is([data-theme="white"],[data-theme="oatmeal"]) .admin-nav-group-icon { color:var(--text-secondary) !important; background:var(--surface-muted) !important; }
+  html:is([data-theme="white"],[data-theme="oatmeal"]) .admin-nav-group-toggle:hover,
+  html:is([data-theme="white"],[data-theme="oatmeal"]) .admin-nav-group.active>.admin-nav-group-toggle { background:var(--surface-soft) !important; }
+  html:is([data-theme="white"],[data-theme="oatmeal"]) .admin-nav-children { border-left-color:var(--border) !important; }
+  html:is([data-theme="white"],[data-theme="oatmeal"]) .admin-nav-children button { color:var(--text-secondary) !important; }
+  html:is([data-theme="white"],[data-theme="oatmeal"]) .admin-nav-children button:hover,
+  html:is([data-theme="white"],[data-theme="oatmeal"]) .admin-nav-children button.active { color:var(--text) !important; background:var(--surface-soft) !important; }
+  html:is([data-theme="white"],[data-theme="oatmeal"]) .admin-nav-button { color:var(--text) !important; }
+  html:is([data-theme="white"],[data-theme="oatmeal"]) .admin-sidebar-title,
+  html:is([data-theme="white"],[data-theme="oatmeal"]) .admin-sidebar-subtitle { color:var(--text) !important; }
+
+  .admin-nav-v13>.admin-nav-button { min-height:46px !important; padding:0 10px !important; font-size:13px !important; font-weight:800 !important; }
+  .admin-nav-v13>.admin-nav-button>span { width:28px !important; height:28px !important; font-size:10px !important; }
+
+  @media(max-width:760px){
+    .management-tabs { grid-template-columns:repeat(3,minmax(0,1fr)) !important; }
+    .management-tabs button { min-height:40px !important; font-size:11px !important; }
+    .teaching-question-row-v131 { grid-template-columns:62px minmax(0,1fr) 58px !important; gap:9px !important; min-height:78px; padding:8px !important; }
+    .teaching-question-row-v131>img,.teaching-question-row-v131>.teaching-thumb-empty { width:62px !important; height:56px !important; }
+    .teaching-question-main { gap:3px; }
+    .teaching-question-main>strong { font-size:12px; }
+    .teaching-question-preview { font-size:10px; }
+    .teaching-question-main small { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .teaching-row-answer { grid-column:auto !important; display:grid !important; justify-items:end !important; gap:2px !important; }
+    .teaching-row-answer b { font-size:14px; }
+    .teaching-row-answer span { font-size:9px; }
+    .teacher-solution-actions { grid-template-columns:1fr; }
+    .teaching-mode-list button { grid-template-columns:16px 78px minmax(0,1fr); min-height:50px; padding:8px 9px; gap:7px; }
+    .teaching-mode-list strong { font-size:11px; }
+    .teaching-mode-list button>span:last-child { font-size:9.5px; }
+    .teaching-subject-tabs { grid-template-columns:repeat(4,minmax(0,1fr)); gap:5px; }
+    .teaching-subject-tabs button { min-height:38px; padding:0 3px; font-size:10px; }
+
+    .admin-data-table-panel .admin-data-table tbody tr { height:auto !important; }
+    .admin-data-table-panel .admin-data-table th,
+    .admin-data-table-panel .admin-data-table td { padding:11px 9px !important; }
+    .admin-data-table-panel .admin-data-table td:first-child strong { font-size:12px !important; line-height:1.3 !important; }
+    .admin-data-table-panel .admin-data-table td:first-child small { margin-top:2px !important; font-size:9px !important; }
+    .admin-data-table-panel .admin-data-table td { font-size:11px !important; }
+    .admin-data-table-panel .admin-data-table th { font-size:9px !important; }
+    .admin-data-table-panel .admin-data-table tr { min-height:58px !important; }
+    .admin-data-table-panel .admin-data-table { table-layout:fixed !important; }
+    .admin-data-table-panel .admin-data-table th:first-child,.admin-data-table-panel .admin-data-table td:first-child { width:48% !important; }
+    .admin-data-table-panel .admin-data-table th:nth-child(2),.admin-data-table-panel .admin-data-table td:nth-child(2) { width:20% !important; text-align:center; }
+    .admin-data-table-panel .admin-data-table th:nth-child(3),.admin-data-table-panel .admin-data-table td:nth-child(3) { width:32% !important; text-align:right; }
+    .admin-data-table-panel .admin-data-table th:nth-child(4),.admin-data-table-panel .admin-data-table td:nth-child(4) { display:none !important; }
+
+    .admin-kpi-grid { gap:8px !important; }
+    .admin-kpi-grid>.admin-analytics-kpi { min-height:92px !important; padding:12px !important; }
+    .cost-kpi-grid { grid-template-columns:repeat(3,minmax(0,1fr)) !important; gap:6px !important; }
+    .cost-kpi-grid>* { min-width:0 !important; min-height:86px !important; padding:10px 8px !important; }
+    .cost-kpi-grid .hh-eyebrow { font-size:7.5px !important; letter-spacing:.08em !important; }
+    .cost-kpi-grid strong { font-size:18px !important; line-height:1.05 !important; white-space:nowrap !important; }
+    .cost-kpi-grid span,.cost-kpi-grid small,.cost-kpi-grid p { font-size:8.5px !important; line-height:1.35 !important; }
+  }
 
 `;
 

@@ -308,6 +308,8 @@ export async function GET(
     const [
       todayRows,
       monthRows,
+      todayHistoryResult,
+      monthHistoryResult,
       dailyUsageResult,
       studentsResult,
       aiSettings,
@@ -322,6 +324,18 @@ export async function GET(
           ranges.monthStart,
           ranges.nextMonthStart
         ),
+
+        supabaseAdmin
+          .from("solve_history")
+          .select("id,student_id")
+          .gte("created_at", ranges.todayStart)
+          .lt("created_at", ranges.tomorrowStart),
+
+        supabaseAdmin
+          .from("solve_history")
+          .select("id,student_id")
+          .gte("created_at", ranges.monthStart)
+          .lt("created_at", ranges.nextMonthStart),
 
         supabaseAdmin
           .from(
@@ -368,6 +382,9 @@ export async function GET(
         getAISettings(),
       ]);
 
+
+    if (todayHistoryResult.error) throw todayHistoryResult.error;
+    if (monthHistoryResult.error) throw monthHistoryResult.error;
 
     if (
       dailyUsageResult.error
@@ -579,7 +596,7 @@ export async function GET(
     return NextResponse.json({
       today: {
         questions:
-          todaySuccessful.length,
+          (todayHistoryResult.data || []).length,
 
         students:
           todayStudents.size,
@@ -592,12 +609,12 @@ export async function GET(
           ),
 
         averageCost:
-          todaySuccessful.length >
+          (todayHistoryResult.data || []).length >
           0
             ? Number(
                 (
                   todayCost /
-                  todaySuccessful.length
+                  (todayHistoryResult.data || []).length
                 ).toFixed(
                   6
                 )
@@ -607,7 +624,7 @@ export async function GET(
 
       month: {
         questions:
-          monthSuccessful.length,
+          (monthHistoryResult.data || []).length,
 
         cost:
           Number(
@@ -617,12 +634,12 @@ export async function GET(
           ),
 
         averageCost:
-          monthSuccessful.length >
+          (monthHistoryResult.data || []).length >
           0
             ? Number(
                 (
                   monthCost /
-                  monthSuccessful.length
+                  (monthHistoryResult.data || []).length
                 ).toFixed(
                   6
                 )
