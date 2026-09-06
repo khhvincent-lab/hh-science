@@ -27,6 +27,8 @@ import {
   saveSolverUsage,
 } from "@/lib/ai/usage-log";
 
+import { buildTeachingContext } from "@/lib/teaching-engine";
+
 
 function buildFollowupPrompt({
   subject,
@@ -35,6 +37,7 @@ function buildFollowupPrompt({
   options,
   previousFollowups,
   question,
+  teachingContext,
 }: {
   subject: string;
   answer: string;
@@ -45,6 +48,7 @@ function buildFollowupPrompt({
     answer: string;
   }>;
   question: string;
+  teachingContext?: string;
 }) {
   const prior =
     previousFollowups.length
@@ -79,6 +83,8 @@ ${prior}
 
 學生這次追問：
 ${question}
+
+${teachingContext || ""}
 
 要求：
 1. 使用繁體中文。
@@ -247,6 +253,8 @@ export async function POST(
     );
   }
 
+  const teachingContext = await buildTeachingContext(String(history.subject || ""));
+
   const prompt =
     buildFollowupPrompt({
       subject:
@@ -265,6 +273,7 @@ export async function POST(
             String(item.answer || ""),
         })),
       question,
+      teachingContext,
     });
 
   const requestId =

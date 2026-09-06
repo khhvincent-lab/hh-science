@@ -29,6 +29,8 @@ import {
   getAISolverSettings,
 } from "@/lib/ai-settings";
 
+import { buildTeachingContext } from "@/lib/teaching-engine";
+
 import type {
   Annotation,
   ScienceGateResult,
@@ -544,6 +546,8 @@ export async function runAIRouter(
   const settings =
     await getAISolverSettings();
 
+  const teachingContext = await buildTeachingContext(input.subject);
+
   const gateCheck =
     precheckedGate ||
     await runScienceGate({
@@ -632,6 +636,7 @@ export async function runAIRouter(
           referenceAnswer,
           questionNote:
             input.questionNote,
+          teachingContext,
         }),
       images:
         input.images,
@@ -837,6 +842,7 @@ export async function runAIRouter(
             referenceAnswer,
             primaryAnswer:
               primary.answer,
+            teachingContext,
           }),
         images:
           input.images,
@@ -963,6 +969,7 @@ export async function runAIRouter(
             primary.answer,
           primaryExplanation:
             primary.explanation,
+          teachingContext,
         }),
       images:
         input.images,
@@ -1093,6 +1100,7 @@ export async function runAIRouter(
           verifierConcern:
             verification
               .concern,
+          teachingContext,
         }),
       images:
         input.images,

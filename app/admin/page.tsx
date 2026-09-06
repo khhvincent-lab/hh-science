@@ -7,7 +7,7 @@ import "katex/dist/katex.min.css";
 
 const USD_TO_TWD_RATE = 32.5;
 
-type AdminSection = "dashboard" | "classes" | "students" | "ai" | "pin" | "corrections" | "analytics";
+type AdminSection = "dashboard" | "usage" | "classes" | "students" | "ai" | "pin" | "analytics" | "cost" | "teachingQuestions" | "teachingQueue" | "teachingRules";
 
 type DashboardData = {
   today: {
@@ -372,6 +372,7 @@ export default function AdminPage() {
 
   const [activeSection, setActiveSection] = useState<AdminSection>("dashboard");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [openNavGroup, setOpenNavGroup] = useState<"classes" | "ai" | "teaching" | null>(null);
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
   const [dashboardLoading, setDashboardLoading] = useState(false);
   const [dashboardError, setDashboardError] = useState("");
@@ -1029,30 +1030,46 @@ export default function AdminPage() {
           <div className="admin-sidebar-subtitle">Academic Control Center</div>
         </div>
 
-        <nav className="admin-nav">
-          <NavButton
-            active={activeSection === "dashboard"}
-            icon="01"
-            label="管理總覽"
-            onClick={() => { setActiveSection("dashboard"); setMobileMenuOpen(false); }}
-          />
-          <NavButton
-            active={activeSection === "classes" || activeSection === "students" || activeSection === "pin"}
+        <nav className="admin-nav admin-nav-v13">
+          <NavButton active={activeSection === "dashboard"} icon="01" label="管理總覽" onClick={() => { setActiveSection("dashboard"); setMobileMenuOpen(false); }} />
+
+          <AdminNavGroup
             icon="02"
             label="班務管理"
-            onClick={() => { setActiveSection("classes"); setMobileMenuOpen(false); }}
+            open={openNavGroup === "classes"}
+            active={["usage","students","classes","pin"].includes(activeSection)}
+            onToggle={() => setOpenNavGroup((current) => current === "classes" ? null : "classes")}
+            items={[
+              { label: "使用狀況", active: activeSection === "usage", onClick: () => { setActiveSection("usage"); setMobileMenuOpen(false); } },
+              { label: "學生管理", active: activeSection === "students" || activeSection === "pin", onClick: () => { setActiveSection("students"); setMobileMenuOpen(false); } },
+              { label: "班級管理", active: activeSection === "classes", onClick: () => { setActiveSection("classes"); setMobileMenuOpen(false); } },
+            ]}
           />
-          <NavButton
-            active={activeSection === "ai" || activeSection === "analytics"}
+
+          <AdminNavGroup
             icon="03"
-            label="AI 管理"
-            onClick={() => { setActiveSection("ai"); setMobileMenuOpen(false); }}
+            label="AI模型中心"
+            open={openNavGroup === "ai"}
+            active={["ai","analytics","cost"].includes(activeSection)}
+            onToggle={() => setOpenNavGroup((current) => current === "ai" ? null : "ai")}
+            items={[
+              { label: "AI模型設定", active: activeSection === "ai", onClick: () => { setActiveSection("ai"); setMobileMenuOpen(false); } },
+              { label: "AI數據分析", active: activeSection === "analytics", onClick: () => { setActiveSection("analytics"); setMobileMenuOpen(false); } },
+              { label: "成本分析", active: activeSection === "cost", onClick: () => { setActiveSection("cost"); setMobileMenuOpen(false); } },
+            ]}
           />
-          <NavButton
-            active={activeSection === "corrections"}
+
+          <AdminNavGroup
             icon="04"
-            label="解題修正"
-            onClick={() => { setActiveSection("corrections"); setMobileMenuOpen(false); }}
+            label="教學引擎"
+            open={openNavGroup === "teaching"}
+            active={["teachingQuestions","teachingQueue","teachingRules"].includes(activeSection)}
+            onToggle={() => setOpenNavGroup((current) => current === "teaching" ? null : "teaching")}
+            items={[
+              { label: "全站題目", active: activeSection === "teachingQuestions", onClick: () => { setActiveSection("teachingQuestions"); setMobileMenuOpen(false); } },
+              { label: "待修正", active: activeSection === "teachingQueue", onClick: () => { setActiveSection("teachingQueue"); setMobileMenuOpen(false); } },
+              { label: "解題規則", active: activeSection === "teachingRules", onClick: () => { setActiveSection("teachingRules"); setMobileMenuOpen(false); } },
+            ]}
           />
         </nav>
 
@@ -1092,16 +1109,25 @@ export default function AdminPage() {
         </header>
 
         <div className="admin-content">
-          {(activeSection === "classes" || activeSection === "students" || activeSection === "pin") && (
+          {(["usage","classes","students","pin"] as AdminSection[]).includes(activeSection) && (
             <div className="management-tabs" role="tablist" aria-label="班務管理">
-              <button type="button" className={activeSection === "classes" ? "active" : ""} onClick={() => setActiveSection("classes")}>班級管理</button>
+              <button type="button" className={activeSection === "usage" ? "active" : ""} onClick={() => setActiveSection("usage")}>使用狀況</button>
               <button type="button" className={activeSection === "students" || activeSection === "pin" ? "active" : ""} onClick={() => setActiveSection("students")}>學生管理</button>
+              <button type="button" className={activeSection === "classes" ? "active" : ""} onClick={() => setActiveSection("classes")}>班級管理</button>
             </div>
           )}
-          {(activeSection === "ai" || activeSection === "analytics") && (
-            <div className="management-tabs" role="tablist" aria-label="AI 管理">
-              <button type="button" className={activeSection === "ai" ? "active" : ""} onClick={() => setActiveSection("ai")}>AI 設定</button>
-              <button type="button" className={activeSection === "analytics" ? "active" : ""} onClick={() => setActiveSection("analytics")}>數據分析</button>
+          {(["ai","analytics","cost"] as AdminSection[]).includes(activeSection) && (
+            <div className="management-tabs" role="tablist" aria-label="AI模型中心">
+              <button type="button" className={activeSection === "ai" ? "active" : ""} onClick={() => setActiveSection("ai")}>AI模型設定</button>
+              <button type="button" className={activeSection === "analytics" ? "active" : ""} onClick={() => setActiveSection("analytics")}>AI數據分析</button>
+              <button type="button" className={activeSection === "cost" ? "active" : ""} onClick={() => setActiveSection("cost")}>成本分析</button>
+            </div>
+          )}
+          {(["teachingQuestions","teachingQueue","teachingRules"] as AdminSection[]).includes(activeSection) && (
+            <div className="management-tabs" role="tablist" aria-label="教學引擎">
+              <button type="button" className={activeSection === "teachingQuestions" ? "active" : ""} onClick={() => setActiveSection("teachingQuestions")}>全站題目</button>
+              <button type="button" className={activeSection === "teachingQueue" ? "active" : ""} onClick={() => setActiveSection("teachingQueue")}>待修正</button>
+              <button type="button" className={activeSection === "teachingRules" ? "active" : ""} onClick={() => setActiveSection("teachingRules")}>解題規則</button>
             </div>
           )}
           {activeSection === "dashboard" && (
@@ -1111,6 +1137,10 @@ export default function AdminPage() {
               loading={dashboardLoading}
               error={dashboardError}
             />
+          )}
+
+          {activeSection === "usage" && (
+            <UsageStatusSection dashboard={dashboard} />
           )}
 
           {activeSection === "classes" && (
@@ -1208,12 +1238,24 @@ export default function AdminPage() {
             />
           )}
 
-          {activeSection === "corrections" && (
+          {activeSection === "teachingQuestions" && (
+            <TeachingQuestionsSection />
+          )}
+
+          {activeSection === "teachingQueue" && (
             <CorrectionSection />
+          )}
+
+          {activeSection === "teachingRules" && (
+            <TeachingRulesSection />
           )}
 
           {activeSection === "analytics" && (
             <AnalyticsSection />
+          )}
+
+          {activeSection === "cost" && (
+            <CostAnalyticsSection />
           )}
         </div>
       </section>
@@ -3414,6 +3456,173 @@ function PinSection(props: {
   );
 }
 
+
+function AdminNavGroup({
+  icon,
+  label,
+  open,
+  active,
+  onToggle,
+  items,
+}: {
+  icon: string;
+  label: string;
+  open: boolean;
+  active: boolean;
+  onToggle: () => void;
+  items: Array<{ label: string; active: boolean; onClick: () => void }>;
+}) {
+  return (
+    <div className={`admin-nav-group ${open ? "open" : ""} ${active ? "active" : ""}`}>
+      <button type="button" className="admin-nav-group-toggle" onClick={onToggle}>
+        <span className="admin-nav-group-icon">{icon}</span>
+        <strong>{label}</strong>
+        <span className="admin-nav-chevron">⌄</span>
+      </button>
+      {open && (
+        <div className="admin-nav-children">
+          {items.map((item) => (
+            <button key={item.label} type="button" className={item.active ? "active" : ""} onClick={item.onClick}>
+              <span />{item.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function UsageStatusSection({ dashboard }: { dashboard: DashboardData | null }) {
+  type ClassUsage = { classId:string; label:string; students:number; todayActive:number; todayQuestions:number; monthQuestions:number; monthCostTwd:number };
+  const [rows, setRows] = useState<ClassUsage[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const load = useCallback(async () => {
+    setLoading(true); setError("");
+    try {
+      const response = await fetch("/api/admin/class-overview", { cache:"no-store" });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "讀取使用狀況失敗。");
+      setRows(Array.isArray(data.rows) ? data.rows : []);
+    } catch (e) { setError(e instanceof Error ? e.message : "讀取使用狀況失敗。"); }
+    finally { setLoading(false); }
+  }, []);
+  useEffect(() => { void load(); }, [load]);
+  const totalStudents = rows.reduce((sum,row)=>sum+Number(row.students||0),0);
+  const activeToday = rows.reduce((sum,row)=>sum+Number(row.todayActive||0),0);
+  const todayQuestions = rows.reduce((sum,row)=>sum+Number(row.todayQuestions||0),0);
+  const monthQuestions = rows.reduce((sum,row)=>sum+Number(row.monthQuestions||0),0);
+  return <div className="admin-stack">
+    <section className="admin-kpi-grid admin-usage-kpis">
+      <KpiCard label="今日使用學生" value={activeToday || dashboard?.today.students || 0} suffix=" 人" tone="blue" />
+      <KpiCard label="今日解題" value={todayQuestions || dashboard?.today.questions || 0} suffix=" 題" tone="gold" />
+      <KpiCard label="本月解題" value={monthQuestions || dashboard?.month.questions || 0} suffix=" 題" tone="purple" />
+      <KpiCard label="學生總數" value={totalStudents} suffix=" 人" />
+    </section>
+    {error && <div className="admin-notice danger">{error}</div>}
+    <section className="hh-card admin-panel admin-data-table-panel">
+      <PanelHeader eyebrow="USAGE STATUS" title="班級使用狀況" subtitle="快速掌握今天哪些班級有使用、解了多少題，以及本月累積使用量。" />
+      {loading ? <div className="admin-empty">正在整理班級使用狀況…</div> : <div className="admin-data-table-wrap">
+        <table className="admin-data-table"><thead><tr><th>班級</th><th>學生</th><th>今日使用</th><th>今日解題</th><th>本月解題</th></tr></thead><tbody>
+          {rows.map((row)=><tr key={row.classId}><td><strong>{row.label}</strong></td><td>{row.students}</td><td>{row.todayActive} 人</td><td>{row.todayQuestions} 題</td><td>{row.monthQuestions} 題</td></tr>)}
+          {rows.length===0 && <tr><td colSpan={5}>目前沒有班級資料。</td></tr>}
+        </tbody></table>
+      </div>}
+    </section>
+  </div>;
+}
+
+type TeachingQuestionRow = {
+  id:string; studentId:string; studentName:string; campus:string; regionName:string; institutionName:string; className:string;
+  subject:string; referenceAnswer:string; questionNote:string; answer:string; explanation:string; options:string; imageUrl?:string|null;
+  createdAt:string; primaryModel?:string|null; primaryAnswer?:string|null; verifierModel?:string|null; verifierResult?:any; arbiterModel?:string|null; arbiterAnswer?:string|null; disputeStatus:string; issue:boolean;
+};
+
+function TeachingQuestionsSection() {
+  const [items,setItems]=useState<TeachingQuestionRow[]>([]);
+  const [selected,setSelected]=useState<TeachingQuestionRow|null>(null);
+  const [loading,setLoading]=useState(true);
+  const [q,setQ]=useState("");
+  const [subject,setSubject]=useState("");
+  const [issues,setIssues]=useState(false);
+  const [range,setRange]=useState<"today"|"all">("today");
+  const [teacherNote,setTeacherNote]=useState("");
+  const [teacherAnswer,setTeacherAnswer]=useState("");
+  const [teacherExplanation,setTeacherExplanation]=useState("");
+  const [issueType,setIssueType]=useState("better_method");
+  const [message,setMessage]=useState("");
+  const [saving,setSaving]=useState(false);
+  const load=useCallback(async()=>{
+    setLoading(true); setMessage("");
+    try {
+      const params=new URLSearchParams(); if(q.trim()) params.set("q",q.trim()); if(subject) params.set("subject",subject); if(issues) params.set("issues","true"); params.set("range",range);
+      const response=await fetch(`/api/admin/teaching-questions?${params.toString()}`,{cache:"no-store"});
+      const data=await response.json(); if(!response.ok) throw new Error(data.error||"讀取全站題目失敗。");
+      setItems(Array.isArray(data.items)?data.items:[]);
+    } catch(e){setMessage(e instanceof Error?e.message:"讀取全站題目失敗。");} finally{setLoading(false);}
+  },[q,subject,issues,range]);
+  useEffect(()=>{void load();},[load]);
+  function open(item:TeachingQuestionRow){setSelected(item);setTeacherAnswer(item.referenceAnswer||item.answer||"");setTeacherNote("");setTeacherExplanation("");setIssueType(item.issue?"wrong_answer":"better_method");setMessage("");}
+  async function saveTeacherSolution(){
+    if(!selected) return; setSaving(true); setMessage("");
+    try{
+      const add=await fetch("/api/admin/corrections",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({solveHistoryId:selected.id,studentId:selected.studentId})});
+      const addData=await add.json(); if(!add.ok) throw new Error(addData.error||"建立教師案例失敗。");
+      const patch=await fetch("/api/admin/corrections",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:addData.id,status:"reviewed",issueType,teacherNote,correctedAnswer:teacherAnswer,correctedExplanation:teacherExplanation})});
+      const patchData=await patch.json(); if(!patch.ok) throw new Error(patchData.error||"儲存教師案例失敗。");
+      setMessage("已儲存老師解法；之後相同科目的相似題會優先參考這些教師案例。");
+    }catch(e){setMessage(e instanceof Error?e.message:"儲存失敗。");}finally{setSaving(false);}
+  }
+  if(selected){return <div className="admin-stack teaching-question-detail">
+    <button type="button" className="student-history-back" onClick={()=>setSelected(null)}>← 返回全站題目</button>
+    {message && <div className={`admin-notice ${message.startsWith("已儲存")?"success":"danger"}`}>{message}</div>}
+    <section className="hh-card admin-panel"><div className="teaching-detail-head"><div><div className="hh-eyebrow">QUESTION DETAIL</div><h2 className="hh-display">{selected.studentName} · {adminSubjectLabel(selected.subject)}</h2><p>{[selected.regionName,selected.institutionName,selected.className].filter(Boolean).join(" · ") || selected.campus} · {new Date(selected.createdAt).toLocaleString("zh-TW")}</p></div>{selected.issue&&<span className="teaching-issue-badge">需要留意</span>}</div>
+      {selected.imageUrl && <div className="teaching-question-image"><img src={selected.imageUrl} alt="題目圖片" /></div>}
+      <div className="teaching-answer-grid"><div><span>標準答案</span><strong>{selected.referenceAnswer||"未提供"}</strong></div><div><span>AI 最終答案</span><strong>{selected.answer||"—"}</strong></div></div>
+    </section>
+    <section className="hh-card admin-panel"><PanelHeader eyebrow="AI RESPONSE" title="AI 原始回答" />
+      <div className="teaching-ai-block"><h3>觀念解析</h3><AdminScienceText text={selected.explanation}/></div>
+      {selected.options&&<div className="teaching-ai-block"><h3>選項分析</h3><AdminScienceText text={formatAdminOptions(selected.options)}/></div>}
+      <div className="teaching-model-line">Primary：{selected.primaryModel||"—"}　Verifier：{selected.verifierModel||"未啟動"}　Arbiter：{selected.arbiterModel||"未啟動"}</div>
+    </section>
+    <section className="hh-card admin-panel teacher-solution-panel"><PanelHeader eyebrow="TEACHER METHOD" title="我的解法" subtitle="寫下你真正會教學生的順序與說法，系統會把它保存成教師案例。" />
+      <div className="teacher-solution-grid"><label><span>問題類型</span><select className="hh-select" value={issueType} onChange={e=>setIssueType(e.target.value)}><option value="wrong_answer">答案錯誤</option><option value="better_method">解法可更好</option><option value="unclear">說明不清楚</option><option value="format">格式問題</option><option value="other">其他</option></select></label><label><span>老師認定答案</span><input className="hh-input" value={teacherAnswer} onChange={e=>setTeacherAnswer(e.target.value)} placeholder="例如 B、2.5 mol"/></label></div>
+      <label className="teacher-solution-field"><span>老師備註</span><textarea className="hh-input" value={teacherNote} onChange={e=>setTeacherNote(e.target.value)} placeholder="簡短說明 AI 哪裡可以更好"/></label>
+      <label className="teacher-solution-field"><span>老師解法</span><textarea className="hh-input teacher-method-textarea" value={teacherExplanation} onChange={e=>setTeacherExplanation(e.target.value)} placeholder="例如：這題不要直接代公式。先判斷限制試劑，再由莫耳數比求生成物，最後換算質量。"/></label>
+      <button type="button" className="hh-button-primary teacher-save-button" onClick={()=>void saveTeacherSolution()} disabled={saving||!teacherExplanation.trim()}>{saving?"儲存中…":"儲存我的解法"}</button>
+    </section>
+  </div>}
+  return <div className="admin-stack">
+    <section className="hh-card admin-panel teaching-toolbar"><div><div className="hh-eyebrow">ALL QUESTIONS</div><h2 className="hh-display">全站題目</h2><p>今天學生問過的題目由新到舊排列，點進去即可查看 AI 回答並留下你的解法。</p></div>
+      <div className="teaching-filter-row"><div className="teaching-range-switch"><button type="button" className={range==="today"?"active":""} onClick={()=>setRange("today")}>今天</button><button type="button" className={range==="all"?"active":""} onClick={()=>setRange("all")}>全部</button></div><input className="hh-input" placeholder="搜尋學生、答案或解析內容…" value={q} onChange={e=>setQ(e.target.value)}/><select className="hh-select" value={subject} onChange={e=>setSubject(e.target.value)}><option value="">全部科目</option><option value="physics">物理</option><option value="chemistry">化學</option><option value="biology">生物</option><option value="earth">地球科學</option></select><button type="button" className={issues?"hh-button-primary":"hh-button-secondary"} onClick={()=>setIssues(v=>!v)}>只看異常題</button></div>
+    </section>
+    {message&&<div className="admin-notice danger">{message}</div>}
+    <section className="teaching-question-list">{loading?<div className="hh-card admin-panel admin-empty">正在讀取全站題目…</div>:items.length===0?<div className="hh-card admin-panel admin-empty">目前沒有符合條件的題目。</div>:items.map(item=><button key={item.id} type="button" className="hh-card teaching-question-row" onClick={()=>open(item)}>{item.imageUrl?<img src={item.imageUrl} alt="題目縮圖"/>:<span className="teaching-thumb-empty">SCI</span>}<span className="teaching-question-main"><span className="teaching-row-meta">{new Date(item.createdAt).toLocaleString("zh-TW",{month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"})} · {item.studentName} · {adminSubjectLabel(item.subject)}</span><strong>{item.questionNote||item.explanation.replace(/\$+/g,"").slice(0,90)||"查看完整題目與 AI 解法"}</strong><small>{[item.regionName,item.institutionName,item.className].filter(Boolean).join(" · ")||item.campus}</small></span><span className="teaching-row-answer"><b>{item.answer||"—"}</b>{item.issue&&<em>異常</em>}<span>查看 →</span></span></button>)}</section>
+  </div>;
+}
+
+function TeachingRulesSection(){
+  const [settings,setSettings]=useState<any>(null); const [loading,setLoading]=useState(true); const [saving,setSaving]=useState(false); const [message,setMessage]=useState("");
+  const load=useCallback(async()=>{setLoading(true);try{const r=await fetch("/api/admin/teaching-settings",{cache:"no-store"});const d=await r.json();if(!r.ok)throw new Error(d.error||"讀取解題規則失敗。");setSettings(d.settings);}catch(e){setMessage(e instanceof Error?e.message:"讀取失敗。");}finally{setLoading(false);}},[]);
+  useEffect(()=>{void load();},[load]);
+  async function save(){if(!settings)return;setSaving(true);setMessage("");try{const r=await fetch("/api/admin/teaching-settings",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({settings})});const d=await r.json();if(!r.ok)throw new Error(d.error||"儲存失敗。");setSettings(d.settings);setMessage("解題規則已更新，下一題開始套用。 ");}catch(e){setMessage(e instanceof Error?e.message:"儲存失敗。");}finally{setSaving(false);}}
+  if(loading||!settings)return <div className="hh-card admin-panel admin-empty">正在載入解題規則…</div>;
+  const modes=[{key:"concise",name:"精簡解題",desc:"簡單題只保留核心觀念與必要步驟"},{key:"standard",name:"標準教學",desc:"答案、觀念解析、選項分析兼顧可讀性"},{key:"deep",name:"深度解析",desc:"難題增加條件整理、完整推導與常見錯誤"},{key:"correction",name:"訂正模式",desc:"優先找出衝突點並重建正確解法"}];
+  const general=[['noGuessing','禁止猜測'],['requestRetakeWhenIncomplete','資訊不足要求重新拍照'],['highSchoolFirst','優先使用高中課綱方法'],['keepUnits','計算保留單位'],['keepKeySteps','保留必要中間步驟'],['avoidOverreach','避免不必要超綱']];
+  const subjects=[['physics','物理'],['chemistry','化學'],['biology','生物'],['earth','地球科學']];
+  return <div className="admin-stack teaching-rules-page">{message&&<div className={`admin-notice ${message.includes("已更新")?"success":"danger"}`}>{message}</div>}<section className="hh-card admin-panel"><PanelHeader eyebrow="TEACHING MODE" title="解題模式" subtitle="設定整個解題實驗室預設的教學深度。"/><div className="teaching-mode-grid">{modes.map(m=><button key={m.key} type="button" className={settings.mode===m.key?"active":""} onClick={()=>setSettings({...settings,mode:m.key})}><strong>{m.name}</strong><span>{m.desc}</span></button>)}</div></section>
+    <section className="hh-card admin-panel"><PanelHeader eyebrow="GENERAL RULES" title="通用解題規則"/><div className="teaching-rule-checks">{general.map(([key,label])=><label key={key}><input type="checkbox" checked={Boolean(settings.general[key])} onChange={e=>setSettings({...settings,general:{...settings.general,[key]:e.target.checked}})}/><span>{label}</span></label>)}</div></section>
+    <section className="hh-card admin-panel"><PanelHeader eyebrow="SUBJECT RULES" title="科目規則" subtitle="這些文字會與通用規則一起提供給 Primary、Verifier、Arbiter 與 Follow-up。"/><div className="teaching-subject-rules">{subjects.map(([key,label])=><label key={key}><span>{label}</span><textarea className="hh-input" value={settings.subjects[key]||""} onChange={e=>setSettings({...settings,subjects:{...settings.subjects,[key]:e.target.value}})}/></label>)}</div><button type="button" className="hh-button-primary teaching-rules-save" onClick={()=>void save()} disabled={saving}>{saving?"儲存中…":"儲存解題規則"}</button></section>
+  </div>;
+}
+
+function CostAnalyticsSection(){
+  const [range,setRange]=useState<AnalyticsRange>("month"); const [data,setData]=useState<AnalyticsData|null>(null); const [loading,setLoading]=useState(true); const [error,setError]=useState("");
+  const load=useCallback(async()=>{setLoading(true);setError("");try{const r=await fetch(`/api/admin/analytics?range=${range}`,{cache:"no-store"});const d=await r.json();if(!r.ok)throw new Error(d.error||"讀取成本分析失敗。");setData(d);}catch(e){setError(e instanceof Error?e.message:"讀取成本分析失敗。");}finally{setLoading(false);}},[range]);useEffect(()=>{void load();},[load]);
+  const ranges:[AnalyticsRange,string][]=[["today","今天"],["7d","7 天"],["30d","30 天"],["month","本月"]];
+  return <div className="admin-stack"><section className="hh-card admin-panel admin-analytics-toolbar"><div><div className="hh-eyebrow">COST ANALYTICS</div><h2 className="hh-display">成本分析</h2></div><div className="admin-analytics-range">{ranges.map(([v,l])=><button key={v} className={range===v?"active":""} onClick={()=>setRange(v)}>{l}</button>)}</div></section>{error&&<div className="admin-notice danger">{error}</div>}{loading&&!data?<div className="hh-card admin-panel admin-empty">正在整理成本資料…</div>:data&&<><section className="admin-kpi-grid"><AnalyticsKpi eyebrow="TOTAL" label="估算總成本" value={formatTwdFromUsd(data.totals.totalCostUsd)} note={data.label}/><AnalyticsKpi eyebrow="PER SOLVE" label="平均每題成本" value={formatTwdFromUsd(data.totals.averageCostPerSolveUsd)} note={`${formatInteger(data.totals.solvedQuestions)} 題解題`}/><AnalyticsKpi eyebrow="CALLS" label="模型呼叫" value={`${formatInteger(data.totals.apiCalls)} 次`} note="全部 AI 角色合計"/></section><section className="hh-card admin-panel admin-data-table-panel"><PanelHeader eyebrow="COST BY MODEL" title="各模型成本"/><div className="admin-data-table-wrap"><table className="admin-data-table"><thead><tr><th>模型</th><th>呼叫</th><th>總成本</th><th>平均／次</th></tr></thead><tbody>{data.models.map(m=><tr key={`${m.provider}-${m.model}`}><td><strong>{modelDisplayName(m.model)}</strong><small>{providerLabel(m.provider)}</small></td><td>{formatInteger(m.calls)}</td><td>{formatTwdFromUsd(m.costUsd)}</td><td>{formatTwdFromUsd(m.averageCostUsd)}</td></tr>)}</tbody></table></div></section></>}</div>;
+}
+
 function NavButton({
   active,
   icon,
@@ -3931,19 +4140,22 @@ function QuickAction({
 }
 
 function sectionEyebrow(section: AdminSection) {
-  if (section === "classes") return "CLASS MANAGEMENT";
-  if (section === "students") return "STUDENT MANAGEMENT";
-  if (section === "ai") return "AI CONTROL";
-  if (section === "pin") return "STUDENT ACCESS";
-  if (section === "corrections") return "TEACHING CORRECTIONS";
-  if (section === "analytics") return "AI ANALYTICS";
+  if (["usage","classes","students","pin"].includes(section)) return "CLASS OPERATIONS";
+  if (["ai","analytics","cost"].includes(section)) return "AI MODEL CENTER";
+  if (["teachingQuestions","teachingQueue","teachingRules"].includes(section)) return "TEACHING ENGINE";
   return "OVERVIEW";
 }
 
 function sectionTitle(section: AdminSection) {
-  if (section === "classes" || section === "students" || section === "pin") return "班務管理";
-  if (section === "ai" || section === "analytics") return "AI 管理";
-  if (section === "corrections") return "解題修正";
+  if (section === "usage") return "使用狀況";
+  if (section === "classes") return "班級管理";
+  if (section === "students" || section === "pin") return "學生管理";
+  if (section === "ai") return "AI模型設定";
+  if (section === "analytics") return "AI數據分析";
+  if (section === "cost") return "成本分析";
+  if (section === "teachingQuestions") return "全站題目";
+  if (section === "teachingQueue") return "待修正";
+  if (section === "teachingRules") return "解題規則";
   return "管理總覽";
 }
 
@@ -9278,6 +9490,74 @@ const adminStyles = `
   .bulk-preview-stats strong { font-size: 18px; }
   .bulk-preview-stats span, .bulk-preview-stats small { font-size: 10px; }
 }
+
+
+  /* v1.3 教學引擎與二層式管理導覽 */
+  .admin-nav-v13 { gap: 6px; }
+  .admin-nav-group { display:grid; gap:4px; }
+  .admin-nav-group-toggle { width:100%; min-height:46px; display:grid; grid-template-columns:32px minmax(0,1fr) 22px; align-items:center; gap:7px; padding:0 10px; border:0; border-radius:12px; background:transparent; color:#dfe7e1; text-align:left; cursor:pointer; }
+  .admin-nav-group-toggle:hover,.admin-nav-group.active>.admin-nav-group-toggle { background:rgba(255,255,255,.065); }
+  .admin-nav-group-icon { display:grid; place-items:center; width:28px; height:28px; border-radius:9px; color:#93a69a; background:rgba(255,255,255,.05); font:800 10px/1 var(--font-inter),sans-serif; }
+  .admin-nav-group-toggle strong { font-size:13px; }
+  .admin-nav-chevron { color:#829287; text-align:center; transition:transform .16s ease; }
+  .admin-nav-group.open .admin-nav-chevron { transform:rotate(180deg); }
+  .admin-nav-children { display:grid; gap:2px; margin:0 0 3px 42px; padding-left:9px; border-left:1px solid rgba(255,255,255,.10); }
+  .admin-nav-children button { min-height:35px; display:flex; align-items:center; gap:8px; padding:0 9px; border:0; border-radius:9px; background:transparent; color:#91a197; font-size:12px; font-weight:750; text-align:left; cursor:pointer; }
+  .admin-nav-children button>span { width:5px; height:5px; border-radius:99px; background:currentColor; opacity:.55; }
+  .admin-nav-children button:hover,.admin-nav-children button.active { color:#eff4f0; background:rgba(255,255,255,.07); }
+  .admin-nav-children button.active>span { opacity:1; box-shadow:0 0 0 4px rgba(255,255,255,.06); }
+  .admin-usage-kpis { grid-template-columns:repeat(4,minmax(0,1fr)); }
+  .teaching-toolbar { display:grid; gap:16px; }
+  .teaching-toolbar h2 { margin:4px 0 4px; }
+  .teaching-toolbar p { margin:0; color:var(--text-secondary); font-size:12px; }
+  .teaching-filter-row { display:grid; grid-template-columns:auto minmax(0,1fr) 150px auto; gap:9px; }
+  .teaching-range-switch{display:flex;padding:3px;border:1px solid var(--border);border-radius:12px;background:var(--surface-soft)}.teaching-range-switch button{min-width:54px;border:0;border-radius:9px;background:transparent;color:var(--text-secondary);font-size:11px;font-weight:800;cursor:pointer}.teaching-range-switch button.active{background:var(--surface);color:var(--primary);box-shadow:var(--shadow-sm)}
+  .teaching-question-list { display:grid; gap:8px; }
+  .teaching-question-row { width:100%; display:grid; grid-template-columns:92px minmax(0,1fr) 94px; align-items:center; gap:13px; padding:9px; color:var(--text); text-align:left; cursor:pointer; }
+  .teaching-question-row>img,.teaching-thumb-empty { width:92px; height:68px; object-fit:cover; border-radius:11px; background:var(--surface-soft); }
+  .teaching-thumb-empty { display:grid; place-items:center; color:var(--primary); font-size:11px; font-weight:900; letter-spacing:.1em; }
+  .teaching-question-main { display:grid; gap:4px; min-width:0; }
+  .teaching-row-meta { color:var(--primary); font-size:10px; font-weight:850; }
+  .teaching-question-main strong { overflow:hidden; font-size:13px; text-overflow:ellipsis; white-space:nowrap; }
+  .teaching-question-main small { color:var(--text-secondary); font-size:10px; }
+  .teaching-row-answer { display:grid; justify-items:end; gap:3px; }
+  .teaching-row-answer b { color:var(--primary); font-size:17px; }
+  .teaching-row-answer em { padding:3px 6px; border-radius:999px; background:var(--danger-soft); color:var(--danger); font-size:9px; font-style:normal; font-weight:850; }
+  .teaching-row-answer span { color:var(--text-secondary); font-size:10px; font-weight:800; }
+  .teaching-detail-head { display:flex; align-items:flex-start; justify-content:space-between; gap:14px; }
+  .teaching-detail-head h2 { margin:5px 0 4px; }
+  .teaching-detail-head p { margin:0; color:var(--text-secondary); font-size:11px; }
+  .teaching-issue-badge { padding:6px 9px; border-radius:999px; background:var(--danger-soft); color:var(--danger); font-size:10px; font-weight:850; }
+  .teaching-question-image { margin-top:14px; padding:10px; border:1px solid var(--border); border-radius:14px; background:#fff; }
+  .teaching-question-image img { display:block; width:100%; max-height:520px; object-fit:contain; }
+  .teaching-answer-grid { display:grid; grid-template-columns:1fr 1fr; gap:9px; margin-top:12px; }
+  .teaching-answer-grid>div { display:grid; gap:3px; padding:11px 12px; border:1px solid var(--border); border-radius:12px; background:var(--surface-soft); }
+  .teaching-answer-grid span { color:var(--text-secondary); font-size:10px; font-weight:800; }
+  .teaching-answer-grid strong { color:var(--primary); font-size:18px; }
+  .teaching-ai-block { padding:12px 0; border-top:1px solid var(--border); }
+  .teaching-ai-block h3 { margin:0 0 8px; font-size:14px; }
+  .teaching-model-line { margin-top:12px; color:var(--text-secondary); font-size:10px; }
+  .teacher-solution-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .teacher-solution-grid label,.teacher-solution-field { display:grid; gap:6px; }
+  .teacher-solution-grid label>span,.teacher-solution-field>span { color:var(--text-secondary); font-size:11px; font-weight:800; }
+  .teacher-solution-field { margin-top:10px; }
+  .teacher-solution-field textarea { min-height:80px; padding-top:10px!important; resize:vertical; }
+  .teacher-solution-field .teacher-method-textarea { min-height:150px; }
+  .teacher-save-button { width:100%; margin-top:12px; }
+  .teaching-mode-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:9px; }
+  .teaching-mode-grid button { display:grid; gap:5px; min-height:92px; padding:12px; border:1px solid var(--border); border-radius:14px; background:var(--surface-soft); color:var(--text); text-align:left; cursor:pointer; }
+  .teaching-mode-grid button.active { border-color:var(--primary); background:color-mix(in srgb,var(--primary) 9%,var(--surface)); box-shadow:0 0 0 2px color-mix(in srgb,var(--primary) 10%,transparent); }
+  .teaching-mode-grid strong { font-size:13px; }
+  .teaching-mode-grid span { color:var(--text-secondary); font-size:10px; line-height:1.5; }
+  .teaching-rule-checks { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; }
+  .teaching-rule-checks label { display:flex; align-items:center; gap:8px; min-height:42px; padding:0 10px; border:1px solid var(--border); border-radius:12px; background:var(--surface-soft); font-size:11px; font-weight:800; }
+  .teaching-subject-rules { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .teaching-subject-rules label { display:grid; gap:6px; }
+  .teaching-subject-rules label>span { color:var(--text-secondary); font-size:11px; font-weight:850; }
+  .teaching-subject-rules textarea { min-height:105px; padding-top:10px!important; resize:vertical; }
+  .teaching-rules-save { width:100%; margin-top:14px; }
+  @media(max-width:900px){.admin-usage-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.teaching-mode-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.teaching-rule-checks{grid-template-columns:repeat(2,minmax(0,1fr))}}
+  @media(max-width:760px){.teaching-filter-row{grid-template-columns:1fr}.teaching-question-row{grid-template-columns:68px minmax(0,1fr)}.teaching-question-row>img,.teaching-thumb-empty{width:68px;height:58px}.teaching-row-answer{grid-column:2;display:flex;justify-content:space-between;align-items:center}.teacher-solution-grid,.teaching-subject-rules{grid-template-columns:1fr}.teaching-rule-checks{grid-template-columns:1fr 1fr}.teaching-answer-grid{grid-template-columns:1fr}.admin-nav-children{margin-left:38px}}
 
 `;
 

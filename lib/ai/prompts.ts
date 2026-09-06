@@ -80,15 +80,12 @@ export function buildPrimaryPrompt({
   subject,
   referenceAnswer,
   questionNote,
+  teachingContext,
 }: {
-  subject:
-    string;
-
-  referenceAnswer?:
-    string;
-
-  questionNote?:
-    string;
+  subject: string;
+  referenceAnswer?: string;
+  questionNote?: string;
+  teachingContext?: string;
 }) {
 
   const subjectText =
@@ -117,6 +114,8 @@ ${referenceAnswer || "未提供"}
 
 學生補充敘述：
 ${questionNote || "未提供"}
+
+${teachingContext || ""}
 
 ━━━━━━━━━━━━━━━━━━
 【核心原則】
@@ -222,12 +221,11 @@ $\\htmlData{annotation=a1}{162}\\ \\mathrm{g/mol}$
 export function buildVerifierPrompt({
   primaryAnswer,
   primaryExplanation,
+  teachingContext,
 }: {
-  primaryAnswer:
-    string;
-
-  primaryExplanation:
-    string;
+  primaryAnswer: string;
+  primaryExplanation: string;
+  teachingContext?: string;
 }) {
 
   return `
@@ -253,6 +251,8 @@ ${primaryAnswer}
 Primary 觀念解析：
 ${primaryExplanation}
 
+${teachingContext || ""}
+
 只輸出合法 JSON：
 {
   "verdict": "approve|major_error",
@@ -269,6 +269,7 @@ export function buildArbiterPrompt({
   referenceAnswer,
   primaryAnswer,
   verifierConcern,
+  teachingContext,
 }: {
   subject:
     string;
@@ -279,8 +280,8 @@ export function buildArbiterPrompt({
   primaryAnswer:
     string;
 
-  verifierConcern?:
-    string;
+  verifierConcern?: string;
+  teachingContext?: string;
 }) {
 
   return `
@@ -299,6 +300,8 @@ ${primaryAnswer}
 
 Verifier 的重大疑慮：
 ${verifierConcern || "無"}
+
+${teachingContext || ""}
 
 請重新檢查所有題目圖片、圖表、公式、單位、計算與選項，
 最後產生完整的學生版解答。
