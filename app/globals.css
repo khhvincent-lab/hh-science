@@ -1005,3 +1005,35 @@ button {
   }
   .hh-theme-swatch { width: 25px !important; height: 25px !important; }
 }
+
+/* v1.3.2 input guard */
+.input-guard-panel { display: grid; gap: 14px; }
+.input-guard-master {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-soft);
+}
+.input-guard-master > span { display: grid; gap: 2px; }
+.input-guard-master small,
+.teaching-subject-editor > small { color: var(--text-secondary); font-size: 12px; }
+.input-guard-checks { margin-top: 0; }
+.teaching-block-rule-button { white-space: nowrap; }
+
+@media (max-width: 760px) {
+  .teacher-solution-actions {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  .teacher-solution-actions .teacher-save-button {
+    grid-column: 1 / -1;
+  }
+  .teaching-block-rule-button,
+  .teaching-ai-revise-button,
+  .teacher-save-button { width: 100%; }
+  .input-guard-panel .teaching-rule-checks { grid-template-columns: 1fr; }
+}

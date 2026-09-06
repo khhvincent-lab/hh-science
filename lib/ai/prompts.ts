@@ -33,7 +33,7 @@ export function subjectLabel(
 }
 
 
-export function buildScienceGatePrompt() {
+export function buildScienceGatePrompt(inputGuardRules = "") {
   return `
 你是 H.H. Science Lab 的自然科題目分類器。
 
@@ -62,15 +62,26 @@ export function buildScienceGatePrompt() {
 若圖片含有數學計算，但它是在解物理、化學、生物或地科問題，
 仍然屬於自然科。
 
-若圖片難以辨識，不要猜成非自然科；
-category 可回 unclear，allowed=true，交由後續解題模型判斷。
+圖片有效性是第一優先，不能把「難以辨識」直接放行。
+如果圖片內容不足以確認有一個可解的自然科題目，必須 allowed=false。
+
+以下是目前輸入阻擋規則：
+${inputGuardRules || "- 無額外規則"}
+
+判斷順序：
+1. 先判斷圖片是否有效、清楚、含有可辨識的題目內容。
+2. 無效圖片、空白／全黑、嚴重模糊、惡搞或與題目無關內容，allowed=false。
+3. 圖片有效後，再判斷是否屬於自然科。
+4. 只有在「看得出確實是自然科題目，但跨科或子類別不確定」時，才可 category=unclear 且 allowed=true。
+5. 絕對不要因為「也許後續模型解得出來」而放行無效圖片。
 
 只輸出合法 JSON：
 {
   "allowed": true,
   "category": "physics|chemistry|biology|earth|mixed_science|non_science|unclear",
   "confidence": 0,
-  "reason": "一句簡短理由"
+  "reason": "一句簡短理由",
+  "rejectionType": "invalid_image|non_science|null"
 }
 `.trim();
 }

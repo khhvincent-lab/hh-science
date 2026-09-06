@@ -30,6 +30,12 @@ import {
 } from "@/lib/ai-settings";
 
 import { buildTeachingContext } from "@/lib/teaching-engine";
+import {
+  buildInputGuardPrompt,
+  getInputGuardSettings,
+  inspectImageMetrics,
+  type ImageQualityMetric,
+} from "@/lib/input-guard";
 
 import type {
   Annotation,
@@ -58,6 +64,9 @@ export type RouterInput = {
 
   questionNote?:
     string;
+
+  imageQuality?:
+    ImageQualityMetric[];
 };
 
 
@@ -307,6 +316,11 @@ function normalizeGate(
           ?.reason ||
         ""
       ),
+
+    rejectionType:
+      value?.rejectionType === "invalid_image" || value?.rejectionType === "non_science"
+        ? value.rejectionType
+        : null,
   };
 }
 
@@ -446,6 +460,7 @@ export async function runScienceGate(
       | "studentId"
       | "campus"
       | "images"
+      | "imageQuality"
     >
 ): Promise<ScienceGateCheck> {
 
@@ -473,6 +488,28 @@ export async function runScienceGate(
   const requestId =
     randomUUID();
 
+  const guardSettings =
+    await getInputGuardSettings();
+
+  const metricCheck =
+    inspectImageMetrics(
+      input.imageQuality,
+      guardSettings
+    );
+
+  if (metricCheck.blocked) {
+    return {
+      requestId,
+      gate: {
+        allowed: false,
+        category: "unclear",
+        confidence: 100,
+        reason: metricCheck.reason,
+        rejectionType: "invalid_image",
+      },
+    };
+  }
+
   const settings =
     await getAISolverSettings();
 
@@ -494,7 +531,9 @@ export async function runScienceGate(
           .scienceGate
           .reasoning,
       prompt:
-        buildScienceGatePrompt(),
+        buildScienceGatePrompt(
+          buildInputGuardPrompt(guardSettings)
+        ),
       images:
         input.images,
       expectJson:
@@ -557,6 +596,8 @@ export async function runAIRouter(
         input.campus,
       images:
         input.images,
+      imageQuality:
+        input.imageQuality,
     });
 
   const {

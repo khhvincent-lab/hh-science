@@ -127,6 +127,11 @@ export type ScienceGateResult = {
 
   reason:
     string;
+
+  rejectionType?:
+    | "invalid_image"
+    | "non_science"
+    | null;
 };
 
 

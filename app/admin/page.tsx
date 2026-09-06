@@ -3576,6 +3576,18 @@ function TeachingQuestionsSection() {
       setAiReviseNote(data.note?`AI 建議：${data.note}`:"AI 已協助整理老師版解法，可再自行微調後儲存。");
     }catch(e){setMessage(e instanceof Error?e.message:"AI 協助修正失敗。");}finally{setAiRevising(false);}
   }
+  async function addBlockingRule(){
+    if(!selected)return;
+    const rule=teacherNote.trim();
+    if(!rule){setMessage("請先在老師備註寫下要阻擋的情況，再加入阻擋規則。");return;}
+    setSaving(true); setMessage("");
+    try{
+      const response=await fetch("/api/admin/input-guard",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({appendRule:rule})});
+      const data=await response.json(); if(!response.ok)throw new Error(data.error||"加入阻擋規則失敗。");
+      setIssueType("invalid_input");
+      setMessage("已加入全站輸入阻擋規則；下一題開始會在正式解題前先檢查。");
+    }catch(e){setMessage(e instanceof Error?e.message:"加入阻擋規則失敗。");}finally{setSaving(false);}
+  }
   async function saveTeacherSolution(){
     if(!selected) return; setSaving(true); setMessage("");
     try{
@@ -3600,11 +3612,11 @@ function TeachingQuestionsSection() {
       <div className="teaching-model-line">Primary：{selected.primaryModel||"—"}　Verifier：{selected.verifierModel||"未啟動"}　Arbiter：{selected.arbiterModel||"未啟動"}</div>
     </section>
     <section className="hh-card admin-panel teacher-solution-panel"><PanelHeader eyebrow="TEACHER METHOD" title="我的解法" subtitle="寫下你真正會教學生的順序與說法，系統會把它保存成教師案例。" />
-      <div className="teacher-solution-grid"><label><span>問題類型</span><select className="hh-select" value={issueType} onChange={e=>setIssueType(e.target.value)}><option value="wrong_answer">答案錯誤</option><option value="better_method">解法可更好</option><option value="unclear">說明不清楚</option><option value="format">格式問題</option><option value="other">其他</option></select></label><label><span>老師認定答案</span><input className="hh-input" value={teacherAnswer} onChange={e=>setTeacherAnswer(e.target.value)} placeholder="例如 B、2.5 mol"/></label></div>
+      <div className="teacher-solution-grid"><label><span>問題類型</span><select className="hh-select" value={issueType} onChange={e=>setIssueType(e.target.value)}><option value="wrong_answer">答案錯誤</option><option value="better_method">解法可更好</option><option value="unclear">說明不清楚</option><option value="format">格式問題</option><option value="invalid_input">應阻擋輸入</option><option value="other">其他</option></select></label><label><span>老師認定答案</span><input className="hh-input" value={teacherAnswer} onChange={e=>setTeacherAnswer(e.target.value)} placeholder="例如 B、2.5 mol"/></label></div>
       <label className="teacher-solution-field"><span>老師備註</span><textarea className="hh-input" value={teacherNote} onChange={e=>setTeacherNote(e.target.value)} placeholder="簡短說明 AI 哪裡可以更好"/></label>
       <label className="teacher-solution-field"><span>老師解法</span><textarea className="hh-input teacher-method-textarea" value={teacherExplanation} onChange={e=>setTeacherExplanation(e.target.value)} placeholder="例如：這題不要直接代公式。先判斷限制試劑，再由莫耳數比求生成物，最後換算質量。"/></label>
       {aiReviseNote&&<div className="teaching-ai-revise-note">{aiReviseNote}</div>}
-      <div className="teacher-solution-actions"><button type="button" className="hh-button-secondary teaching-ai-revise-button" onClick={()=>void reviseWithAI()} disabled={aiRevising}>{aiRevising?"AI 整理中…":"AI 協助修正回答"}</button><button type="button" className="hh-button-primary teacher-save-button" onClick={()=>void saveTeacherSolution()} disabled={saving||!teacherExplanation.trim()}>{saving?"儲存中…":"儲存我的解法"}</button></div>
+      <div className="teacher-solution-actions"><button type="button" className="hh-button-secondary teaching-ai-revise-button" onClick={()=>void reviseWithAI()} disabled={aiRevising}>{aiRevising?"AI 整理中…":"AI 協助修正回答"}</button><button type="button" className="hh-button-secondary teaching-block-rule-button" onClick={()=>void addBlockingRule()} disabled={saving}>加入阻擋規則</button><button type="button" className="hh-button-primary teacher-save-button" onClick={()=>void saveTeacherSolution()} disabled={saving||!teacherExplanation.trim()}>{saving?"儲存中…":"儲存我的解法"}</button></div>
     </section>
   </div>}
   return <div className="admin-stack">
@@ -3617,19 +3629,56 @@ function TeachingQuestionsSection() {
 }
 
 function TeachingRulesSection(){
-  const [settings,setSettings]=useState<any>(null); const [loading,setLoading]=useState(true); const [saving,setSaving]=useState(false); const [message,setMessage]=useState(""); const [activeSubject,setActiveSubject]=useState("physics");
-  const load=useCallback(async()=>{setLoading(true);try{const r=await fetch("/api/admin/teaching-settings",{cache:"no-store"});const d=await r.json();if(!r.ok)throw new Error(d.error||"讀取解題規則失敗。");setSettings(d.settings);}catch(e){setMessage(e instanceof Error?e.message:"讀取失敗。");}finally{setLoading(false);}},[]);
+  const [settings,setSettings]=useState<any>(null);
+  const [guard,setGuard]=useState<any>(null);
+  const [loading,setLoading]=useState(true);
+  const [saving,setSaving]=useState(false);
+  const [message,setMessage]=useState("");
+  const [activeSubject,setActiveSubject]=useState("physics");
+  const load=useCallback(async()=>{
+    setLoading(true);
+    try{
+      const [r,g]=await Promise.all([
+        fetch("/api/admin/teaching-settings",{cache:"no-store"}),
+        fetch("/api/admin/input-guard",{cache:"no-store"}),
+      ]);
+      const [d,gd]=await Promise.all([r.json(),g.json()]);
+      if(!r.ok)throw new Error(d.error||"讀取解題規則失敗。");
+      if(!g.ok)throw new Error(gd.error||"讀取輸入阻擋規則失敗。");
+      setSettings(d.settings); setGuard(gd.settings);
+    }catch(e){setMessage(e instanceof Error?e.message:"讀取失敗。");}
+    finally{setLoading(false);}
+  },[]);
   useEffect(()=>{void load();},[load]);
-  async function save(){if(!settings)return;setSaving(true);setMessage("");try{const r=await fetch("/api/admin/teaching-settings",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({settings})});const d=await r.json();if(!r.ok)throw new Error(d.error||"儲存失敗。");setSettings(d.settings);setMessage("解題規則已更新，下一題開始套用。 ");}catch(e){setMessage(e instanceof Error?e.message:"儲存失敗。");}finally{setSaving(false);}}
-  if(loading||!settings)return <div className="hh-card admin-panel admin-empty">正在載入解題規則…</div>;
+  async function save(){
+    if(!settings||!guard)return;
+    setSaving(true);setMessage("");
+    try{
+      const [r,g]=await Promise.all([
+        fetch("/api/admin/teaching-settings",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({settings})}),
+        fetch("/api/admin/input-guard",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({settings:guard})}),
+      ]);
+      const [d,gd]=await Promise.all([r.json(),g.json()]);
+      if(!r.ok)throw new Error(d.error||"儲存解題規則失敗。");
+      if(!g.ok)throw new Error(gd.error||"儲存阻擋規則失敗。");
+      setSettings(d.settings); setGuard(gd.settings);
+      setMessage("解題規則與圖片有效性規則已更新，下一題開始套用。");
+    }catch(e){setMessage(e instanceof Error?e.message:"儲存失敗。");}
+    finally{setSaving(false);}
+  }
+  if(loading||!settings||!guard)return <div className="hh-card admin-panel admin-empty">正在載入解題規則…</div>;
   const modes=[{key:"concise",name:"精簡解題",desc:"簡單題只保留核心觀念與必要步驟"},{key:"standard",name:"標準教學",desc:"答案、觀念解析、選項分析兼顧可讀性"},{key:"deep",name:"深度解析",desc:"難題增加條件整理、完整推導與常見錯誤"},{key:"correction",name:"訂正模式",desc:"優先找出衝突點並重建正確解法"}];
   const general=[['noGuessing','禁止猜測'],['requestRetakeWhenIncomplete','資訊不足要求重新拍照'],['highSchoolFirst','優先使用高中課綱方法'],['keepUnits','計算保留單位'],['keepKeySteps','保留必要中間步驟'],['avoidOverreach','避免不必要超綱']];
+  const guardRules=[['blockBlackImage','阻擋全黑／近乎全黑圖片'],['blockWhiteImage','阻擋全白／近乎全白圖片'],['blockUnreadable','阻擋嚴重模糊或資訊量過低圖片'],['blockNonQuestion','阻擋沒有題目內容的圖片'],['blockJokeOrIrrelevant','阻擋自拍、風景、梗圖、聊天截圖與惡搞內容'],['requireVisibleQuestionContent','必須看得到足以判斷問題的題目內容']];
   const subjects=[['physics','物理'],['chemistry','化學'],['biology','生物'],['earth','地球科學']];
   const activeMode=modes.find(m=>m.key===settings.mode)||modes[1];
   const activeSubjectLabel=subjects.find(([key])=>key===activeSubject)?.[1]||"物理";
-  return <div className="admin-stack teaching-rules-page">{message&&<div className={`admin-notice ${message.includes("已更新")?"success":"danger"}`}>{message}</div>}<section className="hh-card admin-panel"><PanelHeader eyebrow="TEACHING MODE" title="解題模式" subtitle="設定整個解題實驗室預設的教學深度。"/><div className="teaching-mode-list">{modes.map(m=><button key={m.key} type="button" className={settings.mode===m.key?"active":""} onClick={()=>setSettings({...settings,mode:m.key})}><span className="teaching-mode-radio"/><strong>{m.name}</strong><span>{m.desc}</span></button>)}</div><div className="teaching-mode-current">目前模式：<strong>{activeMode.name}</strong> · {activeMode.desc}</div></section>
+  return <div className="admin-stack teaching-rules-page">
+    {message&&<div className={`admin-notice ${message.includes("已更新")?"success":"danger"}`}>{message}</div>}
+    <section className="hh-card admin-panel"><PanelHeader eyebrow="TEACHING MODE" title="解題模式" subtitle="設定整個解題實驗室預設的教學深度。"/><div className="teaching-mode-list">{modes.map(m=><button key={m.key} type="button" className={settings.mode===m.key?"active":""} onClick={()=>setSettings({...settings,mode:m.key})}><span className="teaching-mode-radio"/><strong>{m.name}</strong><span>{m.desc}</span></button>)}</div><div className="teaching-mode-current">目前模式：<strong>{activeMode.name}</strong> · {activeMode.desc}</div></section>
     <section className="hh-card admin-panel"><PanelHeader eyebrow="GENERAL RULES" title="通用解題規則"/><div className="teaching-rule-checks">{general.map(([key,label])=><label key={key}><input type="checkbox" checked={Boolean(settings.general[key])} onChange={e=>setSettings({...settings,general:{...settings.general,[key]:e.target.checked}})}/><span>{label}</span></label>)}</div></section>
-    <section className="hh-card admin-panel"><PanelHeader eyebrow="SUBJECT RULES" title="科目規則" subtitle="切換科目後只編輯該科規則，Primary、Verifier、Arbiter 與 Follow-up 都會共用。"/><div className="teaching-subject-tabs">{subjects.map(([key,label])=><button key={key} type="button" className={activeSubject===key?"active":""} onClick={()=>setActiveSubject(key)}>{label}</button>)}</div><label className="teaching-subject-editor"><span>{activeSubjectLabel}規則</span><textarea className="hh-input" value={settings.subjects[activeSubject]||""} onChange={e=>setSettings({...settings,subjects:{...settings.subjects,[activeSubject]:e.target.value}})}/></label><button type="button" className="hh-button-primary teaching-rules-save" onClick={()=>void save()} disabled={saving}>{saving?"儲存中…":"儲存解題規則"}</button></section>
+    <section className="hh-card admin-panel input-guard-panel"><PanelHeader eyebrow="INPUT GUARD" title="圖片有效性與阻擋規則" subtitle="先擋無效圖片，再做自然科判斷。被擋的圖片不扣題數，也不會進入正式 Primary／Verifier／Arbiter 解題。"/><label className="input-guard-master"><input type="checkbox" checked={Boolean(guard.enabled)} onChange={e=>setGuard({...guard,enabled:e.target.checked})}/><span><strong>啟用輸入阻擋</strong><small>建議保持開啟</small></span></label><div className="teaching-rule-checks input-guard-checks">{guardRules.map(([key,label])=><label key={key}><input type="checkbox" checked={Boolean(guard[key])} onChange={e=>setGuard({...guard,[key]:e.target.checked})}/><span>{label}</span></label>)}</div><label className="teaching-subject-editor"><span>老師自訂阻擋規則</span><small>每行一條。也可以在「全站題目」個別題目中按「加入阻擋規則」。</small><textarea className="hh-input" value={(guard.customRules||[]).join("\n")} onChange={e=>setGuard({...guard,customRules:e.target.value.split("\n").map((v:string)=>v.trim()).filter(Boolean)})} placeholder={'例如：圖片只有黑底沒有題目內容時直接阻擋\n例如：學生上傳與自然科題目無關的聊天截圖時直接阻擋'}/></label></section>
+    <section className="hh-card admin-panel"><PanelHeader eyebrow="SUBJECT RULES" title="科目規則" subtitle="切換科目後只編輯該科規則，Primary、Verifier、Arbiter 與 Follow-up 都會共用。"/><div className="teaching-subject-tabs">{subjects.map(([key,label])=><button key={key} type="button" className={activeSubject===key?"active":""} onClick={()=>setActiveSubject(key)}>{label}</button>)}</div><label className="teaching-subject-editor"><span>{activeSubjectLabel}規則</span><textarea className="hh-input" value={settings.subjects[activeSubject]||""} onChange={e=>setSettings({...settings,subjects:{...settings.subjects,[activeSubject]:e.target.value}})}/></label><button type="button" className="hh-button-primary teaching-rules-save" onClick={()=>void save()} disabled={saving}>{saving?"儲存中…":"儲存全部規則"}</button></section>
   </div>;
 }
 

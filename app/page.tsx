@@ -70,6 +70,72 @@ type UsageData = {
   remaining: number;
 };
 
+type ImageQualityMetric = {
+  meanLuma: number;
+  lumaStdDev: number;
+  darkRatio: number;
+  lightRatio: number;
+  avgNeighborDiff: number;
+  width: number;
+  height: number;
+};
+
+async function analyzeImageQuality(dataUrl: string): Promise<ImageQualityMetric | null> {
+  return await new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      try {
+        const sampleWidth = 48;
+        const sampleHeight = Math.max(24, Math.round(sampleWidth * img.naturalHeight / Math.max(1, img.naturalWidth)));
+        const canvas = document.createElement("canvas");
+        canvas.width = sampleWidth;
+        canvas.height = Math.min(72, sampleHeight);
+        const ctx = canvas.getContext("2d", { willReadFrequently: true });
+        if (!ctx) return resolve(null);
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+        const lumas: number[] = [];
+        let dark = 0;
+        let light = 0;
+        let sum = 0;
+        for (let i = 0; i < pixels.length; i += 4) {
+          const y = 0.2126 * pixels[i] + 0.7152 * pixels[i + 1] + 0.0722 * pixels[i + 2];
+          lumas.push(y);
+          sum += y;
+          if (y <= 18) dark++;
+          if (y >= 238) light++;
+        }
+        const mean = sum / Math.max(1, lumas.length);
+        let variance = 0;
+        for (const y of lumas) variance += (y - mean) ** 2;
+        const sd = Math.sqrt(variance / Math.max(1, lumas.length));
+        let diffSum = 0;
+        let diffCount = 0;
+        for (let y = 0; y < canvas.height; y++) {
+          for (let x = 1; x < canvas.width; x++) {
+            const idx = y * canvas.width + x;
+            diffSum += Math.abs(lumas[idx] - lumas[idx - 1]);
+            diffCount++;
+          }
+        }
+        resolve({
+          meanLuma: Number(mean.toFixed(2)),
+          lumaStdDev: Number(sd.toFixed(2)),
+          darkRatio: Number((dark / Math.max(1, lumas.length)).toFixed(4)),
+          lightRatio: Number((light / Math.max(1, lumas.length)).toFixed(4)),
+          avgNeighborDiff: Number((diffSum / Math.max(1, diffCount)).toFixed(2)),
+          width: img.naturalWidth,
+          height: img.naturalHeight,
+        });
+      } catch {
+        resolve(null);
+      }
+    };
+    img.onerror = () => resolve(null);
+    img.src = dataUrl;
+  });
+}
+
 type HistoryImage = {
   path: string;
   mimeType?: string;
@@ -1014,6 +1080,9 @@ export default function Home() {
     setTimeout(() => resultRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
 
     try {
+      const imageQuality = (await Promise.all(images.map((item) => analyzeImageQuality(item))))
+        .filter((item): item is ImageQualityMetric => Boolean(item));
+
       const response = await fetch("/api/solve", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1022,6 +1091,7 @@ export default function Home() {
           subject,
           referenceAnswer,
           questionNote,
+          imageQuality,
         }),
       });
       const data = await response.json();

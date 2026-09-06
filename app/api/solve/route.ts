@@ -744,6 +744,11 @@ export async function POST(
         ""
       ).trim();
 
+    const imageQuality =
+      Array.isArray(body?.imageQuality)
+        ? body.imageQuality.slice(0, images.length)
+        : [];
+
 
     /* -----------------------------------------------------
        Settings
@@ -771,6 +776,8 @@ export async function POST(
           session.campus,
 
         images,
+
+        imageQuality,
       });
 
     if (
@@ -778,13 +785,16 @@ export async function POST(
         .gate
         .allowed
     ) {
+      const invalidImage = gateCheck.gate.rejectionType === "invalid_image";
       return NextResponse.json(
         {
           error:
-            "目前僅支援物理、化學、生物與地球科學題目。",
+            invalidImage
+              ? `圖片未通過有效性檢查：${gateCheck.gate.reason || "請重新拍攝清楚完整的題目。"}`
+              : "目前僅支援物理、化學、生物與地球科學題目。",
 
           code:
-            "NON_SCIENCE",
+            invalidImage ? "INVALID_IMAGE" : "NON_SCIENCE",
 
           gate:
             gateCheck.gate,
@@ -866,6 +876,8 @@ export async function POST(
           referenceAnswer,
 
           questionNote,
+
+          imageQuality,
         },
         gateCheck
       );
