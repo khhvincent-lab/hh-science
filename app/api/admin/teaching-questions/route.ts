@@ -115,7 +115,7 @@ export async function GET(request: NextRequest) {
   let query = supabaseAdmin
     .from("solve_history")
     .select(`
-      id,student_id,subject,reference_answer,question_note,answer,explanation,options,image_paths,created_at,
+      id,student_id,subject,reference_answer,question_note,answer,explanation,options,annotations,image_paths,created_at,
       primary_provider,primary_model,primary_answer,verifier_provider,verifier_model,verifier_result,
       arbiter_provider,arbiter_model,arbiter_answer,arbitration_trigger,dispute_status,
       students(name,campus,regions(name),institutions(name),classes(name))
@@ -205,6 +205,7 @@ export async function GET(request: NextRequest) {
         answer: row.answer || "",
         explanation: row.explanation || "",
         options: row.options || "",
+        annotations: Array.isArray(row.annotations) ? row.annotations : [],
         imageUrl: await signFirstImage(row.image_paths),
         createdAt: row.created_at,
         primaryProvider: row.primary_provider || null,

@@ -81,7 +81,10 @@ ${inputGuardRules || "- 無額外規則"}
   "category": "physics|chemistry|biology|earth|mixed_science|non_science|unclear",
   "confidence": 0,
   "reason": "一句簡短理由",
-  "rejectionType": "invalid_image|non_science|null"
+  "rejectionType": "invalid_image|non_science|null",
+  "topic": "若 allowed=true，用 4～18 字描述題目核心主題，例如：限制試劑與產率；無法判斷則空字串",
+  "keywords": ["若 allowed=true，列出 3～8 個可穩定代表此題型的關鍵詞"],
+  "questionSignature": "若 allowed=true，用一句不超過 60 字、盡量保留題目關鍵數值／條件／選項特徵的穩定摘要，供同題與相似題檢索；不可寫解答"
 }
 `.trim();
 }
@@ -176,7 +179,9 @@ $\\frac{192}{162}$
 ━━━━━━━━━━━━━━━━━━
 
 只挑真正有教學價值的重要數字。
-不要標題號、選項編號、步驟編號。
+在資訊足夠時，目標標註 3～6 個：常數、關鍵中間值、換算因子、臨界值、題目給定且會影響判斷的數值。
+不要標題號、選項編號、步驟編號，也不要為了湊數量標註沒有教學價值的數字。
+如果教師知識層提供了互動數字範例，優先學習「哪些數值值得解釋」的選擇邏輯。
 
 每個 annotation：
 {

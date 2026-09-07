@@ -321,6 +321,14 @@ function normalizeGate(
       value?.rejectionType === "invalid_image" || value?.rejectionType === "non_science"
         ? value.rejectionType
         : null,
+
+    topic: String(value?.topic || "").trim(),
+
+    keywords: Array.isArray(value?.keywords)
+      ? value.keywords.map((item: unknown) => String(item || "").trim()).filter(Boolean).slice(0, 10)
+      : [],
+
+    questionSignature: String(value?.questionSignature || "").trim(),
   };
 }
 
@@ -585,8 +593,6 @@ export async function runAIRouter(
   const settings =
     await getAISolverSettings();
 
-  const teachingContext = await buildTeachingContext(input.subject);
-
   const gateCheck =
     precheckedGate ||
     await runScienceGate({
@@ -605,6 +611,18 @@ export async function runAIRouter(
     gate,
   } =
     gateCheck;
+
+  const teachingSubject = input.subject === "auto" && ["physics", "chemistry", "biology", "earth"].includes(String(gate.category))
+    ? String(gate.category)
+    : input.subject;
+
+  const teachingContext = await buildTeachingContext(teachingSubject, {
+    topic: gate.topic,
+    keywords: gate.keywords,
+    questionSignature: gate.questionSignature,
+    referenceAnswer: input.referenceAnswer,
+    questionNote: input.questionNote,
+  });
 
   if (
     !gate.allowed

@@ -132,6 +132,10 @@ export type ScienceGateResult = {
     | "invalid_image"
     | "non_science"
     | null;
+
+  topic?: string;
+  keywords?: string[];
+  questionSignature?: string;
 };
 
 
