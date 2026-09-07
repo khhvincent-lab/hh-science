@@ -3685,7 +3685,63 @@ function TeachingQuestionsSection() {
       {filtersOpen&&<div className="teaching-filter-row"><div className="teaching-range-switch"><button type="button" className={range==="today"?"active":""} onClick={()=>setRange("today")}>今天</button><button type="button" className={range==="all"?"active":""} onClick={()=>setRange("all")}>全部</button></div><input className="hh-input" placeholder="搜尋學生、答案或解析內容…" value={q} onChange={e=>setQ(e.target.value)}/><select className="hh-select" value={subject} onChange={e=>setSubject(e.target.value)}><option value="">全部科目</option><option value="physics">物理</option><option value="chemistry">化學</option><option value="biology">生物</option><option value="earth">地球科學</option></select><button type="button" className={issues?"hh-button-primary":"hh-button-secondary"} onClick={()=>setIssues(v=>!v)}>只看異常題</button></div>}
     </section>
     {message&&<div className="admin-notice danger">{message}</div>}
-    <section className="teaching-question-list">{loading?<div className="hh-card admin-panel admin-empty">正在讀取全站題目…</div>:items.length===0?<div className="hh-card admin-panel admin-empty">目前沒有符合條件的題目。</div>:items.map(item=><button key={item.id} type="button" className="hh-card teaching-question-row teaching-question-row-v131" onClick={()=>open(item)}>{item.imageUrl?<img src={item.imageUrl} alt="題目縮圖"/>:<span className="teaching-thumb-empty">SCI</span>}<span className="teaching-question-main"><span className="teaching-row-topline"><span>{new Date(item.createdAt).toLocaleString("zh-TW",{month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"})}</span><span className={`teaching-subject-chip teaching-subject-${item.subject}`}>{adminSubjectLabel(item.subject)}</span>{item.issue&&<em className="teaching-inline-issue">異常</em>}</span><strong>{item.studentName}</strong><span className="teaching-question-preview">{item.questionNote?`學生補充：${item.questionNote}`:(item.explanation.replace(/\$+/g,"").slice(0,82)||"查看完整題目與 AI 解法")}</span><small>{[item.regionName,item.institutionName,item.className].filter(Boolean).join(" · ")||item.campus}</small></span><span className="teaching-row-answer"><small>AI 答案</small><b>{item.answer||"—"}</b><small className="teaching-row-cost-label">本題成本</small><strong className={`teaching-row-cost ${item.cost?.hasCostRecord?"":"missing"}`}>{item.cost?.hasCostRecord?formatQuestionCostTwd(item.cost.totalCostUsd):"無紀錄"}</strong><span>查看 →</span></span></button>)}</section>
+    <section className="teaching-question-list">
+      {loading ? (
+        <div className="hh-card admin-panel admin-empty">正在讀取全站題目…</div>
+      ) : items.length === 0 ? (
+        <div className="hh-card admin-panel admin-empty">目前沒有符合條件的題目。</div>
+      ) : (
+        items.map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            className="hh-card teaching-question-row teaching-question-row-v131 teaching-question-row-readable"
+            onClick={() => open(item)}
+          >
+            <span className="teaching-question-media">
+              {item.imageUrl ? (
+                <img src={item.imageUrl} alt="題目縮圖" />
+              ) : (
+                <span className="teaching-thumb-empty">SCI</span>
+              )}
+            </span>
+
+            <span className="teaching-question-main">
+              <span className="teaching-row-topline">
+                <span>{new Date(item.createdAt).toLocaleString("zh-TW", { month:"2-digit", day:"2-digit", hour:"2-digit", minute:"2-digit" })}</span>
+                <span className={`teaching-subject-chip teaching-subject-${item.subject}`}>{adminSubjectLabel(item.subject)}</span>
+                {item.issue && <em className="teaching-inline-issue">異常</em>}
+              </span>
+
+              <span className="teaching-question-student-line">
+                <strong>{item.studentName}</strong>
+                <small>{[item.regionName,item.institutionName,item.className].filter(Boolean).join(" · ") || item.campus}</small>
+              </span>
+
+              <span className="teaching-question-preview">
+                {item.questionNote
+                  ? `學生補充：${item.questionNote}`
+                  : (item.explanation.replace(/\$+/g,"").slice(0,120) || "查看完整題目與 AI 解法")}
+              </span>
+            </span>
+
+            <span className="teaching-row-summary">
+              <span className="teaching-row-metric teaching-row-metric-answer">
+                <small>AI 答案</small>
+                <b>{item.answer || "—"}</b>
+              </span>
+              <span className="teaching-row-metric teaching-row-metric-cost">
+                <small>本題成本</small>
+                <strong className={`teaching-row-cost ${item.cost?.hasCostRecord ? "" : "missing"}`}>
+                  {item.cost?.hasCostRecord ? formatQuestionCostTwd(item.cost.totalCostUsd) : "無紀錄"}
+                </strong>
+              </span>
+              <span className="teaching-row-open">查看詳情 <b>→</b></span>
+            </span>
+          </button>
+        ))
+      )}
+    </section>
   </div>;
 }
 
@@ -3823,11 +3879,13 @@ function NavButton({
   return (
     <button
       type="button"
-      className={`admin-nav-button ${active ? "active" : ""}`}
+      className={`admin-nav-group-toggle admin-nav-overview ${active ? "active" : ""}`}
+      aria-current={active ? "page" : undefined}
       onClick={onClick}
     >
-      <span>{icon}</span>
-      <strong className="admin-nav-button-label">{label}</strong>
+      <span className="admin-nav-group-icon">{icon}</span>
+      <strong>{label}</strong>
+      <span className="admin-nav-overview-end" aria-hidden="true" />
     </button>
   );
 }
@@ -9883,6 +9941,241 @@ const adminStyles = `
     .solve-cost-group-metrics { grid-template-columns:repeat(3,minmax(0,1fr)); }
     .solve-cost-group-metrics>div { padding:8px 6px; }
     .solve-cost-group-metrics strong { font-size:11px; }
+  }
+
+
+  /* v1.3.4 readability + sidebar consistency patch */
+  .admin-nav-overview {
+    width: 100%;
+  }
+  .admin-nav-overview.active,
+  .admin-nav-overview:hover {
+    color: var(--text);
+    background: color-mix(in srgb, var(--primary) 7%, var(--surface));
+  }
+  .admin-nav-overview-end {
+    width: 22px;
+    height: 22px;
+  }
+  html:is([data-theme="white"],[data-theme="oatmeal"]) .admin-nav-overview.active,
+  html:is([data-theme="white"],[data-theme="oatmeal"]) .admin-nav-overview:hover {
+    background: var(--surface-soft) !important;
+  }
+
+  .teaching-question-list {
+    gap: 11px;
+  }
+  .teaching-question-row-readable {
+    grid-template-columns: 112px minmax(0, 1fr) 154px !important;
+    align-items: center;
+    gap: 18px !important;
+    min-height: 120px !important;
+    padding: 14px 16px !important;
+    border-radius: 17px !important;
+    transition: border-color .16s ease, box-shadow .16s ease, transform .16s ease;
+  }
+  .teaching-question-row-readable:hover {
+    border-color: color-mix(in srgb, var(--primary) 28%, var(--border));
+    box-shadow: 0 10px 28px color-mix(in srgb, var(--text) 7%, transparent);
+    transform: translateY(-1px);
+  }
+  .teaching-question-media {
+    display: grid;
+    place-items: center;
+    width: 112px;
+    min-width: 0;
+  }
+  .teaching-question-media > img,
+  .teaching-question-media > .teaching-thumb-empty {
+    display: block;
+    width: 112px !important;
+    height: 88px !important;
+    object-fit: cover;
+    border: 1px solid var(--border);
+    border-radius: 13px !important;
+    background: var(--surface-soft);
+  }
+  .teaching-question-media > .teaching-thumb-empty {
+    display: grid;
+    place-items: center;
+  }
+  .teaching-question-row-readable .teaching-question-main {
+    align-content: center;
+    gap: 7px;
+  }
+  .teaching-question-row-readable .teaching-row-topline {
+    gap: 7px;
+    font-size: 10.5px;
+  }
+  .teaching-question-student-line {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 5px 10px;
+    min-width: 0;
+  }
+  .teaching-question-student-line > strong {
+    flex: 0 0 auto;
+    color: var(--text);
+    font-size: 15px;
+    line-height: 1.25;
+  }
+  .teaching-question-student-line > small {
+    min-width: 0;
+    overflow: hidden;
+    color: var(--text-muted);
+    font-size: 10.5px;
+    line-height: 1.35;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .teaching-question-row-readable .teaching-question-preview {
+    display: -webkit-box;
+    overflow: hidden;
+    color: var(--text-secondary);
+    font-size: 12px;
+    line-height: 1.55;
+    white-space: normal;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+  .teaching-row-summary {
+    align-self: stretch;
+    display: grid;
+    grid-template-columns: 1fr;
+    align-content: center;
+    gap: 8px;
+    min-width: 0;
+    padding-left: 16px;
+    border-left: 1px solid var(--border);
+  }
+  .teaching-row-metric {
+    display: grid;
+    gap: 2px;
+  }
+  .teaching-row-metric small {
+    color: var(--text-muted);
+    font-size: 9px;
+    font-weight: 850;
+    letter-spacing: .03em;
+  }
+  .teaching-row-metric-answer b {
+    color: var(--primary);
+    font-size: 22px;
+    line-height: 1.05;
+  }
+  .teaching-row-metric-cost {
+    padding-top: 7px;
+    border-top: 1px dashed var(--border);
+  }
+  .teaching-row-metric-cost .teaching-row-cost {
+    overflow: hidden;
+    color: var(--text) !important;
+    font-size: 13px !important;
+    line-height: 1.25;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .teaching-row-open {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-top: 1px;
+    color: var(--text-secondary);
+    font-size: 10px;
+    font-weight: 850;
+  }
+  .teaching-row-open b {
+    color: var(--primary);
+    font-size: 13px;
+  }
+
+  @media(max-width:980px){
+    .teaching-question-row-readable {
+      grid-template-columns: 92px minmax(0, 1fr) 138px !important;
+      gap: 13px !important;
+      padding: 12px 13px !important;
+    }
+    .teaching-question-media {
+      width: 92px;
+    }
+    .teaching-question-media > img,
+    .teaching-question-media > .teaching-thumb-empty {
+      width: 92px !important;
+      height: 74px !important;
+    }
+    .teaching-row-summary {
+      padding-left: 12px;
+    }
+  }
+
+  @media(max-width:760px){
+    .teaching-question-list {
+      gap: 9px;
+    }
+    .teaching-question-row-readable {
+      grid-template-columns: 72px minmax(0, 1fr) !important;
+      gap: 10px !important;
+      min-height: 0 !important;
+      padding: 10px !important;
+    }
+    .teaching-question-media {
+      align-self: start;
+      width: 72px;
+    }
+    .teaching-question-media > img,
+    .teaching-question-media > .teaching-thumb-empty {
+      width: 72px !important;
+      height: 62px !important;
+    }
+    .teaching-question-row-readable .teaching-question-main {
+      gap: 5px;
+    }
+    .teaching-question-student-line {
+      display: grid;
+      gap: 2px;
+    }
+    .teaching-question-student-line > strong {
+      font-size: 13px;
+    }
+    .teaching-question-student-line > small {
+      font-size: 9.5px;
+    }
+    .teaching-question-row-readable .teaching-question-preview {
+      font-size: 10.5px;
+      line-height: 1.45;
+      -webkit-line-clamp: 2;
+    }
+    .teaching-row-summary {
+      grid-column: 1 / -1;
+      grid-template-columns: minmax(0, .75fr) minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 10px;
+      padding: 9px 2px 0;
+      border-top: 1px solid var(--border);
+      border-left: 0;
+    }
+    .teaching-row-metric-cost {
+      padding-top: 0;
+      padding-left: 10px;
+      border-top: 0;
+      border-left: 1px dashed var(--border);
+    }
+    .teaching-row-metric-answer b {
+      font-size: 18px;
+    }
+    .teaching-row-metric-cost .teaching-row-cost {
+      font-size: 11px !important;
+    }
+    .teaching-row-open {
+      justify-content: flex-end;
+      margin: 0;
+      white-space: nowrap;
+    }
+    .teaching-row-open b {
+      margin-left: 2px;
+    }
   }
 
 `;

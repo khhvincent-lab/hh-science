@@ -395,8 +395,39 @@ type FirstUseTutorialStep = {
   tips: string[];
 };
 
+type TutorialPhase = "setup" | "results" | "full";
+
+type TutorialTargetRect = {
+  top: number;
+  left: number;
+  right: number;
+  bottom: number;
+  width: number;
+  height: number;
+  viewportWidth: number;
+  viewportHeight: number;
+};
+
 const FIRST_USE_TOUR_KEY_PREFIX = "hh-science:first-use-tour:";
+const FIRST_USE_SETUP_KEY_PREFIX = "hh-science:first-use-setup:";
+const FIRST_USE_RESULT_PENDING_KEY_PREFIX = "hh-science:first-use-result-pending:";
 const ADD_HOME_GUIDE_KEY = "hh-science:add-home-guide-seen";
+
+const SETUP_TUTORIAL_SEQUENCE = [0, 1, 2, 3, 8];
+const RESULT_TUTORIAL_SEQUENCE = [4, 5, 6, 7];
+const FULL_TUTORIAL_SEQUENCE = [0, 1, 2, 3, 4, 5, 6, 7, 8];
+
+const tutorialTargetSelectors: Record<number, string[]> = {
+  0: ['[data-tour="upload-zone"]', '[data-tour="upload-panel"]'],
+  1: ['[data-tour="reference-answer"]'],
+  2: ['[data-tour="question-note"]'],
+  3: ['[data-tour="solve-button"]'],
+  4: ['[data-tour="concept-analysis"]'],
+  5: ['[data-tour="option-analysis"]'],
+  6: ['[data-tour="followup"]'],
+  7: ['[data-tour="result-actions"]'],
+  8: ['[data-tour="menu-panel"]', '[data-tour="menu-button"]'],
+};
 
 const firstUseTutorialSteps: FirstUseTutorialStep[] = [
   {
@@ -536,7 +567,9 @@ export default function Home() {
   const [activeView, setActiveView] = useState<"solve" | "history">("solve");
   const [tutorialOpen, setTutorialOpen] = useState(false);
   const [tutorialStep, setTutorialStep] = useState(0);
+  const [tutorialPhase, setTutorialPhase] = useState<TutorialPhase>("setup");
   const [tutorialAutoFlow, setTutorialAutoFlow] = useState(false);
+  const [tutorialTargetRect, setTutorialTargetRect] = useState<TutorialTargetRect | null>(null);
   const [installGuideOpen, setInstallGuideOpen] = useState(false);
   const [installPlatform, setInstallPlatform] = useState<FirstUsePlatform>("ios");
 
@@ -573,6 +606,14 @@ export default function Home() {
   const resultRef = useRef<HTMLElement | null>(null);
   const exportCardRef = useRef<HTMLDivElement | null>(null);
   const exportQuestionImageRef = useRef<HTMLImageElement | null>(null);
+
+  const tutorialSequence = tutorialPhase === "setup"
+    ? SETUP_TUTORIAL_SEQUENCE
+    : tutorialPhase === "results"
+      ? (solveData?.options ? RESULT_TUTORIAL_SEQUENCE : RESULT_TUTORIAL_SEQUENCE.filter((step) => step !== 5))
+      : (solveData?.options ? FULL_TUTORIAL_SEQUENCE : FULL_TUTORIAL_SEQUENCE.filter((step) => step !== 5));
+  const activeTutorialStepIndex = tutorialSequence[Math.min(tutorialStep, Math.max(0, tutorialSequence.length - 1))] ?? 0;
+  const activeTutorialStep = firstUseTutorialSteps[activeTutorialStepIndex];
 
   useEffect(() => {
     async function restoreSession() {
@@ -660,18 +701,19 @@ export default function Home() {
   }, [institutionId, classId, loginClasses]);
 
   useEffect(() => {
-    if (!student || student.mustChangePin || authLoading) return;
+    if (!student || student.mustChangePin || authLoading || tutorialOpen) return;
 
     const timer = window.setTimeout(() => {
       try {
         const tutorialSeen = window.localStorage.getItem(
           `${FIRST_USE_TOUR_KEY_PREFIX}${student.id}`,
         );
+        const setupSeen = window.localStorage.getItem(
+          `${FIRST_USE_SETUP_KEY_PREFIX}${student.id}`,
+        );
 
-        if (!tutorialSeen) {
-          setTutorialStep(0);
-          setTutorialAutoFlow(true);
-          setTutorialOpen(true);
+        if (!tutorialSeen && !setupSeen) {
+          startTutorial("setup", true);
           return;
         }
 
@@ -679,11 +721,126 @@ export default function Home() {
       } catch {
         // localStorage 可能因瀏覽器隱私設定不可用；不影響主要解題流程。
       }
-    }, 0);
+    }, 120);
 
     return () => window.clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authLoading, student?.id, student?.mustChangePin]);
+  }, [authLoading, student?.id, student?.mustChangePin, tutorialOpen]);
+
+  useEffect(() => {
+    if (!student || !solveData || student.mustChangePin || tutorialOpen) return;
+
+    let shouldResume = false;
+
+    try {
+      const tutorialSeen = window.localStorage.getItem(
+        `${FIRST_USE_TOUR_KEY_PREFIX}${student.id}`,
+      );
+      const resultPending = window.localStorage.getItem(
+        `${FIRST_USE_RESULT_PENDING_KEY_PREFIX}${student.id}`,
+      );
+      shouldResume = !tutorialSeen && Boolean(resultPending);
+    } catch {}
+
+    if (!shouldResume) return;
+
+    const timer = window.setTimeout(() => {
+      startTutorial("results", true);
+    }, 520);
+
+    return () => window.clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [student?.id, student?.mustChangePin, solveData?.historyId, tutorialOpen]);
+
+  useEffect(() => {
+    if (!tutorialOpen) {
+      setTutorialTargetRect(null);
+      return;
+    }
+
+    if (activeTutorialStepIndex === 8) {
+      setMenuOpen(true);
+    } else {
+      setMenuOpen(false);
+    }
+
+    let cancelled = false;
+    let measureTimer = 0;
+    let animationFrame = 0;
+
+    const findTarget = () => {
+      const selectors = tutorialTargetSelectors[activeTutorialStepIndex] || [];
+      for (const selector of selectors) {
+        const element = document.querySelector(selector);
+        if (element instanceof HTMLElement) return element;
+      }
+      return null;
+    };
+
+    const measure = () => {
+      if (cancelled) return;
+      const target = findTarget();
+      if (!target) {
+        setTutorialTargetRect(null);
+        return;
+      }
+
+      const rect = target.getBoundingClientRect();
+      const viewportWidth = window.innerWidth;
+      const viewportHeight = window.innerHeight;
+      const padding = 8;
+      const left = Math.max(8, rect.left - padding);
+      const top = Math.max(8, rect.top - padding);
+      const right = Math.min(viewportWidth - 8, rect.right + padding);
+      const bottom = Math.min(viewportHeight - 8, rect.bottom + padding);
+
+      setTutorialTargetRect({
+        top,
+        left,
+        right,
+        bottom,
+        width: Math.max(1, right - left),
+        height: Math.max(1, bottom - top),
+        viewportWidth,
+        viewportHeight,
+      });
+    };
+
+    const scheduleMeasure = () => {
+      window.cancelAnimationFrame(animationFrame);
+      animationFrame = window.requestAnimationFrame(measure);
+    };
+
+    const prepareTarget = () => {
+      const target = findTarget();
+      if (!target) {
+        setTutorialTargetRect(null);
+        return;
+      }
+
+      target.scrollIntoView({
+        behavior: "smooth",
+        block: activeTutorialStepIndex === 8 ? "start" : "center",
+        inline: "nearest",
+      });
+
+      measure();
+      measureTimer = window.setTimeout(measure, 420);
+    };
+
+    const prepareTimer = window.setTimeout(prepareTarget, activeTutorialStepIndex === 8 ? 120 : 70);
+    window.addEventListener("resize", scheduleMeasure);
+    window.addEventListener("scroll", scheduleMeasure, true);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(prepareTimer);
+      window.clearTimeout(measureTimer);
+      window.cancelAnimationFrame(animationFrame);
+      window.removeEventListener("resize", scheduleMeasure);
+      window.removeEventListener("scroll", scheduleMeasure, true);
+    };
+  }, [tutorialOpen, activeTutorialStepIndex]);
 
   useEffect(() => {
     if (student && activeView === "history") {
@@ -729,28 +886,87 @@ export default function Home() {
     setInstallGuideOpen(true);
   }
 
-  function openTutorialFromMenu() {
+  function startTutorial(phase: TutorialPhase, autoFlow = false) {
+    setActiveView("solve");
     setMenuOpen(false);
-    setTutorialAutoFlow(false);
+    setTutorialPhase(phase);
     setTutorialStep(0);
+    setTutorialAutoFlow(autoFlow);
+    setTutorialTargetRect(null);
     setTutorialOpen(true);
   }
 
-  function finishTutorial() {
-    if (student) {
+  function openTutorialFromMenu() {
+    startTutorial(solveData ? "full" : "setup", false);
+  }
+
+  function closeTutorialSurface() {
+    setTutorialOpen(false);
+    setTutorialAutoFlow(false);
+    setTutorialTargetRect(null);
+    setMenuOpen(false);
+  }
+
+  function skipTutorial() {
+    const continueFirstUseFlow = tutorialAutoFlow;
+
+    if (student && continueFirstUseFlow) {
       try {
         window.localStorage.setItem(
           `${FIRST_USE_TOUR_KEY_PREFIX}${student.id}`,
           "1",
         );
+        window.localStorage.setItem(
+          `${FIRST_USE_SETUP_KEY_PREFIX}${student.id}`,
+          "1",
+        );
+        window.localStorage.removeItem(
+          `${FIRST_USE_RESULT_PENDING_KEY_PREFIX}${student.id}`,
+        );
       } catch {}
     }
 
-    const continueFirstUseFlow = tutorialAutoFlow;
-    setTutorialOpen(false);
-    setTutorialAutoFlow(false);
+    closeTutorialSurface();
 
     if (continueFirstUseFlow) {
+      maybeOpenInstallGuide();
+    }
+  }
+
+  function finishTutorial() {
+    const continueFirstUseFlow = tutorialAutoFlow;
+    const completedPhase = tutorialPhase;
+
+    if (student && continueFirstUseFlow) {
+      try {
+        if (completedPhase === "setup") {
+          window.localStorage.setItem(
+            `${FIRST_USE_SETUP_KEY_PREFIX}${student.id}`,
+            "1",
+          );
+          window.localStorage.setItem(
+            `${FIRST_USE_RESULT_PENDING_KEY_PREFIX}${student.id}`,
+            "1",
+          );
+        } else if (completedPhase === "results") {
+          window.localStorage.setItem(
+            `${FIRST_USE_TOUR_KEY_PREFIX}${student.id}`,
+            "1",
+          );
+          window.localStorage.setItem(
+            `${FIRST_USE_SETUP_KEY_PREFIX}${student.id}`,
+            "1",
+          );
+          window.localStorage.removeItem(
+            `${FIRST_USE_RESULT_PENDING_KEY_PREFIX}${student.id}`,
+          );
+        }
+      } catch {}
+    }
+
+    closeTutorialSurface();
+
+    if (continueFirstUseFlow && completedPhase === "setup") {
       maybeOpenInstallGuide();
     }
   }
@@ -1695,6 +1911,30 @@ export default function Home() {
         ? "warning"
         : "caution";
 
+  const tutorialCardWidth = tutorialTargetRect
+    ? Math.min(420, Math.max(280, tutorialTargetRect.viewportWidth - 24))
+    : 420;
+  const tutorialCardLeft = tutorialTargetRect
+    ? Math.max(
+        12,
+        Math.min(
+          tutorialTargetRect.left + tutorialTargetRect.width / 2 - tutorialCardWidth / 2,
+          tutorialTargetRect.viewportWidth - tutorialCardWidth - 12,
+        ),
+      )
+    : 12;
+  const tutorialCardAbove = tutorialTargetRect
+    ? tutorialTargetRect.top > tutorialTargetRect.viewportHeight * 0.48
+    : false;
+  const tutorialCardMaxHeight = tutorialTargetRect
+    ? Math.max(
+        190,
+        tutorialCardAbove
+          ? tutorialTargetRect.top - 26
+          : tutorialTargetRect.viewportHeight - tutorialTargetRect.bottom - 26,
+      )
+    : 520;
+
   if (authLoading) {
     return (
       <main className="hh-page student-loading-page">
@@ -1732,6 +1972,7 @@ export default function Home() {
 
             <button
               type="button"
+              data-tour="menu-button"
               className="student-menu-button"
               aria-label="開啟選單"
               aria-expanded={menuOpen}
@@ -1752,7 +1993,7 @@ export default function Home() {
                 onClick={() => setMenuOpen(false)}
               />
 
-              <div className="student-menu-panel">
+              <div className="student-menu-panel" data-tour="menu-panel">
                 <button
                   type="button"
                   className={activeView === "solve" ? "active" : ""}
@@ -2070,7 +2311,7 @@ export default function Home() {
         {!student?.mustChangePin && activeView === "solve" && (
           <>
         <div className="student-workspace">
-          <section className={`hh-card student-panel student-panel-upload ${!student ? "student-panel-disabled" : ""}`}>
+          <section data-tour="upload-panel" className={`hh-card student-panel student-panel-upload ${!student ? "student-panel-disabled" : ""}`}>
             <StepHeader
               number="1"
               title="上傳題目圖片"
@@ -2079,7 +2320,7 @@ export default function Home() {
             />
 
             {images.length === 0 && (
-              <label className="student-upload-zone">
+              <label className="student-upload-zone" data-tour="upload-zone">
                 <div className="student-upload-mainline">
                   <div className="student-upload-icon">＋</div>
                   <div className="student-upload-title">選擇題目圖片</div>
@@ -2260,13 +2501,13 @@ export default function Home() {
                 </div>
               </div>
 
-              <label className="student-field">
+              <label className="student-field" data-tour="reference-answer">
                 <span>標準參考答案 <em>選填</em></span>
                 <input value={referenceAnswer} onChange={(event) => setReferenceAnswer(event.target.value)} placeholder="例如 B、ACD、2.5 mol..." className="hh-input" />
               </label>
             </div>
 
-            <label className="student-field student-note-field">
+            <label className="student-field student-note-field" data-tour="question-note">
               <span>補充敘述 <em>選填</em></span>
               <textarea
                 value={questionNote}
@@ -2281,7 +2522,7 @@ export default function Home() {
             {questionError && <div className="student-alert student-alert-danger">{questionError}</div>}
 
             <div className="student-two-actions student-solve-actions">
-              <button type="button" onClick={handleStartSolve} disabled={isSolving || limitReached} className="hh-button-primary student-solve-button">
+              <button type="button" data-tour="solve-button" onClick={handleStartSolve} disabled={isSolving || limitReached} className="hh-button-primary student-solve-button">
                 {limitReached ? "今日額度已使用完畢" : isSolving ? "分析題目中…" : "開始解題"}
               </button>
               <button type="button" onClick={clearQuestion} className="hh-button-secondary">清除目前題目</button>
@@ -2320,7 +2561,7 @@ export default function Home() {
               </article>
 
               <article className="student-explanation-card">
-                <div className="student-result-card-header">
+                <div className="student-result-card-header" data-tour="concept-analysis">
                   <div className="student-result-index student-result-index-gold">01</div>
                   <div>
                     <div className="hh-eyebrow">CONCEPT ANALYSIS</div>
@@ -2334,7 +2575,7 @@ export default function Home() {
 
               {solveData.options && (
                 <article className="student-options-card">
-                  <div className="student-result-card-header">
+                  <div className="student-result-card-header" data-tour="option-analysis">
                     <div className="student-result-index student-result-index-red">02</div>
                     <div>
                       <div className="hh-eyebrow">OPTION ANALYSIS</div>
@@ -2351,7 +2592,7 @@ export default function Home() {
                 </article>
               )}
 
-              <section className="student-followup-panel">
+              <section className="student-followup-panel" data-tour="followup">
                 <div className="student-followup-head">
                   <div>
                     <div className="hh-eyebrow">FOLLOW-UP</div>
@@ -2421,7 +2662,7 @@ export default function Home() {
                 </div>
               </section>
 
-              <div className="student-result-actions">
+              <div className="student-result-actions" data-tour="result-actions">
                 <button type="button" onClick={handleLineAsk} className="student-line-button">LINE 詢問老師</button>
                 <button type="button" onClick={handleSaveImage} disabled={isSaving} className="student-save-button">
                   {isSaving
@@ -2823,70 +3064,113 @@ export default function Home() {
       )}
 
       {tutorialOpen && (
-        <div className="student-firstuse-backdrop" role="presentation">
+        <div
+          className={`student-guided-tour-layer ${tutorialTargetRect ? "has-target" : "no-target"}`}
+          role="presentation"
+        >
+          {tutorialTargetRect && (
+            <div
+              className="student-guided-tour-spotlight"
+              aria-hidden="true"
+              style={{
+                top: tutorialTargetRect.top,
+                left: tutorialTargetRect.left,
+                width: tutorialTargetRect.width,
+                height: tutorialTargetRect.height,
+              }}
+            />
+          )}
+
           <section
-            className="student-firstuse-card"
+            className="student-firstuse-card student-guided-tour-card"
             role="dialog"
             aria-modal="true"
             aria-label="解題實驗室使用教學"
+            style={
+              tutorialTargetRect
+                ? {
+                    width: tutorialCardWidth,
+                    left: tutorialCardLeft,
+                    top: tutorialCardAbove
+                      ? undefined
+                      : tutorialTargetRect.bottom + 14,
+                    bottom: tutorialCardAbove
+                      ? tutorialTargetRect.viewportHeight - tutorialTargetRect.top + 14
+                      : undefined,
+                    maxHeight: tutorialCardMaxHeight,
+                  }
+                : undefined
+            }
           >
             <div className="student-firstuse-topbar">
               <div>
-                <div className="hh-eyebrow">QUICK START</div>
-                <strong>第一次使用快速導覽</strong>
+                <div className="hh-eyebrow">
+                  {tutorialPhase === "setup"
+                    ? "QUICK START · BASIC"
+                    : tutorialPhase === "results"
+                      ? "QUICK START · RESULTS"
+                      : "QUICK START"}
+                </div>
+                <strong>跟著畫面完成導覽</strong>
               </div>
               <button
                 type="button"
                 className="student-firstuse-skip"
-                onClick={finishTutorial}
+                onClick={skipTutorial}
               >
                 略過
               </button>
             </div>
 
-            <div className="student-firstuse-progress" aria-hidden="true">
-              {firstUseTutorialSteps.map((_, index) => (
+            <div
+              className="student-firstuse-progress"
+              aria-hidden="true"
+              style={{ gridTemplateColumns: `repeat(${tutorialSequence.length}, minmax(0, 1fr))` }}
+            >
+              {tutorialSequence.map((stepIndex, index) => (
                 <span
-                  key={index}
+                  key={`${tutorialPhase}-${stepIndex}`}
                   className={index <= tutorialStep ? "active" : ""}
                 />
               ))}
             </div>
 
-            <div className="student-firstuse-body">
-              <div className="student-firstuse-count hh-number">
-                {String(tutorialStep + 1).padStart(2, "0")}
-                <span>/ {String(firstUseTutorialSteps.length).padStart(2, "0")}</span>
+            <div className="student-firstuse-body student-guided-tour-body">
+              <div className="student-guided-tour-heading">
+                <div className="student-firstuse-count hh-number">
+                  {String(tutorialStep + 1).padStart(2, "0")}
+                  <span>/ {String(tutorialSequence.length).padStart(2, "0")}</span>
+                </div>
+                <div className="student-guided-tour-target-label">
+                  {activeTutorialStep.previewLabel}
+                </div>
               </div>
 
               <div className="student-firstuse-copy">
-                <div className="hh-eyebrow">
-                  {firstUseTutorialSteps[tutorialStep].eyebrow}
-                </div>
-                <h2 className="hh-display">
-                  {firstUseTutorialSteps[tutorialStep].title}
-                </h2>
-                <p>{firstUseTutorialSteps[tutorialStep].description}</p>
+                <div className="hh-eyebrow">{activeTutorialStep.eyebrow}</div>
+                <h2 className="hh-display">{activeTutorialStep.title}</h2>
+                <p>{activeTutorialStep.description}</p>
               </div>
 
-              <div className="student-firstuse-preview">
-                <div className="student-firstuse-preview-head">
-                  <span>{firstUseTutorialSteps[tutorialStep].previewLabel}</span>
-                  <strong>{firstUseTutorialSteps[tutorialStep].previewValue}</strong>
-                </div>
-                <div className="student-firstuse-preview-line wide" />
-                <div className="student-firstuse-preview-line" />
-                <div className="student-firstuse-preview-line short" />
+              <div className="student-guided-tour-live-note">
+                <span>正在指向</span>
+                <strong>{activeTutorialStep.previewValue}</strong>
               </div>
 
               <div className="student-firstuse-tips">
-                {firstUseTutorialSteps[tutorialStep].tips.map((tip) => (
+                {activeTutorialStep.tips.map((tip) => (
                   <div key={tip}>
                     <span>✓</span>
                     <p>{tip}</p>
                   </div>
                 ))}
               </div>
+
+              {tutorialPhase === "setup" && tutorialStep === tutorialSequence.length - 1 && (
+                <p className="student-guided-tour-continuation">
+                  完成第一題後，系統會自動接著帶你看「觀念解析、選項分析、追問與分享」的位置。
+                </p>
+              )}
             </div>
 
             <div className="student-firstuse-actions">
@@ -2901,13 +3185,13 @@ export default function Home() {
                 上一步
               </button>
 
-              {tutorialStep < firstUseTutorialSteps.length - 1 ? (
+              {tutorialStep < tutorialSequence.length - 1 ? (
                 <button
                   type="button"
                   className="hh-button-primary"
                   onClick={() =>
                     setTutorialStep((current) =>
-                      Math.min(firstUseTutorialSteps.length - 1, current + 1),
+                      Math.min(tutorialSequence.length - 1, current + 1),
                     )
                   }
                 >
@@ -2919,7 +3203,9 @@ export default function Home() {
                   className="hh-button-primary"
                   onClick={finishTutorial}
                 >
-                  開始使用
+                  {tutorialPhase === "setup"
+                    ? "完成基本導覽"
+                    : "完成導覽"}
                 </button>
               )}
             </div>
@@ -5444,6 +5730,204 @@ export default function Home() {
             width: 7px;
             height: 7px;
             box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 16%, transparent);
+          }
+        }
+
+
+        /* v1.3.4 guided walkthrough: move to and spotlight the real interface */
+        .student-guided-tour-layer {
+          position: fixed;
+          inset: 0;
+          z-index: 340;
+          pointer-events: auto;
+        }
+
+        .student-guided-tour-layer.no-target {
+          display: grid;
+          place-items: center;
+          padding: 18px;
+          background: rgba(9, 14, 11, .62);
+        }
+
+        .student-guided-tour-spotlight {
+          position: fixed;
+          z-index: 341;
+          border: 2px solid color-mix(in srgb, var(--action) 78%, white);
+          border-radius: 17px;
+          background: transparent;
+          box-shadow:
+            0 0 0 5px color-mix(in srgb, var(--action) 18%, transparent),
+            0 0 0 9999px rgba(7, 11, 9, .62),
+            0 14px 42px rgba(0, 0, 0, .2);
+          pointer-events: none;
+          transition: top .2s ease, left .2s ease, width .2s ease, height .2s ease;
+        }
+
+        .student-guided-tour-card {
+          position: fixed;
+          z-index: 342;
+          max-width: calc(100vw - 24px);
+          overflow: auto;
+          border-radius: 20px;
+          box-shadow: 0 24px 70px rgba(5, 10, 7, .34);
+          overscroll-behavior: contain;
+        }
+
+        .student-guided-tour-layer.no-target .student-guided-tour-card {
+          position: relative;
+          inset: auto;
+          width: min(420px, 100%);
+          max-height: calc(100dvh - 36px);
+        }
+
+        .student-guided-tour-card .student-firstuse-topbar {
+          padding: 14px 16px 11px;
+        }
+
+        .student-guided-tour-card .student-firstuse-topbar strong {
+          font-size: 13px;
+        }
+
+        .student-guided-tour-card .student-firstuse-progress {
+          padding: 10px 16px 0;
+        }
+
+        .student-guided-tour-body {
+          padding: 15px 16px 13px;
+        }
+
+        .student-guided-tour-heading {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 10px;
+          margin-bottom: 8px;
+        }
+
+        .student-guided-tour-card .student-firstuse-count {
+          margin: 0;
+          font-size: 24px;
+        }
+
+        .student-guided-tour-target-label {
+          padding: 5px 9px;
+          border: 1px solid color-mix(in srgb, var(--action) 24%, var(--border));
+          border-radius: 999px;
+          background: color-mix(in srgb, var(--action) 7%, var(--surface-soft));
+          color: var(--text-secondary);
+          font-size: 10px;
+          font-weight: 850;
+          white-space: nowrap;
+        }
+
+        .student-guided-tour-card .student-firstuse-copy h2 {
+          margin: 4px 0 6px;
+          font-size: clamp(19px, 3.4vw, 25px);
+        }
+
+        .student-guided-tour-card .student-firstuse-copy > p {
+          font-size: 12px;
+          line-height: 1.6;
+        }
+
+        .student-guided-tour-live-note {
+          display: grid;
+          grid-template-columns: auto minmax(0, 1fr);
+          align-items: center;
+          gap: 8px;
+          margin: 11px 0 9px;
+          padding: 8px 10px;
+          border-radius: 11px;
+          background: color-mix(in srgb, var(--action) 7%, var(--surface-soft));
+        }
+
+        .student-guided-tour-live-note span {
+          color: var(--text-muted);
+          font-size: 9px;
+          font-weight: 850;
+        }
+
+        .student-guided-tour-live-note strong {
+          min-width: 0;
+          overflow: hidden;
+          color: var(--action);
+          font-size: 11px;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        .student-guided-tour-card .student-firstuse-tips {
+          gap: 5px;
+        }
+
+        .student-guided-tour-card .student-firstuse-tips > div {
+          grid-template-columns: 20px minmax(0, 1fr);
+          gap: 7px;
+          padding: 6px 8px;
+          border-radius: 10px;
+        }
+
+        .student-guided-tour-card .student-firstuse-tips span {
+          width: 19px;
+          height: 19px;
+          font-size: 9px;
+        }
+
+        .student-guided-tour-card .student-firstuse-tips p {
+          font-size: 10.5px;
+          line-height: 1.45;
+        }
+
+        .student-guided-tour-continuation {
+          margin: 9px 0 0;
+          padding: 8px 10px;
+          border: 1px solid var(--border);
+          border-radius: 10px;
+          background: var(--surface-soft);
+          color: var(--text-secondary);
+          font-size: 10px;
+          line-height: 1.5;
+        }
+
+        .student-guided-tour-card .student-firstuse-actions {
+          gap: 8px;
+          padding: 0 16px 14px;
+        }
+
+        .student-guided-tour-card .student-firstuse-actions > button {
+          min-height: 40px;
+          font-size: 12px;
+        }
+
+        @media (max-width: 760px) {
+          .student-guided-tour-layer.has-target {
+            padding: 0;
+          }
+
+          .student-guided-tour-card {
+            width: min(390px, calc(100vw - 20px)) !important;
+            max-width: calc(100vw - 20px) !important;
+            border-radius: 18px !important;
+          }
+
+          .student-guided-tour-card .student-firstuse-topbar {
+            padding: 12px 14px 9px;
+          }
+
+          .student-guided-tour-card .student-firstuse-progress {
+            padding: 9px 14px 0;
+          }
+
+          .student-guided-tour-body {
+            padding: 12px 14px 11px;
+          }
+
+          .student-guided-tour-card .student-firstuse-copy h2 {
+            font-size: 20px;
+          }
+
+          .student-guided-tour-card .student-firstuse-actions {
+            padding: 0 14px 12px;
           }
         }
 
