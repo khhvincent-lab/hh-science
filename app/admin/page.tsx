@@ -10044,14 +10044,19 @@ const adminStyles = `
     display: grid;
     grid-template-columns: 1fr;
     align-content: center;
-    gap: 8px;
+    gap: 7px;
     min-width: 0;
     padding-left: 16px;
     border-left: 1px solid var(--border);
   }
   .teaching-row-metric {
     display: grid;
-    gap: 2px;
+    gap: 3px;
+    min-width: 0;
+    padding: 7px 9px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: color-mix(in srgb,var(--surface-soft) 72%,var(--surface));
   }
   .teaching-row-metric small {
     color: var(--text-muted);
@@ -10060,13 +10065,17 @@ const adminStyles = `
     letter-spacing: .03em;
   }
   .teaching-row-metric-answer b {
-    color: var(--primary);
-    font-size: 22px;
-    line-height: 1.05;
+    display: -webkit-box;
+    overflow: hidden;
+    color: var(--text);
+    font-size: 17px;
+    line-height: 1.22;
+    word-break: break-word;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
   }
   .teaching-row-metric-cost {
     padding-top: 7px;
-    border-top: 1px dashed var(--border);
   }
   .teaching-row-metric-cost .teaching-row-cost {
     overflow: hidden;
@@ -10115,19 +10124,21 @@ const adminStyles = `
       gap: 9px;
     }
     .teaching-question-row-readable {
-      grid-template-columns: 72px minmax(0, 1fr) !important;
-      gap: 10px !important;
+      grid-template-columns: 82px minmax(0, 1fr) !important;
+      gap: 11px !important;
       min-height: 0 !important;
-      padding: 10px !important;
+      padding: 11px !important;
+      border-radius: 16px !important;
     }
     .teaching-question-media {
       align-self: start;
-      width: 72px;
+      width: 82px;
     }
     .teaching-question-media > img,
     .teaching-question-media > .teaching-thumb-empty {
-      width: 72px !important;
-      height: 62px !important;
+      width: 82px !important;
+      height: 70px !important;
+      border-radius: 12px !important;
     }
     .teaching-question-row-readable .teaching-question-main {
       gap: 5px;
@@ -10137,44 +10148,121 @@ const adminStyles = `
       gap: 2px;
     }
     .teaching-question-student-line > strong {
-      font-size: 13px;
+      font-size: 14px;
+      line-height: 1.2;
     }
     .teaching-question-student-line > small {
       font-size: 9.5px;
     }
     .teaching-question-row-readable .teaching-question-preview {
+      margin-top: 1px;
       font-size: 10.5px;
-      line-height: 1.45;
+      line-height: 1.52;
       -webkit-line-clamp: 2;
     }
     .teaching-row-summary {
       grid-column: 1 / -1;
-      grid-template-columns: minmax(0, .75fr) minmax(0, 1fr) auto;
-      align-items: center;
-      gap: 10px;
-      padding: 9px 2px 0;
+      grid-template-columns: minmax(0, 1fr) minmax(0, .82fr) auto;
+      align-items: stretch;
+      gap: 7px;
+      padding: 9px 0 0;
       border-top: 1px solid var(--border);
       border-left: 0;
     }
+    .teaching-row-metric {
+      min-height: 52px;
+      align-content: center;
+      padding: 7px 8px;
+      border-radius: 9px;
+    }
     .teaching-row-metric-cost {
-      padding-top: 0;
-      padding-left: 10px;
-      border-top: 0;
-      border-left: 1px dashed var(--border);
+      padding-top: 7px;
+      padding-left: 8px;
+      border-left: 0;
     }
     .teaching-row-metric-answer b {
-      font-size: 18px;
+      font-size: 12px !important;
+      line-height: 1.3 !important;
+      font-weight: 850;
+      letter-spacing: 0;
+      -webkit-line-clamp: 2;
+    }
+    .teaching-row-metric-answer small,
+    .teaching-row-metric-cost small {
+      font-size: 8.5px !important;
+      line-height: 1.15;
     }
     .teaching-row-metric-cost .teaching-row-cost {
-      font-size: 11px !important;
+      font-size: 10.5px !important;
+      line-height: 1.2 !important;
     }
     .teaching-row-open {
+      align-self: center;
       justify-content: flex-end;
       margin: 0;
+      padding-left: 3px;
       white-space: nowrap;
+      font-size: 9.5px;
     }
     .teaching-row-open b {
       margin-left: 2px;
+    }
+  }
+
+  /* v1.3.4 onboarding v2 + 全站題目手機可讀性微調 */
+  @media(max-width:760px){
+    .teaching-question-row-readable {
+      background: var(--surface) !important;
+    }
+    .teaching-question-row-readable .teaching-row-topline {
+      gap: 5px !important;
+      font-size: 9px !important;
+      line-height: 1.2;
+    }
+    .teaching-question-row-readable .teaching-subject-chip,
+    .teaching-question-row-readable .teaching-inline-issue {
+      font-size: 8.5px !important;
+      padding: 3px 6px !important;
+      border-radius: 999px;
+    }
+    .teaching-question-student-line > strong {
+      font-size: 13px !important;
+    }
+    .teaching-question-student-line > small {
+      font-size: 9px !important;
+      line-height: 1.3;
+    }
+    .teaching-question-row-readable .teaching-question-preview {
+      font-size: 10px !important;
+      line-height: 1.5 !important;
+      -webkit-line-clamp: 3 !important;
+    }
+    .teaching-row-summary {
+      grid-template-columns: minmax(0,1.12fr) minmax(0,.88fr) auto !important;
+      gap: 6px !important;
+      padding-top: 8px !important;
+    }
+    .teaching-row-metric {
+      min-height: 46px !important;
+      padding: 6px 7px !important;
+      gap: 2px !important;
+    }
+    .teaching-row-metric-answer b {
+      font-size: 11.5px !important;
+      line-height: 1.28 !important;
+      font-weight: 800 !important;
+      word-break: break-word;
+    }
+    .teaching-row-metric-cost .teaching-row-cost {
+      font-size: 10px !important;
+      font-weight: 850 !important;
+    }
+    .teaching-row-open {
+      font-size: 9px !important;
+      padding-left: 1px !important;
+    }
+    .teaching-row-open b {
+      font-size: 12px !important;
     }
   }
 

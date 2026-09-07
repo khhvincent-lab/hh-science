@@ -413,94 +413,130 @@ const FIRST_USE_SETUP_KEY_PREFIX = "hh-science:first-use-setup:";
 const FIRST_USE_RESULT_PENDING_KEY_PREFIX = "hh-science:first-use-result-pending:";
 const ADD_HOME_GUIDE_KEY = "hh-science:add-home-guide-seen";
 
-const SETUP_TUTORIAL_SEQUENCE = [0, 1, 2, 3, 8];
-const RESULT_TUTORIAL_SEQUENCE = [4, 5, 6, 7];
-const FULL_TUTORIAL_SEQUENCE = [0, 1, 2, 3, 4, 5, 6, 7, 8];
+const SETUP_TUTORIAL_SEQUENCE = [0, 1, 2, 3, 4, 5, 6];
+const RESULT_TUTORIAL_SEQUENCE = [7, 8, 9, 10, 11, 12];
+const FULL_TUTORIAL_SEQUENCE = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
 
 const tutorialTargetSelectors: Record<number, string[]> = {
-  0: ['[data-tour="upload-zone"]', '[data-tour="upload-panel"]'],
-  1: ['[data-tour="reference-answer"]'],
-  2: ['[data-tour="question-note"]'],
-  3: ['[data-tour="solve-button"]'],
-  4: ['[data-tour="concept-analysis"]'],
-  5: ['[data-tour="option-analysis"]'],
-  6: ['[data-tour="followup"]'],
-  7: ['[data-tour="result-actions"]'],
-  8: ['[data-tour="menu-panel"]', '[data-tour="menu-button"]'],
+  0: ['[data-tour="subject-picker"]'],
+  1: ['[data-tour="upload-zone"]', '[data-tour="upload-panel"]'],
+  2: ['[data-tour="crop-frame"]', '[data-tour="image-editor"]'],
+  3: ['[data-tour="rotate-button"]', '[data-tour="image-editor"]'],
+  4: ['[data-tour="reference-answer"]'],
+  5: ['[data-tour="question-note"]'],
+  6: ['[data-tour="solve-button"]'],
+  7: ['[data-tour="concept-analysis"]'],
+  8: ['[data-tour="concept-analysis"] [data-annotation]'],
+  9: ['[data-tour="option-analysis"]'],
+  10: ['[data-tour="followup"]'],
+  11: ['[data-tour="result-actions"]'],
+  12: ['[data-tour="menu-panel"]', '[data-tour="menu-button"]'],
 };
 
 const firstUseTutorialSteps: FirstUseTutorialStep[] = [
   {
-    eyebrow: "STEP 01 · QUESTION",
-    title: "先上傳題目圖片",
-    description: "拍照或從相簿選擇題目。題目太長、跨頁或有附圖時，可以一次上傳多張，讓 AI 看完整資訊。",
+    eyebrow: "準備題目 · 1/7",
+    title: "先確認這題是哪一科",
+    description: "先選擇物理、化學、生物或地球科學。系統會依科目調整辨識與解題方式，讓後續分析更準確。",
+    previewLabel: "科目",
+    previewValue: "選擇科目",
+    tips: ["每一題都先確認科目", "選中的科目會有明顯標示"],
+  },
+  {
+    eyebrow: "準備題目 · 2/7",
+    title: "上傳你的第一題",
+    description: "點這裡拍照或從相簿選擇題目。這一步可以直接操作；選好圖片後，導覽會接著帶你調整圖片。",
     previewLabel: "題目圖片",
-    previewValue: "上傳／拍照",
-    tips: ["盡量拍清楚、不要裁掉題幹與選項", "多張圖片會依上傳順序一起分析"],
+    previewValue: "拍照／相簿",
+    tips: ["題幹與選項盡量完整入鏡", "跨頁或有附圖時可以一次上傳多張"],
   },
   {
-    eyebrow: "STEP 02 · REFERENCE",
-    title: "有參考答案，建議填上",
-    description: "如果老師、講義或答案卡已經提供正確答案，填入「參考答案」能讓 AI 多一個校準依據，解析通常會更穩定。",
-    previewLabel: "參考答案",
-    previewValue: "例如：B",
-    tips: ["有答案時建議填入，可提高準確度", "不知道答案也可以留白，系統仍能解題"],
+    eyebrow: "準備題目 · 3/7",
+    title: "用裁切框留下真正的題目",
+    description: "拖曳圖片與裁切框，只留下題目、選項和必要附圖。把無關背景裁掉，AI 會更容易抓到真正要解的內容。",
+    previewLabel: "圖片裁切",
+    previewValue: "拖曳／縮放裁切框",
+    tips: ["不要裁掉題號、選項或圖表", "題目已經很乾淨時維持原範圍即可"],
   },
   {
-    eyebrow: "STEP 03 · CONTEXT",
-    title: "補充敘述是選填的",
-    description: "可以告訴 AI 你卡在哪裡、圖片中哪一段最重要，或想特別釐清哪個選項。",
+    eyebrow: "準備題目 · 4/7",
+    title: "方向不對就先旋轉",
+    description: "照片橫著、倒著或方向不正確時，點「旋轉 90°」調整。調整完成後，請在圖片編輯器按「確認完成」再繼續。",
+    previewLabel: "旋轉圖片",
+    previewValue: "↻ 旋轉 90°",
+    tips: ["可以連續旋轉多次", "方向正確有助於文字與公式辨識"],
+  },
+  {
+    eyebrow: "準備題目 · 5/7",
+    title: "有標準答案時，建議填上",
+    description: "如果老師、講義或答案卡已提供正確答案，填入這裡能讓 AI 多一個校準依據；不知道答案時直接留白即可。",
+    previewLabel: "標準參考答案",
+    previewValue: "例如：B、ACD、2.5 mol",
+    tips: ["有答案時建議填入，可提高解析穩定度", "這個欄位不是必填"],
+  },
+  {
+    eyebrow: "準備題目 · 6/7",
+    title: "有特殊需求再補充說明",
+    description: "可以補充你卡住的位置、圖片中要特別看的區域，或指定想釐清某個選項。一般題目不填也沒關係。",
     previewLabel: "補充敘述",
     previewValue: "例如：想特別問 C 選項",
-    tips: ["不是必填", "題意模糊或有特殊條件時特別有幫助"],
+    tips: ["適合題意模糊或條件很多的題目", "一句話說明重點就足夠"],
   },
   {
-    eyebrow: "STEP 04 · SOLVE",
-    title: "選好科目後，按下開始解題",
-    description: "確認題目、科目與補充資訊後按「開始解題」。系統會分析題目並產生答案、觀念解析與選項判斷。",
-    previewLabel: "準備完成",
+    eyebrow: "準備題目 · 7/7",
+    title: "準備好就開始解題",
+    description: "送出前最後確認圖片、科目與補充資訊。按下「開始解題」後，系統會產生答案、詳解與選項分析。",
+    previewLabel: "開始解題",
     previewValue: "開始解題",
-    tips: ["每次解題會計入當日解題額度", "送出前可再次確認圖片是否完整"],
+    tips: ["送出前確認題目沒有裁掉重要資訊", "完成第一題後還有一段結果頁導覽"],
   },
   {
-    eyebrow: "RESULT 01 · CONCEPT",
-    title: "先看觀念解析",
-    description: "解完題目後，第一個重點區域是「觀念解析」。這裡會把解題思路、必要公式與關鍵觀念整理成完整脈絡。",
+    eyebrow: "看懂解析 · 1/6",
+    title: "先讀觀念解析與解題脈絡",
+    description: "這裡不是只給答案，而是把關鍵觀念、公式與計算步驟整理成完整脈絡。建議先看這區，再回頭比較自己的想法。",
     previewLabel: "觀念解析",
-    previewValue: "為什麼這題這樣解？",
-    tips: ["先理解觀念，再看答案會更有效", "解析中的標記數字可點開補充說明"],
+    previewValue: "詳解與解題步驟",
+    tips: ["先理解為什麼，再記答案", "公式與重要數值會保留在解題流程中"],
   },
   {
-    eyebrow: "RESULT 02 · OPTIONS",
-    title: "再看每個選項為什麼對或錯",
-    description: "「選項分析」會逐項拆解，讓你知道正確選項成立的原因，也知道其他選項錯在哪裡。",
+    eyebrow: "看懂解析 · 2/6",
+    title: "詳解裡的數字可以點",
+    description: "看到有底色或可點擊標記的數字時，可以直接點一下。系統會補充這個數值代表什麼、從哪裡來，以及在這一步怎麼使用。",
+    previewLabel: "互動數字",
+    previewValue: "點擊詳解中的數字",
+    tips: ["適合追公式中的數值來源", "若這題沒有互動數字，導覽會自動略過這一步"],
+  },
+  {
+    eyebrow: "看懂解析 · 3/6",
+    title: "選擇題再看選項分析",
+    description: "每個選項會拆開說明為什麼正確或錯誤。訂正時不要只記答案，也一起看錯誤選項用了什麼陷阱。",
     previewLabel: "選項分析",
     previewValue: "A / B / C / D",
-    tips: ["特別適合訂正選擇題", "不要只記答案，記住錯誤選項的陷阱"],
+    tips: ["特別適合訂正選擇題", "非選擇題沒有這區時會自動略過"],
   },
   {
-    eyebrow: "RESULT 03 · FOLLOW-UP",
-    title: "還有疑問，可以直接追問",
-    description: "在「還有疑問？」區域可針對同一題繼續問，不需要重新上傳題目，也不會重新扣除每日解題額度。",
-    previewLabel: "追問區",
-    previewValue: "最多 3 次",
-    tips: ["可以直接問某一步為什麼", "也可以要求換一種更簡單的說法"],
+    eyebrow: "看懂解析 · 4/6",
+    title: "看不懂的地方直接追問",
+    description: "針對同一題繼續問，不需要重新拍照或重新建立題目。可以問某一步、某個公式，也可以請 AI 換一種更簡單的說法。",
+    previewLabel: "還有疑問？",
+    previewValue: "同一題繼續追問",
+    tips: ["可以直接指定『第 2 步看不懂』", "同題追問不需要重新上傳圖片"],
   },
   {
-    eyebrow: "RESULT · ACTIONS",
-    title: "最下方有兩個實用按鈕",
-    description: "需要真人確認時可用「LINE 詢問老師」；想留存解析則按「產生解析圖片」，完成後可分享或存到照片。",
-    previewLabel: "題目完成後",
-    previewValue: "詢問老師／保存解析",
-    tips: ["LINE 詢問老師：把問題帶去給老師確認", "產生解析圖片：方便收藏、分享與複習"],
+    eyebrow: "看懂解析 · 5/6",
+    title: "最後兩個按鈕也很重要",
+    description: "需要真人確認時可以用 LINE 詢問老師；想收藏完整解析則產生解析圖片，再分享或存到照片裡複習。",
+    previewLabel: "題目工具",
+    previewValue: "詢問老師／產生解析圖片",
+    tips: ["LINE：把疑問帶去給老師確認", "解析圖片：方便收藏、傳送與複習"],
   },
   {
-    eyebrow: "MENU · MORE",
-    title: "右上角 ☰ 是功能選單",
-    description: "漢堡選單可以切換「開始解題」與「我的解題紀錄」，也能重新開啟使用教學、查看加入主畫面方式，或登出目前帳號。",
-    previewLabel: "漢堡選單",
+    eyebrow: "看懂解析 · 6/6",
+    title: "之後都可以從右上角選單回來",
+    description: "漢堡選單可以切換開始解題與我的解題紀錄，也能重新開啟這份使用教學、查看加入主畫面方式，或登出帳號。",
+    previewLabel: "功能選單",
     previewValue: "☰",
-    tips: ["解過的題目可從「我的解題紀錄」重新查看", "教學關掉後，也能隨時從這裡再打開"],
+    tips: ["歷史題目可以重新打開複習", "忘記操作時可隨時重播使用教學"],
   },
 ];
 
@@ -570,6 +606,8 @@ export default function Home() {
   const [tutorialPhase, setTutorialPhase] = useState<TutorialPhase>("setup");
   const [tutorialAutoFlow, setTutorialAutoFlow] = useState(false);
   const [tutorialTargetRect, setTutorialTargetRect] = useState<TutorialTargetRect | null>(null);
+  const [tutorialAnimating, setTutorialAnimating] = useState(false);
+  const [firstActionNudge, setFirstActionNudge] = useState(false);
   const [installGuideOpen, setInstallGuideOpen] = useState(false);
   const [installPlatform, setInstallPlatform] = useState<FirstUsePlatform>("ios");
 
@@ -607,11 +645,17 @@ export default function Home() {
   const exportCardRef = useRef<HTMLDivElement | null>(null);
   const exportQuestionImageRef = useRef<HTMLImageElement | null>(null);
 
-  const tutorialSequence = tutorialPhase === "setup"
+  const hasInteractiveAnnotations = Boolean(solveData?.annotations?.length);
+  const tutorialSequenceBase = tutorialPhase === "setup"
     ? SETUP_TUTORIAL_SEQUENCE
     : tutorialPhase === "results"
-      ? (solveData?.options ? RESULT_TUTORIAL_SEQUENCE : RESULT_TUTORIAL_SEQUENCE.filter((step) => step !== 5))
-      : (solveData?.options ? FULL_TUTORIAL_SEQUENCE : FULL_TUTORIAL_SEQUENCE.filter((step) => step !== 5));
+      ? RESULT_TUTORIAL_SEQUENCE
+      : FULL_TUTORIAL_SEQUENCE;
+  const tutorialSequence = tutorialSequenceBase.filter((step) => {
+    if (step === 8 && !hasInteractiveAnnotations) return false;
+    if (step === 9 && !solveData?.options) return false;
+    return true;
+  });
   const activeTutorialStepIndex = tutorialSequence[Math.min(tutorialStep, Math.max(0, tutorialSequence.length - 1))] ?? 0;
   const activeTutorialStep = firstUseTutorialSteps[activeTutorialStepIndex];
 
@@ -758,7 +802,7 @@ export default function Home() {
       return;
     }
 
-    if (activeTutorialStepIndex === 8) {
+    if (activeTutorialStepIndex === 12) {
       setMenuOpen(true);
     } else {
       setMenuOpen(false);
@@ -818,17 +862,18 @@ export default function Home() {
         return;
       }
 
+      setTutorialTargetRect(null);
       target.scrollIntoView({
         behavior: "smooth",
-        block: activeTutorialStepIndex === 8 ? "start" : "center",
+        block: activeTutorialStepIndex === 12 ? "start" : "center",
         inline: "nearest",
       });
 
       measure();
-      measureTimer = window.setTimeout(measure, 420);
+      measureTimer = window.setTimeout(measure, 620);
     };
 
-    const prepareTimer = window.setTimeout(prepareTarget, activeTutorialStepIndex === 8 ? 120 : 70);
+    const prepareTimer = window.setTimeout(prepareTarget, activeTutorialStepIndex === 12 ? 140 : 90);
     window.addEventListener("resize", scheduleMeasure);
     window.addEventListener("scroll", scheduleMeasure, true);
 
@@ -841,6 +886,24 @@ export default function Home() {
       window.removeEventListener("scroll", scheduleMeasure, true);
     };
   }, [tutorialOpen, activeTutorialStepIndex]);
+
+  useEffect(() => {
+    if (!tutorialOpen) {
+      setTutorialAnimating(false);
+      return;
+    }
+    setTutorialAnimating(true);
+    const timer = window.setTimeout(() => setTutorialAnimating(false), 560);
+    return () => window.clearTimeout(timer);
+  }, [tutorialOpen, tutorialStep, tutorialPhase]);
+
+  useEffect(() => {
+    if (!tutorialOpen || activeTutorialStepIndex !== 1 || !isCropping) return;
+    const timer = window.setTimeout(() => {
+      setTutorialStep((current) => Math.min(tutorialSequence.length - 1, current + 1));
+    }, 520);
+    return () => window.clearTimeout(timer);
+  }, [tutorialOpen, activeTutorialStepIndex, isCropping, tutorialSequence.length]);
 
   useEffect(() => {
     if (student && activeView === "history") {
@@ -967,6 +1030,14 @@ export default function Home() {
     closeTutorialSurface();
 
     if (continueFirstUseFlow && completedPhase === "setup") {
+      setFirstActionNudge(true);
+      window.setTimeout(() => {
+        const target = document.querySelector(images.length ? '[data-tour="solve-button"]' : '[data-tour="upload-zone"]');
+        if (target instanceof HTMLElement) {
+          target.scrollIntoView({ behavior: "smooth", block: "center" });
+        }
+      }, 160);
+    } else if (continueFirstUseFlow && completedPhase === "results") {
       maybeOpenInstallGuide();
     }
   }
@@ -1478,6 +1549,7 @@ export default function Home() {
   }
 
   async function handleStartSolve() {
+    setFirstActionNudge(false);
     setQuestionError("");
     if (!student) return setQuestionError("請先登入。");
     if (usage.remaining <= 0) {
@@ -2320,7 +2392,7 @@ export default function Home() {
             />
 
             {images.length === 0 && (
-              <label className="student-upload-zone" data-tour="upload-zone">
+              <label className={`student-upload-zone ${firstActionNudge && images.length === 0 ? "student-first-action-pulse" : ""}`} data-tour="upload-zone">
                 <div className="student-upload-mainline">
                   <div className="student-upload-icon">＋</div>
                   <div className="student-upload-title">選擇題目圖片</div>
@@ -2405,7 +2477,7 @@ export default function Home() {
             )}
 
             {isCropping && editingImage && (
-              <div className="student-image-editor">
+              <div className="student-image-editor" data-tour="image-editor">
                 <div className="student-image-editor-head">
                   <div>
                     <div className="hh-eyebrow">
@@ -2421,13 +2493,14 @@ export default function Home() {
                   <button
                     type="button"
                     className="hh-button-secondary"
+                    data-tour="rotate-button"
                     onClick={rotateEditingImage}
                   >
                     ↻ 旋轉 90°
                   </button>
                 </div>
 
-                <div className="student-crop-frame">
+                <div className="student-crop-frame" data-tour="crop-frame">
                   <Cropper
                     key={editingImage.slice(-40)}
                     ref={cropperRef}
@@ -2482,7 +2555,7 @@ export default function Home() {
             <div className="student-form-grid">
               <div className="student-field">
                 <span>科目</span>
-                <div className="student-subject-picker" role="group" aria-label="選擇科目">
+                <div className="student-subject-picker" data-tour="subject-picker" role="group" aria-label="選擇科目">
                   {availableSubjects.map((item) => (
                     <button
                       key={item.value}
@@ -2522,7 +2595,7 @@ export default function Home() {
             {questionError && <div className="student-alert student-alert-danger">{questionError}</div>}
 
             <div className="student-two-actions student-solve-actions">
-              <button type="button" data-tour="solve-button" onClick={handleStartSolve} disabled={isSolving || limitReached} className="hh-button-primary student-solve-button">
+              <button type="button" data-tour="solve-button" onClick={handleStartSolve} disabled={isSolving || limitReached} className={`hh-button-primary student-solve-button ${firstActionNudge && images.length > 0 ? "student-first-action-pulse" : ""}`}>
                 {limitReached ? "今日額度已使用完畢" : isSolving ? "分析題目中…" : "開始解題"}
               </button>
               <button type="button" onClick={clearQuestion} className="hh-button-secondary">清除目前題目</button>
@@ -3082,6 +3155,7 @@ export default function Home() {
           )}
 
           <section
+            key={`${tutorialPhase}-${activeTutorialStepIndex}`}
             className="student-firstuse-card student-guided-tour-card"
             role="dialog"
             aria-modal="true"
@@ -3166,9 +3240,19 @@ export default function Home() {
                 ))}
               </div>
 
+              {tutorialPhase === "setup" && activeTutorialStepIndex === 1 && !isCropping && images.length === 0 && (
+                <p className="student-guided-tour-continuation student-guided-tour-interactive-hint">
+                  ↑ 直接點上方真正的上傳區選一張題目，選好後會自動帶你進到裁切教學。
+                </p>
+              )}
+              {tutorialPhase === "setup" && activeTutorialStepIndex === 3 && isCropping && (
+                <p className="student-guided-tour-continuation student-guided-tour-interactive-hint">
+                  旋轉與裁切完成後，請先在圖片編輯器按「確認完成」，再繼續下一步。
+                </p>
+              )}
               {tutorialPhase === "setup" && tutorialStep === tutorialSequence.length - 1 && (
                 <p className="student-guided-tour-continuation">
-                  完成第一題後，系統會自動接著帶你看「觀念解析、選項分析、追問與分享」的位置。
+                  完成第一題後，系統會自動接著帶你看「觀念解析、互動數字、選項分析、追問與題目工具」。
                 </p>
               )}
             </div>
@@ -3177,10 +3261,8 @@ export default function Home() {
               <button
                 type="button"
                 className="hh-button-secondary"
-                disabled={tutorialStep === 0}
-                onClick={() =>
-                  setTutorialStep((current) => Math.max(0, current - 1))
-                }
+                disabled={tutorialStep === 0 || tutorialAnimating}
+                onClick={() => setTutorialStep((current) => Math.max(0, current - 1))}
               >
                 上一步
               </button>
@@ -3189,27 +3271,42 @@ export default function Home() {
                 <button
                   type="button"
                   className="hh-button-primary"
-                  onClick={() =>
-                    setTutorialStep((current) =>
-                      Math.min(tutorialSequence.length - 1, current + 1),
-                    )
-                  }
+                  disabled={tutorialAnimating || (activeTutorialStepIndex === 1 && !isCropping && images.length === 0) || (activeTutorialStepIndex === 3 && isCropping)}
+                  onClick={() => setTutorialStep((current) => Math.min(tutorialSequence.length - 1, current + 1))}
                 >
-                  下一步
+                  {activeTutorialStepIndex === 1 && !isCropping && images.length === 0
+                    ? "請先上傳一題"
+                    : activeTutorialStepIndex === 3 && isCropping
+                      ? "先確認圖片調整"
+                      : "下一步"}
                 </button>
               ) : (
                 <button
                   type="button"
                   className="hh-button-primary"
+                  disabled={tutorialAnimating}
                   onClick={finishTutorial}
                 >
-                  {tutorialPhase === "setup"
-                    ? "完成基本導覽"
-                    : "完成導覽"}
+                  {tutorialPhase === "setup" ? "開始自己試試看" : "完成導覽"}
                 </button>
               )}
             </div>
           </section>
+        </div>
+      )}
+
+      {firstActionNudge && !tutorialOpen && (
+        <div className="student-first-action-nudge" role="status">
+          <div className="student-first-action-nudge-icon">→</div>
+          <div>
+            <strong>{images.length ? "題目準備好了，現在換你試試看！" : "教學完成，現在上傳一題試試看！"}</strong>
+            <p>{images.length ? "確認科目與題目內容後，按下「開始解題」完成你的第一題。" : "點上傳區拍照或從相簿選題目，系統會陪你完成第一次解題。"}</p>
+          </div>
+          <button type="button" onClick={() => {
+            const target = document.querySelector(images.length ? '[data-tour="solve-button"]' : '[data-tour="upload-zone"]');
+            if (target instanceof HTMLElement) target.scrollIntoView({ behavior: "smooth", block: "center" });
+          }}>{images.length ? "前往解題" : "前往上傳"}</button>
+          <button type="button" className="student-first-action-nudge-close" aria-label="關閉提示" onClick={() => setFirstActionNudge(false)}>×</button>
         </div>
       )}
 
@@ -4192,6 +4289,8 @@ export default function Home() {
             var(--surface);
           box-shadow: 0 34px 100px rgba(9, 14, 11, .32);
           overscroll-behavior: contain;
+          pointer-events: auto;
+          animation: studentTourCardIn .34s cubic-bezier(.2,.8,.2,1) both;
         }
 
         .student-firstuse-topbar {
@@ -5734,12 +5833,34 @@ export default function Home() {
         }
 
 
+        @keyframes studentFirstActionPulse {
+          0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--action) 0%, transparent); transform: translateY(0); }
+          35% { box-shadow: 0 0 0 8px color-mix(in srgb, var(--action) 13%, transparent); transform: translateY(-1px); }
+          70% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--action) 8%, transparent); transform: translateY(0); }
+        }
+        .student-first-action-pulse { animation: studentFirstActionPulse 1.6s ease-in-out 2; }
+        .student-first-action-nudge {
+          position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom)); z-index: 330;
+          width: min(560px, calc(100vw - 24px)); transform: translateX(-50%);
+          display: grid; grid-template-columns: 34px minmax(0,1fr) auto; align-items: center; gap: 10px;
+          padding: 12px 42px 12px 12px; border: 1px solid color-mix(in srgb,var(--action) 28%,var(--border));
+          border-radius: 17px; background: color-mix(in srgb,var(--surface) 94%,transparent);
+          box-shadow: 0 18px 48px rgba(5,10,7,.2); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
+          animation: studentTourCardIn .42s cubic-bezier(.2,.8,.2,1) both;
+        }
+        .student-first-action-nudge-icon { display:grid; place-items:center; width:34px; height:34px; border-radius:999px; background:var(--action); color:white; font-weight:900; }
+        .student-first-action-nudge strong { display:block; color:var(--text); font-size:12px; line-height:1.35; }
+        .student-first-action-nudge p { margin:3px 0 0; color:var(--text-secondary); font-size:10px; line-height:1.45; }
+        .student-first-action-nudge > button:not(.student-first-action-nudge-close) { min-height:36px; padding:0 12px; border:0; border-radius:11px; background:var(--action); color:white; font-size:10px; font-weight:900; cursor:pointer; }
+        .student-first-action-nudge-close { position:absolute; top:7px; right:8px; width:27px; height:27px; border:0; background:transparent; color:var(--text-muted); font-size:20px; cursor:pointer; }
+        @keyframes studentTourCardIn { from { opacity:0; transform:translateY(10px) scale(.985); } to { opacity:1; transform:translateY(0) scale(1); } }
+
         /* v1.3.4 guided walkthrough: move to and spotlight the real interface */
         .student-guided-tour-layer {
           position: fixed;
           inset: 0;
           z-index: 340;
-          pointer-events: auto;
+          pointer-events: none;
         }
 
         .student-guided-tour-layer.no-target {
@@ -5760,7 +5881,7 @@ export default function Home() {
             0 0 0 9999px rgba(7, 11, 9, .62),
             0 14px 42px rgba(0, 0, 0, .2);
           pointer-events: none;
-          transition: top .2s ease, left .2s ease, width .2s ease, height .2s ease;
+          transition: top .38s cubic-bezier(.2,.8,.2,1), left .38s cubic-bezier(.2,.8,.2,1), width .38s cubic-bezier(.2,.8,.2,1), height .38s cubic-bezier(.2,.8,.2,1), opacity .2s ease;
         }
 
         .student-guided-tour-card {
@@ -5878,6 +5999,12 @@ export default function Home() {
           line-height: 1.45;
         }
 
+        .student-guided-tour-interactive-hint {
+          border-color: color-mix(in srgb,var(--action) 28%,var(--border)) !important;
+          background: color-mix(in srgb,var(--action) 8%,var(--surface-soft)) !important;
+          color: var(--text) !important;
+          font-weight: 750;
+        }
         .student-guided-tour-continuation {
           margin: 9px 0 0;
           padding: 8px 10px;
@@ -5900,6 +6027,9 @@ export default function Home() {
         }
 
         @media (max-width: 760px) {
+          .student-first-action-nudge { grid-template-columns:30px minmax(0,1fr); gap:8px; padding:11px 36px 11px 11px; }
+          .student-first-action-nudge-icon { width:30px; height:30px; }
+          .student-first-action-nudge > button:not(.student-first-action-nudge-close) { grid-column:1 / -1; width:100%; }
           .student-guided-tour-layer.has-target {
             padding: 0;
           }
