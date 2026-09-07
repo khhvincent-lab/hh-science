@@ -8,7 +8,7 @@ import "katex/dist/katex.min.css";
 
 const USD_TO_TWD_RATE = 32.5;
 
-type AdminSection = "dashboard" | "usage" | "classes" | "students" | "ai" | "pin" | "analytics" | "cost" | "teachingOverview" | "teachingQuestions" | "teachingExamples" | "teachingRuleLibrary" | "teachingCoach" | "teachingTraining" | "teachingSettings" | "teachingQueue" | "teachingRules";
+type AdminSection = "dashboard" | "siteQuestions" | "usage" | "classes" | "students" | "ai" | "pin" | "analytics" | "cost" | "teachingOverview" | "teachingQuestions" | "teachingExamples" | "teachingRuleLibrary" | "teachingCoach" | "teachingTraining" | "teachingSettings" | "teachingQueue" | "teachingRules";
 
 type DashboardData = {
   today: {
@@ -385,6 +385,7 @@ export default function AdminPage() {
   const [loginLoading, setLoginLoading] = useState(false);
 
   const [activeSection, setActiveSection] = useState<AdminSection>("dashboard");
+  const [calibrationTargetId, setCalibrationTargetId] = useState<string | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [openNavGroup, setOpenNavGroup] = useState<"classes" | "ai" | "teaching" | null>(null);
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
@@ -1046,9 +1047,10 @@ export default function AdminPage() {
 
         <nav className="admin-nav admin-nav-v13">
           <NavButton active={activeSection === "dashboard"} icon="01" label="管理總覽" onClick={() => { setActiveSection("dashboard"); setMobileMenuOpen(false); }} />
+          <NavButton active={activeSection === "siteQuestions"} icon="02" label="全站題目" onClick={() => { setActiveSection("siteQuestions"); setMobileMenuOpen(false); }} />
 
           <AdminNavGroup
-            icon="02"
+            icon="03"
             label="班務管理"
             open={openNavGroup === "classes"}
             active={["usage","students","classes","pin"].includes(activeSection)}
@@ -1061,7 +1063,7 @@ export default function AdminPage() {
           />
 
           <AdminNavGroup
-            icon="03"
+            icon="04"
             label="AI模型中心"
             open={openNavGroup === "ai"}
             active={["ai","analytics","cost"].includes(activeSection)}
@@ -1074,7 +1076,7 @@ export default function AdminPage() {
           />
 
           <AdminNavGroup
-            icon="04"
+            icon="05"
             label="教學引擎"
             open={openNavGroup === "teaching"}
             active={["teachingOverview","teachingQuestions","teachingExamples","teachingRuleLibrary","teachingCoach","teachingTraining","teachingSettings"].includes(activeSection)}
@@ -1086,7 +1088,7 @@ export default function AdminPage() {
               { label: "教學規則庫", active: activeSection === "teachingRuleLibrary", onClick: () => { setActiveSection("teachingRuleLibrary"); setMobileMenuOpen(false); } },
               { label: "AI 教練", active: activeSection === "teachingCoach", onClick: () => { setActiveSection("teachingCoach"); setMobileMenuOpen(false); } },
               { label: "訓練資料", active: activeSection === "teachingTraining", onClick: () => { setActiveSection("teachingTraining"); setMobileMenuOpen(false); } },
-              { label: "引擎設定", active: activeSection === "teachingSettings", onClick: () => { setActiveSection("teachingSettings"); setMobileMenuOpen(false); } },
+              { label: "全站預設", active: activeSection === "teachingSettings", onClick: () => { setActiveSection("teachingSettings"); setMobileMenuOpen(false); } },
             ]}
           />
         </nav>
@@ -1149,7 +1151,7 @@ export default function AdminPage() {
               <button type="button" className={activeSection === "teachingRuleLibrary" ? "active" : ""} onClick={() => setActiveSection("teachingRuleLibrary")}>規則庫</button>
               <button type="button" className={activeSection === "teachingCoach" ? "active" : ""} onClick={() => setActiveSection("teachingCoach")}>AI 教練</button>
               <button type="button" className={activeSection === "teachingTraining" ? "active" : ""} onClick={() => setActiveSection("teachingTraining")}>訓練資料</button>
-              <button type="button" className={activeSection === "teachingSettings" ? "active" : ""} onClick={() => setActiveSection("teachingSettings")}>設定</button>
+              <button type="button" className={activeSection === "teachingSettings" ? "active" : ""} onClick={() => setActiveSection("teachingSettings")}>全站預設</button>
             </div>
           )}
           {activeSection === "dashboard" && (
@@ -1159,6 +1161,10 @@ export default function AdminPage() {
               loading={dashboardLoading}
               error={dashboardError}
             />
+          )}
+
+          {activeSection === "siteQuestions" && (
+            <SiteQuestionsSection onCalibrate={(historyId) => { setCalibrationTargetId(historyId); setActiveSection("teachingQuestions"); setOpenNavGroup("teaching"); }} />
           )}
 
           {activeSection === "usage" && (
@@ -1265,7 +1271,7 @@ export default function AdminPage() {
           )}
 
           {activeSection === "teachingQuestions" && (
-            <TeachingQuestionsSection />
+            <TeachingQuestionsSection initialHistoryId={calibrationTargetId} onInitialHistoryHandled={() => setCalibrationTargetId(null)} />
           )}
 
           {activeSection === "teachingExamples" && (
@@ -3587,7 +3593,7 @@ type TeachingQuestionCost = {
 
 type TeachingQuestionRow = {
   id:string; studentId:string; studentName:string; campus:string; regionName:string; institutionName:string; className:string;
-  subject:string; referenceAnswer:string; questionNote:string; answer:string; explanation:string; options:string; annotations:any[]; imageUrl?:string|null;
+  subject:string; referenceAnswer:string; questionNote:string; answer:string; explanation:string; options:string; annotations:any[]; imageUrls:string[]; followups:AdminFollowup[];
   createdAt:string; primaryProvider?:string|null; primaryModel?:string|null; primaryAnswer?:string|null; verifierProvider?:string|null; verifierModel?:string|null; verifierResult?:any; arbiterProvider?:string|null; arbiterModel?:string|null; arbiterAnswer?:string|null; disputeStatus:string; issue:boolean; cost:TeachingQuestionCost;
 };
 
@@ -3600,7 +3606,63 @@ function teachingCostRoleLabel(role: TeachingQuestionCostRole["role"]) {
   return "Arbiter";
 }
 
-function TeachingQuestionsSection() {
+
+function SiteQuestionsSection({onCalibrate}:{onCalibrate:(historyId:string)=>void}) {
+  const [items,setItems]=useState<TeachingQuestionRow[]>([]);
+  const [selected,setSelected]=useState<TeachingQuestionRow|null>(null);
+  const [loading,setLoading]=useState(true);
+  const [message,setMessage]=useState("");
+  const [q,setQ]=useState("");
+  const [subject,setSubject]=useState("");
+  const [range,setRange]=useState<"today"|"all">("today");
+  const [filtersOpen,setFiltersOpen]=useState(false);
+
+  const load=useCallback(async()=>{
+    setLoading(true); setMessage("");
+    try{
+      const params=new URLSearchParams({range});
+      if(q.trim())params.set("q",q.trim());
+      if(subject)params.set("subject",subject);
+      const response=await fetch(`/api/admin/teaching-questions?${params.toString()}`,{cache:"no-store"});
+      const data=await response.json();
+      if(!response.ok)throw new Error(data.error||"讀取全站題目失敗。");
+      setItems(Array.isArray(data.items)?data.items:[]);
+    }catch(e){setMessage(e instanceof Error?e.message:"讀取全站題目失敗。");}
+    finally{setLoading(false);}
+  },[q,subject,range]);
+  useEffect(()=>{void load();},[load]);
+
+  if(selected){
+    return <div className="admin-stack site-question-detail-v21">
+      <div className="site-question-detail-actions">
+        <button type="button" className="student-history-back" onClick={()=>setSelected(null)}>← 返回全站題目</button>
+        <button type="button" className="hh-button-primary" onClick={()=>onCalibrate(selected.id)}>教師校正 →</button>
+      </div>
+      <section className="hh-card admin-panel site-question-identity-card">
+        <div className="site-question-identity-main"><div><div className="hh-eyebrow">STUDENT QUESTION</div><h2 className="hh-display">{selected.studentName} · {adminSubjectLabel(selected.subject)}</h2><p>{[selected.regionName,selected.institutionName,selected.className].filter(Boolean).join(" · ")||selected.campus} · {new Date(selected.createdAt).toLocaleString("zh-TW")}</p></div>{selected.issue&&<span className="teaching-issue-badge">需要留意</span>}</div>
+        {selected.imageUrls?.length>0&&<div className="site-question-images">{selected.imageUrls.map((url,index)=><img key={url} src={url} alt={`學生題目 ${index+1}`}/>)}</div>}
+        <div className="site-question-meta-grid"><article><span>學生提供答案</span><strong>{selected.referenceAnswer||"未提供"}</strong></article><article><span>AI 最終答案</span><strong>{selected.answer||"—"}</strong></article><article><span>本題成本</span><strong>{selected.cost?.hasCostRecord?formatQuestionCostTwd(selected.cost.totalCostUsd):"—"}</strong></article></div>
+        {selected.questionNote&&<div className="site-question-note"><span>學生補充敘述</span><p>{selected.questionNote}</p></div>}
+      </section>
+
+      <section className="hh-card admin-panel site-student-view-card"><div className="hh-eyebrow">STUDENT VIEW</div><h2 className="hh-display">學生看到的解題內容</h2><div className="site-answer-hero"><span>答案</span><strong>{selected.answer||"—"}</strong></div><div className="site-result-section"><h3>觀念解析／詳解</h3><AdminScienceText text={selected.explanation||"目前沒有詳解內容。"}/></div>{selected.options&&<div className="site-result-section"><h3>選項分析</h3><AdminScienceText text={formatAdminOptions(selected.options)}/></div>}</section>
+
+      <section className="hh-card admin-panel site-followup-card"><div className="teacher-v2-section-head"><div><div className="hh-eyebrow">FOLLOW-UP</div><h2 className="hh-display">學生追問紀錄</h2><p>完整保留學生後續問題與 AI 回答，方便判斷原詳解哪裡不夠清楚。</p></div><span className="site-followup-count">{selected.followups?.length||0} 次</span></div>{selected.followups?.length?<div className="site-followup-list">{selected.followups.map((f,index)=><article key={f.id||index}><div className="site-followup-q"><span>學生追問 {index+1}</span><p>{f.question}</p></div><div className="site-followup-a"><span>AI 回答</span><AdminScienceText text={f.answer}/></div></article>)}</div>:<div className="admin-empty">這題目前沒有追問。</div>}</section>
+
+      <section className="hh-card admin-panel teaching-question-cost-panel"><PanelHeader eyebrow="QUESTION COST" title="本題模型成本" subtitle="Science Gate／Primary／Verifier／Arbiter；學生追問另外保留在上方紀錄，不混入本題解題成本。" />{selected.cost?.hasCostRecord?<><div className="teaching-question-cost-total"><span>本題解題成本</span><strong>{formatQuestionCostTwd(selected.cost.totalCostUsd)}</strong><small>{formatInteger(selected.cost.totalCalls)} 次模型呼叫</small></div><div className="teaching-question-cost-grid">{TEACHING_COST_ROLE_ORDER.map(role=>{const entries=(selected.cost.roles||[]).filter(entry=>entry.role===role);return <article key={role}><div className="teaching-question-cost-role"><strong>{teachingCostRoleLabel(role)}</strong><span>{entries.length?`${entries.reduce((sum,entry)=>sum+entry.calls,0)} 次`:"未啟動"}</span></div>{entries.length?entries.map((entry,index)=><div className="teaching-question-cost-model" key={`${role}-${index}`}><span><b>{modelDisplayName(entry.model)}</b><small>{providerLabel(entry.provider)}</small></span><strong>{formatQuestionCostTwd(entry.costUsd)}</strong></div>):<div className="teaching-question-cost-empty">這題沒有啟動此角色</div>}</article>})}</div></>:<div className="admin-notice teaching-cost-missing">這筆題目沒有可連結的成本紀錄。</div>}</section>
+
+      <button type="button" className="site-calibrate-sticky" onClick={()=>onCalibrate(selected.id)}>這題有問題？前往教師校正 →</button>
+    </div>
+  }
+
+  return <div className="admin-stack site-questions-v21">
+    <section className="hh-card admin-panel teaching-toolbar site-question-toolbar"><div className="teaching-toolbar-head"><div><div className="hh-eyebrow">ALL QUESTIONS</div><h2 className="hh-display">全站題目</h2><p>只用來巡覽學生實際問過的題目。看答案、詳解、追問與每題成本；需要修改時再快速前往「教師校正」。</p></div><button type="button" className="hh-button-secondary teaching-filter-toggle" onClick={()=>setFiltersOpen(v=>!v)}>{filtersOpen?"收合搜尋":"搜尋與篩選"}</button></div>{filtersOpen&&<div className="teaching-filter-row"><div className="teaching-range-switch"><button type="button" className={range==="today"?"active":""} onClick={()=>setRange("today")}>今天</button><button type="button" className={range==="all"?"active":""} onClick={()=>setRange("all")}>全部</button></div><input className="hh-input" placeholder="搜尋學生、題目或答案…" value={q} onChange={e=>setQ(e.target.value)}/><select className="hh-select" value={subject} onChange={e=>setSubject(e.target.value)}><option value="">全部科目</option><option value="physics">物理</option><option value="chemistry">化學</option><option value="biology">生物</option><option value="earth">地球科學</option></select></div>}</section>
+    {message&&<div className="admin-notice danger">{message}</div>}
+    <section className="site-question-list">{loading?<div className="hh-card admin-panel admin-empty">正在讀取全站題目…</div>:items.length===0?<div className="hh-card admin-panel admin-empty">目前沒有符合條件的題目。</div>:items.map(item=><button type="button" className="hh-card site-question-row" key={item.id} onClick={()=>setSelected(item)}><span className="site-question-thumb">{item.imageUrls?.[0]?<img src={item.imageUrls[0]} alt="題目縮圖"/>:<span>SCI</span>}</span><span className="site-question-copy"><span className="site-question-topline"><b>{new Date(item.createdAt).toLocaleString("zh-TW",{month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"})}</b><em className={`teaching-subject-chip teaching-subject-${item.subject}`}>{adminSubjectLabel(item.subject)}</em>{item.issue&&<i>異常</i>}</span><strong>{item.studentName}</strong><small>{[item.regionName,item.institutionName,item.className].filter(Boolean).join(" · ")||item.campus}</small><p>{item.questionNote||item.explanation||"尚無題目摘要"}</p></span><span className="site-question-status"><span><small>AI 答案</small><b>{item.answer||"—"}</b></span><span><small>本題成本</small><b>{item.cost?.hasCostRecord?formatQuestionCostTwd(item.cost.totalCostUsd):"—"}</b></span><span><small>追問</small><b>{item.followups?.length||0}</b></span><strong className="site-question-open">查看 →</strong></span></button>)}</section>
+  </div>
+}
+
+function TeachingQuestionsSection({initialHistoryId,onInitialHistoryHandled}:{initialHistoryId?:string|null;onInitialHistoryHandled?:()=>void} = {}) {
   type TeacherAnnotation = { id:string; display:string; label:string; meaning:string; source:string; usage:string };
   type RuleSuggestion = { title:string; content:string; scope:"global"|"subject"|"topic"; topic?:string; keywords?:string[]; priority?:number; selected?:boolean };
   type CoachMessage = { role:"user"|"assistant"; content:string };
@@ -3611,7 +3673,7 @@ function TeachingQuestionsSection() {
   const [q,setQ]=useState("");
   const [subject,setSubject]=useState("");
   const [issues,setIssues]=useState(false);
-  const [range,setRange]=useState<"today"|"all">("today");
+  const [range,setRange]=useState<"today"|"all">(initialHistoryId?"all":"today");
   const [filtersOpen,setFiltersOpen]=useState(false);
   const [teacherNote,setTeacherNote]=useState("");
   const [teacherAnswer,setTeacherAnswer]=useState("");
@@ -3651,6 +3713,11 @@ function TeachingQuestionsSection() {
     finally{setLoading(false);}
   },[q,subject,issues,range]);
   useEffect(()=>{void load();},[load]);
+  useEffect(()=>{
+    if(!initialHistoryId || loading || selected) return;
+    const target=items.find(item=>item.id===initialHistoryId);
+    if(target){ void open(target); onInitialHistoryHandled?.(); }
+  },[initialHistoryId,loading,items,selected]);
   const activeFilterCount = [Boolean(q.trim()), Boolean(subject), issues, range === "all"].filter(Boolean).length;
 
   async function open(item:TeachingQuestionRow){
@@ -3765,7 +3832,7 @@ function TeachingQuestionsSection() {
     <button type="button" className="student-history-back" onClick={()=>setSelected(null)}>← 返回教師校正</button>
     {message && <div className={`admin-notice ${message.startsWith("已")?"success":"danger"}`}>{message}</div>}
     <section className="hh-card admin-panel"><div className="teaching-detail-head"><div><div className="hh-eyebrow">TEACHER CALIBRATION</div><h2 className="hh-display">{selected.studentName} · {adminSubjectLabel(selected.subject)}</h2><p>{[selected.regionName,selected.institutionName,selected.className].filter(Boolean).join(" · ") || selected.campus} · {new Date(selected.createdAt).toLocaleString("zh-TW")}</p></div>{selected.issue&&<span className="teaching-issue-badge">需要留意</span>}</div>
-      {selected.imageUrl && <div className="teaching-question-image"><img src={selected.imageUrl} alt="題目圖片" /></div>}
+      {selected.imageUrls?.length > 0 && <div className="teaching-question-image-grid">{selected.imageUrls.map((url,index)=><img key={url} src={url} alt={`題目圖片 ${index+1}`} />)}</div>}
       <div className="teaching-context-strip"><span>學生補充敘述</span><p>{selected.questionNote||"學生沒有另外補充敘述。"}</p></div>
       <div className="teaching-answer-grid"><div><span>標準答案</span><strong>{selected.referenceAnswer||"未提供"}</strong></div><div><span>AI 原答案</span><strong>{selected.answer||"—"}</strong></div></div>
     </section>
@@ -3815,7 +3882,7 @@ function TeachingQuestionsSection() {
     </section>
     {message && <div className={`admin-notice ${message.startsWith("已")?"success":"danger"}`}>{message}</div>}
     <section className="teaching-question-list">{loading?<div className="hh-card admin-panel admin-empty">正在讀取題目…</div>:items.length===0?<div className="hh-card admin-panel admin-empty">目前沒有符合條件的題目。</div>:items.map(item=><button type="button" className="hh-card teaching-question-row teaching-question-row-v134" key={item.id} onClick={()=>void open(item)}>
-      <span className="teaching-question-media">{item.imageUrl?<img src={item.imageUrl} alt="題目縮圖"/>:<span className="teaching-thumb-empty">SCI</span>}</span>
+      <span className="teaching-question-media">{item.imageUrls?.[0]?<img src={item.imageUrls[0]} alt="題目縮圖"/>:<span className="teaching-thumb-empty">SCI</span>}</span>
       <span className="teaching-question-main"><span className="teaching-row-topline"><span>{new Date(item.createdAt).toLocaleString("zh-TW", { month:"2-digit", day:"2-digit", hour:"2-digit", minute:"2-digit" })}</span><span className={`teaching-subject-chip teaching-subject-${item.subject}`}>{adminSubjectLabel(item.subject)}</span>{item.issue&&<em className="teaching-inline-issue">異常</em>}</span><strong>{item.studentName}</strong><small>{[item.regionName,item.institutionName,item.className].filter(Boolean).join(" · ")||item.campus}</small><span className="teaching-question-preview">{item.questionNote||item.explanation||"尚無題目摘要"}</span></span>
       <span className="teaching-row-answer"><small>AI 答案</small><b>{item.answer||"—"}</b><span className="teaching-row-cost-label">本題成本</span><strong className={`teaching-row-cost ${item.cost?.hasCostRecord?"":"missing"}`}>{item.cost?.hasCostRecord?formatQuestionCostTwd(item.cost.totalCostUsd):"—"}</strong><span className="teaching-calibrate-link">教師校正 →</span></span>
     </button>)}</section>
@@ -3868,11 +3935,12 @@ function TeachingRulesSection(){
   const activeMode=modes.find(m=>m.key===settings.mode)||modes[1];
   const activeSubjectLabel=subjects.find(([key])=>key===activeSubject)?.[1]||"物理";
   return <div className="admin-stack teaching-rules-page">
+    <section className="hh-card admin-panel teaching-settings-clarifier"><div className="hh-eyebrow">GLOBAL BASELINE</div><h2 className="hh-display">這裡是「全站預設」</h2><p><b>全站預設</b>＝每題固定先遵守的系統底線；<b>教學規則庫</b>＝老師針對特定科目／單元累積、符合條件才檢索的教法。兩者不再混在同一層。</p></section>
     {message&&<div className={`admin-notice ${message.includes("已更新")?"success":"danger"}`}>{message}</div>}
     <section className="hh-card admin-panel"><PanelHeader eyebrow="TEACHING MODE" title="解題模式" subtitle="設定整個解題實驗室預設的教學深度。"/><div className="teaching-mode-list">{modes.map(m=><button key={m.key} type="button" className={settings.mode===m.key?"active":""} onClick={()=>setSettings({...settings,mode:m.key})}><span className="teaching-mode-radio"/><strong>{m.name}</strong><span>{m.desc}</span></button>)}</div><div className="teaching-mode-current">目前模式：<strong>{activeMode.name}</strong> · {activeMode.desc}</div></section>
-    <section className="hh-card admin-panel"><PanelHeader eyebrow="GENERAL RULES" title="通用解題規則"/><div className="teaching-rule-checks">{general.map(([key,label])=><label key={key}><input type="checkbox" checked={Boolean(settings.general[key])} onChange={e=>setSettings({...settings,general:{...settings.general,[key]:e.target.checked}})}/><span>{label}</span></label>)}</div><div className="teaching-annotation-density"><div><strong>可點擊數字密度</strong><span>控制新解題預設要標多少個真正有教學價值的數字；教師校正仍可逐題覆寫。</span></div><select className="hh-select" value={settings.general.annotationDensity||"rich"} onChange={e=>setSettings({...settings,general:{...settings.general,annotationDensity:e.target.value}})}><option value="light">精簡 · 約 1～2 個</option><option value="standard">標準 · 約 2～4 個</option><option value="rich">豐富 · 約 3～6 個</option></select></div></section>
+    <section className="hh-card admin-panel"><PanelHeader eyebrow="GLOBAL DEFAULTS" title="全站解題預設" subtitle="這裡是所有題目固定套用的基礎開關與互動數字密度，不是老師從個別題目教給 AI 的知識。跨題教法請放在「教學規則庫」。"/><div className="teaching-rule-checks">{general.map(([key,label])=><label key={key}><input type="checkbox" checked={Boolean(settings.general[key])} onChange={e=>setSettings({...settings,general:{...settings.general,[key]:e.target.checked}})}/><span>{label}</span></label>)}</div><div className="teaching-annotation-density"><div><strong>可點擊數字密度</strong><span>控制新解題預設要標多少個真正有教學價值的數字；教師校正仍可逐題覆寫。</span></div><select className="hh-select" value={settings.general.annotationDensity||"rich"} onChange={e=>setSettings({...settings,general:{...settings.general,annotationDensity:e.target.value}})}><option value="light">精簡 · 約 1～2 個</option><option value="standard">標準 · 約 2～4 個</option><option value="rich">豐富 · 約 3～6 個</option></select></div></section>
     <section className="hh-card admin-panel input-guard-panel"><PanelHeader eyebrow="INPUT GUARD" title="圖片有效性與阻擋規則" subtitle="先擋無效圖片，再做自然科判斷。被擋的圖片不扣題數，也不會進入正式 Primary／Verifier／Arbiter 解題。"/><label className="input-guard-master"><input type="checkbox" checked={Boolean(guard.enabled)} onChange={e=>setGuard({...guard,enabled:e.target.checked})}/><span><strong>啟用輸入阻擋</strong><small>建議保持開啟</small></span></label><div className="teaching-rule-checks input-guard-checks">{guardRules.map(([key,label])=><label key={key}><input type="checkbox" checked={Boolean(guard[key])} onChange={e=>setGuard({...guard,[key]:e.target.checked})}/><span>{label}</span></label>)}</div><label className="teaching-subject-editor"><span>老師自訂阻擋規則</span><small>每行一條。也可以在「全站題目」個別題目中按「加入阻擋規則」。</small><textarea className="hh-input" value={(guard.customRules||[]).join("\n")} onChange={e=>setGuard({...guard,customRules:e.target.value.split("\n").map((v:string)=>v.trim()).filter(Boolean)})} placeholder={'例如：圖片只有黑底沒有題目內容時直接阻擋\n例如：學生上傳與自然科題目無關的聊天截圖時直接阻擋'}/></label></section>
-    <section className="hh-card admin-panel"><PanelHeader eyebrow="SUBJECT RULES" title="科目規則" subtitle="切換科目後只編輯該科規則，Primary、Verifier、Arbiter 與 Follow-up 都會共用。"/><div className="teaching-subject-tabs">{subjects.map(([key,label])=><button key={key} type="button" className={activeSubject===key?"active":""} onClick={()=>setActiveSubject(key)}>{label}</button>)}</div><label className="teaching-subject-editor"><span>{activeSubjectLabel}規則</span><textarea className="hh-input" value={settings.subjects[activeSubject]||""} onChange={e=>setSettings({...settings,subjects:{...settings.subjects,[activeSubject]:e.target.value}})}/></label><button type="button" className="hh-button-primary teaching-rules-save" onClick={()=>void save()} disabled={saving}>{saving?"儲存中…":"儲存全部規則"}</button></section>
+    <section className="hh-card admin-panel"><PanelHeader eyebrow="SUBJECT BASELINE" title="各科基礎指示" subtitle="這裡放每一題都要遵守的科目級底線；若是特定單元或題型的教法，請改放「教學規則庫」。"/><div className="teaching-subject-tabs">{subjects.map(([key,label])=><button key={key} type="button" className={activeSubject===key?"active":""} onClick={()=>setActiveSubject(key)}>{label}</button>)}</div><label className="teaching-subject-editor"><span>{activeSubjectLabel}基礎指示</span><textarea className="hh-input" value={settings.subjects[activeSubject]||""} onChange={e=>setSettings({...settings,subjects:{...settings.subjects,[activeSubject]:e.target.value}})}/></label><button type="button" className="hh-button-primary teaching-rules-save" onClick={()=>void save()} disabled={saving}>{saving?"儲存中…":"儲存全部規則"}</button></section>
   </div>;
 }
 
@@ -4473,6 +4541,7 @@ function QuickAction({
 }
 
 function sectionEyebrow(section: AdminSection) {
+  if (section === "siteQuestions") return "ALL QUESTIONS";
   if (["usage","classes","students","pin"].includes(section)) return "CLASS OPERATIONS";
   if (["ai","analytics","cost"].includes(section)) return "AI MODEL CENTER";
   if (["teachingOverview","teachingQuestions","teachingExamples","teachingRuleLibrary","teachingCoach","teachingTraining","teachingSettings"].includes(section)) return "TEACHING ENGINE";
@@ -4480,6 +4549,7 @@ function sectionEyebrow(section: AdminSection) {
 }
 
 function sectionTitle(section: AdminSection) {
+  if (section === "siteQuestions") return "全站題目";
   if (section === "usage") return "使用狀況";
   if (section === "classes") return "班級管理";
   if (section === "students" || section === "pin") return "學生管理";
@@ -4492,7 +4562,7 @@ function sectionTitle(section: AdminSection) {
   if (section === "teachingRuleLibrary") return "教學規則庫";
   if (section === "teachingCoach") return "AI 教練";
   if (section === "teachingTraining") return "訓練資料";
-  if (section === "teachingSettings") return "引擎設定";
+  if (section === "teachingSettings") return "全站預設";
   return "管理總覽";
 }
 
@@ -10489,6 +10559,27 @@ const adminStyles = `
     .teaching-calibrate-link { justify-self:end; margin-top:0; }
     .teaching-annotation-density { grid-template-columns:1fr; }
   }
+
+  /* Teacher Engine v2.1 — readable calibration + standalone all-site questions */
+  .teaching-settings-clarifier{background:linear-gradient(135deg,color-mix(in srgb,var(--primary) 8%,var(--surface)),var(--surface));}
+  .teaching-settings-clarifier h2{margin:4px 0 6px;font-size:18px}.teaching-settings-clarifier p{margin:0;color:var(--text-secondary);font-size:10.5px;line-height:1.65}.teaching-settings-clarifier b{color:var(--text)}
+  .teaching-question-image-grid,.site-question-images{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:9px;margin-top:12px}.teaching-question-image-grid img,.site-question-images img{width:100%;max-height:360px;object-fit:contain;border:1px solid var(--border);border-radius:13px;background:var(--surface-soft)}
+
+  .teaching-question-row-v134{grid-template-columns:92px minmax(0,1fr) minmax(210px,260px)!important;align-items:stretch!important;padding:12px!important;gap:13px!important}
+  .teaching-question-row-v134 .teaching-question-main{align-content:start;gap:5px!important}.teaching-question-row-v134 .teaching-question-main>strong{font-size:13.5px!important}.teaching-question-row-v134 .teaching-question-main>small{font-size:9.5px!important;line-height:1.35}.teaching-question-row-v134 .teaching-question-preview{font-size:10.5px!important;line-height:1.55!important;-webkit-line-clamp:3!important}
+  .teaching-question-row-v134 .teaching-row-answer{display:grid!important;grid-template-columns:auto minmax(0,1fr);grid-template-areas:"answerLabel answer" "costLabel cost" "link link";align-content:center;align-items:center;justify-items:start!important;gap:6px 10px!important;padding:7px 0 7px 14px!important}
+  .teaching-question-row-v134 .teaching-row-answer>small{grid-area:answerLabel!important;font-size:8.5px!important;white-space:nowrap}.teaching-question-row-v134 .teaching-row-answer>b{grid-area:answer!important;font-size:12px!important;line-height:1.35!important;white-space:normal!important;overflow:visible!important;text-overflow:clip!important}.teaching-question-row-v134 .teaching-row-cost-label{grid-area:costLabel!important;font-size:8.5px!important;white-space:nowrap}.teaching-question-row-v134 .teaching-row-cost{grid-area:cost!important;font-size:11px!important}.teaching-question-row-v134 .teaching-calibrate-link{grid-area:link!important;width:100%;margin:4px 0 0!important;padding-top:7px;border-top:1px solid var(--border);font-size:9.5px!important;text-align:right}
+  .teacher-calibration-v2{max-width:1120px;margin:0 auto}.teacher-calibration-v2>.admin-panel{padding:16px!important}.teacher-original-panel{display:grid;grid-template-columns:1fr 1fr;gap:12px}.teacher-original-panel>.admin-panel-header,.teacher-original-panel>.panel-header,.teacher-original-panel>div:first-child{grid-column:1/-1}.teacher-original-panel .teaching-ai-block{margin:0;padding:13px;border:1px solid var(--border);border-radius:12px;background:var(--surface-soft)}.teacher-solution-panel{border-color:color-mix(in srgb,var(--primary) 32%,var(--border))}.teacher-solution-field>span,.teacher-solution-grid label>span{font-size:10px!important;font-weight:900;color:var(--text-secondary)}
+
+  .site-questions-v21,.site-question-detail-v21{max-width:1160px;margin:0 auto}.site-question-list{display:grid;gap:10px}.site-question-row{display:grid;grid-template-columns:96px minmax(0,1fr) 250px;gap:14px;width:100%;padding:12px!important;border:1px solid var(--border);background:var(--surface);color:var(--text);text-align:left;cursor:pointer;align-items:center}.site-question-row:hover{border-color:color-mix(in srgb,var(--primary) 40%,var(--border));background:color-mix(in srgb,var(--primary) 3%,var(--surface))}.site-question-thumb{width:96px;height:82px;border-radius:13px;overflow:hidden;background:var(--surface-soft);display:grid;place-items:center}.site-question-thumb img{width:100%;height:100%;object-fit:cover}.site-question-thumb>span{font-size:10px;font-weight:900;color:var(--text-muted)}.site-question-copy{display:grid;gap:4px;min-width:0}.site-question-topline{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:9px;color:var(--text-muted)}.site-question-topline em{font-style:normal}.site-question-topline i{font-style:normal;padding:3px 6px;border-radius:999px;background:var(--danger-soft);color:var(--danger);font-weight:900}.site-question-copy>strong{font-size:14px}.site-question-copy>small{font-size:9px;color:var(--text-muted)}.site-question-copy>p{display:-webkit-box;overflow:hidden;margin:2px 0 0;color:var(--text-secondary);font-size:10.5px;line-height:1.55;-webkit-box-orient:vertical;-webkit-line-clamp:2}.site-question-status{display:grid;grid-template-columns:1.1fr .9fr .55fr;gap:7px;padding-left:14px;border-left:1px solid var(--border)}.site-question-status>span{display:grid;gap:3px;min-width:0;padding:8px;border-radius:10px;background:var(--surface-soft)}.site-question-status small{font-size:7.5px;color:var(--text-muted);font-weight:850}.site-question-status b{font-size:10.5px;line-height:1.3;overflow:hidden;text-overflow:ellipsis}.site-question-open{grid-column:1/-1;justify-self:end;color:var(--primary);font-size:9.5px}
+  .site-question-detail-actions{display:flex;justify-content:space-between;gap:10px;align-items:center}.site-question-identity-main{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.site-question-identity-main h2{margin:4px 0}.site-question-identity-main p{margin:0;color:var(--text-secondary);font-size:10px}.site-question-meta-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:12px}.site-question-meta-grid article{display:grid;gap:4px;padding:11px;border:1px solid var(--border);border-radius:11px;background:var(--surface-soft)}.site-question-meta-grid span{font-size:8px;color:var(--text-muted);font-weight:900}.site-question-meta-grid strong{font-size:13px}.site-question-note{margin-top:10px;padding:11px;border:1px dashed var(--border-strong);border-radius:11px}.site-question-note span{font-size:8px;color:var(--text-muted);font-weight:900}.site-question-note p{margin:4px 0 0;font-size:10.5px;line-height:1.55}.site-student-view-card h2,.site-followup-card h2{margin:4px 0 8px}.site-answer-hero{display:flex;align-items:baseline;gap:12px;padding:13px 14px;border-radius:12px;background:color-mix(in srgb,var(--primary) 8%,var(--surface-soft));border:1px solid color-mix(in srgb,var(--primary) 25%,var(--border))}.site-answer-hero span{font-size:9px;color:var(--text-secondary);font-weight:900}.site-answer-hero strong{font-size:20px}.site-result-section{margin-top:12px;padding:13px;border:1px solid var(--border);border-radius:12px;background:var(--surface-soft)}.site-result-section h3{margin:0 0 8px;font-size:12px}.site-followup-count{padding:5px 8px;border-radius:999px;background:var(--surface-soft);font-size:9px;font-weight:900}.site-followup-list{display:grid;gap:10px;margin-top:12px}.site-followup-list article{overflow:hidden;border:1px solid var(--border);border-radius:12px}.site-followup-q,.site-followup-a{padding:11px 12px}.site-followup-q{background:color-mix(in srgb,var(--primary) 7%,var(--surface-soft));border-bottom:1px solid var(--border)}.site-followup-q span,.site-followup-a>span{display:block;margin-bottom:4px;font-size:8px;color:var(--text-muted);font-weight:900}.site-followup-q p{margin:0;font-size:10.5px;line-height:1.55}.site-calibrate-sticky{position:sticky;bottom:12px;z-index:8;width:100%;padding:12px 16px;border:1px solid color-mix(in srgb,var(--primary) 30%,var(--border));border-radius:13px;background:color-mix(in srgb,var(--primary) 88%,var(--surface));color:var(--primary-contrast,#fff);font:inherit;font-size:11px;font-weight:900;box-shadow:0 12px 28px rgba(0,0,0,.16);cursor:pointer}
+
+  @media(max-width:760px){
+    .teaching-question-row-v134{grid-template-columns:76px minmax(0,1fr)!important;gap:10px!important;padding:10px!important}.teaching-question-row-v134 .teaching-question-media img,.teaching-question-row-v134 .teaching-thumb-empty{width:76px!important;height:68px!important}.teaching-question-row-v134 .teaching-row-answer{grid-column:1/-1!important;grid-template-columns:auto minmax(0,1fr) auto auto!important;grid-template-areas:"answerLabel answer costLabel cost" "link link link link"!important;gap:5px 7px!important;padding:8px 0 0!important;border-left:0!important;border-top:1px solid var(--border)!important}.teaching-question-row-v134 .teaching-row-answer>b{font-size:10.5px!important;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden!important}.teaching-question-row-v134 .teaching-row-cost-label{display:block!important}.teaching-question-row-v134 .teaching-calibrate-link{text-align:right;padding-top:6px;font-size:9px!important}
+    .teacher-original-panel{grid-template-columns:1fr}.teacher-original-panel>*{grid-column:auto!important}.teacher-calibration-v2>.admin-panel{padding:13px!important}
+    .site-question-row{grid-template-columns:78px minmax(0,1fr);gap:10px;padding:10px!important}.site-question-thumb{width:78px;height:70px}.site-question-status{grid-column:1/-1;grid-template-columns:1.2fr .9fr .55fr;gap:6px;padding:8px 0 0;border-left:0;border-top:1px solid var(--border)}.site-question-status>span{padding:6px 7px}.site-question-status small{font-size:7px}.site-question-status b{font-size:9.5px}.site-question-open{padding-top:2px;font-size:9px}.site-question-copy>strong{font-size:13px}.site-question-copy>p{font-size:9.5px;-webkit-line-clamp:3}.site-question-detail-actions{align-items:stretch;flex-direction:column}.site-question-detail-actions .hh-button-primary{width:100%}.site-question-identity-main{flex-direction:column}.site-question-meta-grid{grid-template-columns:1fr 1fr}.site-question-meta-grid article:last-child{grid-column:1/-1}.site-question-images,.teaching-question-image-grid{grid-template-columns:1fr}.site-answer-hero strong{font-size:17px}.site-calibrate-sticky{bottom:calc(10px + env(safe-area-inset-bottom))}
+  }
+
 
 `;
 

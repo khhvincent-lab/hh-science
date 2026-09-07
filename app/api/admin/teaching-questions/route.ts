@@ -26,11 +26,14 @@ function sanitizeImages(value: unknown) {
     .sort((a, b) => a.order - b.order);
 }
 
-async function signFirstImage(value: unknown) {
-  const first = sanitizeImages(value)[0];
-  if (!first) return null;
-  const { data, error } = await supabaseAdmin.storage.from("solve-images").createSignedUrl(first.path, 60 * 60);
-  return error ? null : data?.signedUrl || null;
+async function signImages(value: unknown) {
+  const images = sanitizeImages(value);
+  if (!images.length) return [];
+  const signed = await Promise.all(images.map(async (image) => {
+    const { data, error } = await supabaseAdmin.storage.from("solve-images").createSignedUrl(image.path, 60 * 60);
+    return error || !data?.signedUrl ? null : data.signedUrl;
+  }));
+  return signed.filter((url): url is string => Boolean(url));
 }
 
 async function fetchQuestionCosts(historyIds: string[]) {
@@ -168,6 +171,35 @@ export async function GET(request: NextRequest) {
     console.error("Teaching question cost load error:", costError);
   }
 
+  const historyIds = rows.map((row: any) => String(row.id));
+  const followupMap = new Map<string, any[]>();
+  for (let start = 0; start < historyIds.length; start += 100) {
+    const chunk = historyIds.slice(start, start + 100);
+    const { data: followupRows, error: followupError } = await supabaseAdmin
+      .from("solve_followups")
+      .select("id,solve_history_id,question,answer,provider,model,created_at")
+      .in("solve_history_id", chunk)
+      .order("created_at", { ascending: true });
+    if (followupError) {
+      console.error("Teaching question followup load error:", followupError);
+      continue;
+    }
+    for (const followup of followupRows || []) {
+      const id = String((followup as any).solve_history_id || "");
+      if (!id) continue;
+      const bucket = followupMap.get(id) || [];
+      bucket.push({
+        id: (followup as any).id,
+        question: (followup as any).question || "",
+        answer: (followup as any).answer || "",
+        provider: (followup as any).provider || null,
+        model: (followup as any).model || null,
+        createdAt: (followup as any).created_at,
+      });
+      followupMap.set(id, bucket);
+    }
+  }
+
   const items = await Promise.all(
     rows.map(async (row: any) => {
       const student = Array.isArray(row.students) ? row.students[0] : row.students;
@@ -206,7 +238,7 @@ export async function GET(request: NextRequest) {
         explanation: row.explanation || "",
         options: row.options || "",
         annotations: Array.isArray(row.annotations) ? row.annotations : [],
-        imageUrl: await signFirstImage(row.image_paths),
+        imageUrls: await signImages(row.image_paths),
         createdAt: row.created_at,
         primaryProvider: row.primary_provider || null,
         primaryModel: row.primary_model || null,
@@ -219,6 +251,7 @@ export async function GET(request: NextRequest) {
         arbiterAnswer: row.arbiter_answer || null,
         disputeStatus: row.dispute_status || "normal",
         issue,
+        followups: followupMap.get(String(row.id)) || [],
         cost: {
           hasCostRecord: Boolean(costBucket),
           totalCostUsd: costBucket ? Number(Number(costBucket.totalCostUsd || 0).toFixed(8)) : null,
