@@ -308,11 +308,41 @@ function adminRenderKatex(formula: string, displayMode: boolean) {
   }
 }
 
+function stripAdminAnnotationCommands(formula: string) {
+  let result = formula;
+
+  for (let pass = 0; pass < 12; pass += 1) {
+    const marker = "\\htmlData{annotation=";
+    const start = result.indexOf(marker);
+    if (start < 0) break;
+
+    const metaEnd = result.indexOf("}", start + marker.length);
+    if (metaEnd < 0 || result[metaEnd + 1] !== "{") break;
+
+    let depth = 1;
+    let cursor = metaEnd + 2;
+    for (; cursor < result.length && depth > 0; cursor += 1) {
+      if (result[cursor] === "{") depth += 1;
+      else if (result[cursor] === "}") depth -= 1;
+    }
+    if (depth !== 0) break;
+
+    const inner = result.slice(metaEnd + 2, cursor - 1);
+    result = result.slice(0, start) + inner + result.slice(cursor);
+  }
+
+  return result;
+}
+
 function AdminScienceText({ text }: { text: string }) {
   if (!text) return null;
 
   const cleaned = text
     .replace(/\\n/g, "\n")
+    .replace(/\\\[/g, "$$")
+    .replace(/\\\]/g, "$$")
+    .replace(/\\\(/g, "$")
+    .replace(/\\\)/g, "$")
     .replace(/\*\*/g, "")
     .replace(/^---+$/gm, "")
     .trim();
@@ -328,7 +358,7 @@ function AdminScienceText({ text }: { text: string }) {
               className="admin-display-formula"
               key={blockIndex}
               dangerouslySetInnerHTML={{
-                __html: adminRenderKatex(block.slice(2, -2).trim(), true),
+                __html: adminRenderKatex(stripAdminAnnotationCommands(block.slice(2, -2).trim()), true),
               }}
             />
           );
@@ -352,7 +382,7 @@ function AdminScienceText({ text }: { text: string }) {
                   <span
                     key={pieceIndex}
                     dangerouslySetInnerHTML={{
-                      __html: adminRenderKatex(piece.slice(1, -1), false),
+                      __html: adminRenderKatex(stripAdminAnnotationCommands(piece.slice(1, -1)), false),
                     }}
                   />
                 ) : (
@@ -2939,7 +2969,7 @@ function AdminStudentHistoryPanel({
               </article>
               <article>
                 <span>AI 最終答案</span>
-                <strong>{selected.answer || "—"}</strong>
+                <div className="admin-formula-value"><AdminScienceText text={selected.answer || "—"} /></div>
               </article>
               {selected.questionNote && (
                 <article className="wide">
@@ -3715,11 +3745,11 @@ function SiteQuestionsSection({onCalibrate}:{onCalibrate:(historyId:string)=>voi
       <section className="hh-card admin-panel site-question-identity-card">
         <div className="site-question-identity-main"><div><div className="hh-eyebrow">STUDENT QUESTION</div><h2 className="hh-display">{selected.studentName} · {adminSubjectLabel(selected.subject)}</h2><p>{[selected.regionName,selected.institutionName,selected.className].filter(Boolean).join(" · ")||selected.campus} · {new Date(selected.createdAt).toLocaleString("zh-TW")}</p></div>{selected.issue&&<span className="teaching-issue-badge">需要留意</span>}</div>
         {selected.imageUrls?.length>0&&<div className="site-question-images">{selected.imageUrls.map((url,index)=><img key={url} src={url} alt={`學生題目 ${index+1}`}/>)}</div>}
-        <div className="site-question-meta-grid"><article><span>學生提供答案</span><strong>{selected.referenceAnswer||"未提供"}</strong></article><article><span>AI 最終答案</span><strong>{selected.answer||"—"}</strong></article><article><span>本題成本</span><strong>{selected.cost?.hasCostRecord?formatQuestionCostTwd(selected.cost.totalCostUsd):"—"}</strong></article></div>
+        <div className="site-question-meta-grid"><article><span>學生提供答案</span><strong>{selected.referenceAnswer||"未提供"}</strong></article><article><span>AI 最終答案</span><div className="admin-formula-value"><AdminScienceText text={selected.answer||"—"} /></div></article><article><span>本題成本</span><strong>{selected.cost?.hasCostRecord?formatQuestionCostTwd(selected.cost.totalCostUsd):"—"}</strong></article></div>
         {selected.questionNote&&<div className="site-question-note"><span>學生補充敘述</span><p>{selected.questionNote}</p></div>}
       </section>
 
-      <section className="hh-card admin-panel site-student-view-card"><div className="hh-eyebrow">STUDENT VIEW</div><h2 className="hh-display">學生看到的解題內容</h2><div className="site-answer-hero"><span>答案</span><strong>{selected.answer||"—"}</strong></div><div className="site-result-section"><h3>觀念解析／詳解</h3><AdminScienceText text={selected.explanation||"目前沒有詳解內容。"}/></div>{selected.options&&<div className="site-result-section"><h3>選項分析</h3><AdminScienceText text={formatAdminOptions(selected.options)}/></div>}</section>
+      <section className="hh-card admin-panel site-student-view-card"><div className="hh-eyebrow">STUDENT VIEW</div><h2 className="hh-display">學生看到的解題內容</h2><div className="site-answer-hero"><span>答案</span><div className="admin-formula-value"><AdminScienceText text={selected.answer||"—"} /></div></div><div className="site-result-section"><h3>觀念解析／詳解</h3><AdminScienceText text={selected.explanation||"目前沒有詳解內容。"}/></div>{selected.options&&<div className="site-result-section"><h3>選項分析</h3><AdminScienceText text={formatAdminOptions(selected.options)}/></div>}</section>
 
       <section className="hh-card admin-panel site-followup-card"><div className="teacher-v2-section-head"><div><div className="hh-eyebrow">FOLLOW-UP</div><h2 className="hh-display">學生追問紀錄</h2><p>完整保留學生後續問題與 AI 回答，方便判斷原詳解哪裡不夠清楚。</p></div><span className="site-followup-count">{selected.followups?.length||0} 次</span></div>{selected.followups?.length?<div className="site-followup-list">{selected.followups.map((f,index)=><article key={f.id||index}><div className="site-followup-q"><span>學生追問 {index+1}</span><p>{f.question}</p></div><div className="site-followup-a"><span>AI 回答</span><AdminScienceText text={f.answer}/></div></article>)}</div>:<div className="admin-empty">這題目前沒有追問。</div>}</section>
 
@@ -3908,7 +3938,7 @@ function TeachingQuestionsSection({initialHistoryId,onInitialHistoryHandled}:{in
     <section className="hh-card admin-panel"><div className="teaching-detail-head"><div><div className="hh-eyebrow">TEACHER CALIBRATION</div><h2 className="hh-display">{selected.studentName} · {adminSubjectLabel(selected.subject)}</h2><p>{[selected.regionName,selected.institutionName,selected.className].filter(Boolean).join(" · ") || selected.campus} · {new Date(selected.createdAt).toLocaleString("zh-TW")}</p></div>{selected.issue&&<span className="teaching-issue-badge">需要留意</span>}</div>
       {selected.imageUrls?.length > 0 && <div className="teaching-question-image-grid">{selected.imageUrls.map((url,index)=><img key={url} src={url} alt={`題目圖片 ${index+1}`} />)}</div>}
       <div className="teaching-context-strip"><span>學生補充敘述</span><p>{selected.questionNote||"學生沒有另外補充敘述。"}</p></div>
-      <div className="teaching-answer-grid"><div><span>標準答案</span><strong>{selected.referenceAnswer||"未提供"}</strong></div><div><span>AI 原答案</span><strong>{selected.answer||"—"}</strong></div></div>
+      <div className="teaching-answer-grid"><div><span>標準答案</span><strong>{selected.referenceAnswer||"未提供"}</strong></div><div><span>AI 原答案</span><div className="admin-formula-value"><AdminScienceText text={selected.answer||"—"} /></div></div></div>
     </section>
 
     <section className="hh-card admin-panel teacher-original-panel"><PanelHeader eyebrow="AI ORIGINAL" title="AI 原始解法" subtitle="保留原回答做比較；下方教師版本才是之後 AI 會學習的內容。" />

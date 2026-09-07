@@ -234,19 +234,30 @@ function renderKatex(formula: string, displayMode: boolean) {
 }
 
 function stripExportAnnotationCommands(formula: string) {
-  // 匯出的 PNG 不需要點擊標註。把 \htmlData{annotation=...}{內容}
-  // 還原成純 KaTeX 內容，可避免複雜化學式在圖片匯出時被 KaTeX
-  // 判定為不合法語法而顯示紅色原始指令。
+  // 匯出 PNG 時把互動標註完全還原成純公式內容。
+  // 不能只用 regex，因為被標註的內容常包含 \frac、\sqrt 等巢狀大括號。
+  // 逐字解析才能避免 htmlData 樣式在輸出圖片中變成深綠色方框。
   let result = formula;
 
-  for (let i = 0; i < 8; i += 1) {
-    const next = result.replace(
-      /\\htmlData\{annotation=[^}]+\}\{([^{}]*)\}/g,
-      "$1",
-    );
+  for (let pass = 0; pass < 24; pass += 1) {
+    const marker = "\\htmlData{annotation=";
+    const start = result.indexOf(marker);
+    if (start < 0) break;
 
-    if (next === result) break;
-    result = next;
+    const metaEnd = result.indexOf("}", start + marker.length);
+    if (metaEnd < 0 || result[metaEnd + 1] !== "{") break;
+
+    let depth = 1;
+    let cursor = metaEnd + 2;
+    for (; cursor < result.length && depth > 0; cursor += 1) {
+      if (result[cursor] === "{") depth += 1;
+      else if (result[cursor] === "}") depth -= 1;
+    }
+
+    if (depth !== 0) break;
+
+    const inner = result.slice(metaEnd + 2, cursor - 1);
+    result = result.slice(0, start) + inner + result.slice(cursor);
   }
 
   return result;
