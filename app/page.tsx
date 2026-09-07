@@ -383,6 +383,124 @@ function StepHeader({
   );
 }
 
+
+type FirstUsePlatform = "ios" | "android";
+
+type FirstUseTutorialStep = {
+  eyebrow: string;
+  title: string;
+  description: string;
+  previewLabel: string;
+  previewValue: string;
+  tips: string[];
+};
+
+const FIRST_USE_TOUR_KEY_PREFIX = "hh-science:first-use-tour:";
+const ADD_HOME_GUIDE_KEY = "hh-science:add-home-guide-seen";
+
+const firstUseTutorialSteps: FirstUseTutorialStep[] = [
+  {
+    eyebrow: "STEP 01 · QUESTION",
+    title: "先上傳題目圖片",
+    description: "拍照或從相簿選擇題目。題目太長、跨頁或有附圖時，可以一次上傳多張，讓 AI 看完整資訊。",
+    previewLabel: "題目圖片",
+    previewValue: "上傳／拍照",
+    tips: ["盡量拍清楚、不要裁掉題幹與選項", "多張圖片會依上傳順序一起分析"],
+  },
+  {
+    eyebrow: "STEP 02 · REFERENCE",
+    title: "有參考答案，建議填上",
+    description: "如果老師、講義或答案卡已經提供正確答案，填入「參考答案」能讓 AI 多一個校準依據，解析通常會更穩定。",
+    previewLabel: "參考答案",
+    previewValue: "例如：B",
+    tips: ["有答案時建議填入，可提高準確度", "不知道答案也可以留白，系統仍能解題"],
+  },
+  {
+    eyebrow: "STEP 03 · CONTEXT",
+    title: "補充敘述是選填的",
+    description: "可以告訴 AI 你卡在哪裡、圖片中哪一段最重要，或想特別釐清哪個選項。",
+    previewLabel: "補充敘述",
+    previewValue: "例如：想特別問 C 選項",
+    tips: ["不是必填", "題意模糊或有特殊條件時特別有幫助"],
+  },
+  {
+    eyebrow: "STEP 04 · SOLVE",
+    title: "選好科目後，按下開始解題",
+    description: "確認題目、科目與補充資訊後按「開始解題」。系統會分析題目並產生答案、觀念解析與選項判斷。",
+    previewLabel: "準備完成",
+    previewValue: "開始解題",
+    tips: ["每次解題會計入當日解題額度", "送出前可再次確認圖片是否完整"],
+  },
+  {
+    eyebrow: "RESULT 01 · CONCEPT",
+    title: "先看觀念解析",
+    description: "解完題目後，第一個重點區域是「觀念解析」。這裡會把解題思路、必要公式與關鍵觀念整理成完整脈絡。",
+    previewLabel: "觀念解析",
+    previewValue: "為什麼這題這樣解？",
+    tips: ["先理解觀念，再看答案會更有效", "解析中的標記數字可點開補充說明"],
+  },
+  {
+    eyebrow: "RESULT 02 · OPTIONS",
+    title: "再看每個選項為什麼對或錯",
+    description: "「選項分析」會逐項拆解，讓你知道正確選項成立的原因，也知道其他選項錯在哪裡。",
+    previewLabel: "選項分析",
+    previewValue: "A / B / C / D",
+    tips: ["特別適合訂正選擇題", "不要只記答案，記住錯誤選項的陷阱"],
+  },
+  {
+    eyebrow: "RESULT 03 · FOLLOW-UP",
+    title: "還有疑問，可以直接追問",
+    description: "在「還有疑問？」區域可針對同一題繼續問，不需要重新上傳題目，也不會重新扣除每日解題額度。",
+    previewLabel: "追問區",
+    previewValue: "最多 3 次",
+    tips: ["可以直接問某一步為什麼", "也可以要求換一種更簡單的說法"],
+  },
+  {
+    eyebrow: "RESULT · ACTIONS",
+    title: "最下方有兩個實用按鈕",
+    description: "需要真人確認時可用「LINE 詢問老師」；想留存解析則按「產生解析圖片」，完成後可分享或存到照片。",
+    previewLabel: "題目完成後",
+    previewValue: "詢問老師／保存解析",
+    tips: ["LINE 詢問老師：把問題帶去給老師確認", "產生解析圖片：方便收藏、分享與複習"],
+  },
+  {
+    eyebrow: "MENU · MORE",
+    title: "右上角 ☰ 是功能選單",
+    description: "漢堡選單可以切換「開始解題」與「我的解題紀錄」，也能重新開啟使用教學、查看加入主畫面方式，或登出目前帳號。",
+    previewLabel: "漢堡選單",
+    previewValue: "☰",
+    tips: ["解過的題目可從「我的解題紀錄」重新查看", "教學關掉後，也能隨時從這裡再打開"],
+  },
+];
+
+function detectFirstUsePlatform(): FirstUsePlatform | null {
+  if (typeof navigator === "undefined") return null;
+
+  const userAgent = navigator.userAgent || "";
+  const isIOS =
+    /iPad|iPhone|iPod/i.test(userAgent) ||
+    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+
+  if (isIOS) return "ios";
+  if (/Android/i.test(userAgent)) return "android";
+  return null;
+}
+
+function isRunningStandalone() {
+  if (typeof window === "undefined" || typeof navigator === "undefined") {
+    return false;
+  }
+
+  const navigatorWithStandalone = navigator as Navigator & {
+    standalone?: boolean;
+  };
+
+  return (
+    window.matchMedia?.("(display-mode: standalone)")?.matches === true ||
+    navigatorWithStandalone.standalone === true
+  );
+}
+
 export default function Home() {
   const [campus, setCampus] = useState<Campus | "">("");
   const [regionId, setRegionId] = useState("");
@@ -416,6 +534,11 @@ export default function Home() {
 
   const [menuOpen, setMenuOpen] = useState(false);
   const [activeView, setActiveView] = useState<"solve" | "history">("solve");
+  const [tutorialOpen, setTutorialOpen] = useState(false);
+  const [tutorialStep, setTutorialStep] = useState(0);
+  const [tutorialAutoFlow, setTutorialAutoFlow] = useState(false);
+  const [installGuideOpen, setInstallGuideOpen] = useState(false);
+  const [installPlatform, setInstallPlatform] = useState<FirstUsePlatform>("ios");
 
   const [historyItems, setHistoryItems] = useState<SolveHistoryItem[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
@@ -537,6 +660,32 @@ export default function Home() {
   }, [institutionId, classId, loginClasses]);
 
   useEffect(() => {
+    if (!student || student.mustChangePin || authLoading) return;
+
+    const timer = window.setTimeout(() => {
+      try {
+        const tutorialSeen = window.localStorage.getItem(
+          `${FIRST_USE_TOUR_KEY_PREFIX}${student.id}`,
+        );
+
+        if (!tutorialSeen) {
+          setTutorialStep(0);
+          setTutorialAutoFlow(true);
+          setTutorialOpen(true);
+          return;
+        }
+
+        maybeOpenInstallGuide();
+      } catch {
+        // localStorage 可能因瀏覽器隱私設定不可用；不影響主要解題流程。
+      }
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authLoading, student?.id, student?.mustChangePin]);
+
+  useEffect(() => {
     if (student && activeView === "history") {
       void loadHistory();
     }
@@ -561,6 +710,57 @@ export default function Home() {
     } catch (error) {
       console.error("Load usage:", error);
     }
+  }
+
+  function maybeOpenInstallGuide(force = false) {
+    if (typeof window === "undefined") return;
+
+    const platform = detectFirstUsePlatform();
+
+    if (!force) {
+      if (!platform || isRunningStandalone()) return;
+
+      try {
+        if (window.localStorage.getItem(ADD_HOME_GUIDE_KEY)) return;
+      } catch {}
+    }
+
+    setInstallPlatform(platform || "ios");
+    setInstallGuideOpen(true);
+  }
+
+  function openTutorialFromMenu() {
+    setMenuOpen(false);
+    setTutorialAutoFlow(false);
+    setTutorialStep(0);
+    setTutorialOpen(true);
+  }
+
+  function finishTutorial() {
+    if (student) {
+      try {
+        window.localStorage.setItem(
+          `${FIRST_USE_TOUR_KEY_PREFIX}${student.id}`,
+          "1",
+        );
+      } catch {}
+    }
+
+    const continueFirstUseFlow = tutorialAutoFlow;
+    setTutorialOpen(false);
+    setTutorialAutoFlow(false);
+
+    if (continueFirstUseFlow) {
+      maybeOpenInstallGuide();
+    }
+  }
+
+  function closeInstallGuide() {
+    try {
+      window.localStorage.setItem(ADD_HOME_GUIDE_KEY, "1");
+    } catch {}
+
+    setInstallGuideOpen(false);
   }
 
   async function handleLogin() {
@@ -1575,6 +1775,23 @@ export default function Home() {
                   我的解題紀錄
                 </button>
 
+                <button
+                  type="button"
+                  onClick={openTutorialFromMenu}
+                >
+                  使用教學
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    maybeOpenInstallGuide(true);
+                  }}
+                >
+                  加入主畫面
+                </button>
+
                 <div className="student-menu-separator" />
 
                 {student && (
@@ -2542,7 +2759,7 @@ export default function Home() {
 
         <footer className="student-footer">
           <div className="hh-eyebrow">H.H. SCIENCE LAB</div>
-          <div>自然科解題實驗室 v1</div>
+          <div>自然科解題實驗室 v1.3.4</div>
         </footer>
       </div>
 
@@ -2602,6 +2819,214 @@ export default function Home() {
 
             <div style={{ marginTop: "24px", paddingTop: "14px", borderTop: "1px solid #dde1db", textAlign: "center", fontSize: "12px", color: "#959c97" }}>H.H. Science Lab 解題實驗室</div>
           </div>
+        </div>
+      )}
+
+      {tutorialOpen && (
+        <div className="student-firstuse-backdrop" role="presentation">
+          <section
+            className="student-firstuse-card"
+            role="dialog"
+            aria-modal="true"
+            aria-label="解題實驗室使用教學"
+          >
+            <div className="student-firstuse-topbar">
+              <div>
+                <div className="hh-eyebrow">QUICK START</div>
+                <strong>第一次使用快速導覽</strong>
+              </div>
+              <button
+                type="button"
+                className="student-firstuse-skip"
+                onClick={finishTutorial}
+              >
+                略過
+              </button>
+            </div>
+
+            <div className="student-firstuse-progress" aria-hidden="true">
+              {firstUseTutorialSteps.map((_, index) => (
+                <span
+                  key={index}
+                  className={index <= tutorialStep ? "active" : ""}
+                />
+              ))}
+            </div>
+
+            <div className="student-firstuse-body">
+              <div className="student-firstuse-count hh-number">
+                {String(tutorialStep + 1).padStart(2, "0")}
+                <span>/ {String(firstUseTutorialSteps.length).padStart(2, "0")}</span>
+              </div>
+
+              <div className="student-firstuse-copy">
+                <div className="hh-eyebrow">
+                  {firstUseTutorialSteps[tutorialStep].eyebrow}
+                </div>
+                <h2 className="hh-display">
+                  {firstUseTutorialSteps[tutorialStep].title}
+                </h2>
+                <p>{firstUseTutorialSteps[tutorialStep].description}</p>
+              </div>
+
+              <div className="student-firstuse-preview">
+                <div className="student-firstuse-preview-head">
+                  <span>{firstUseTutorialSteps[tutorialStep].previewLabel}</span>
+                  <strong>{firstUseTutorialSteps[tutorialStep].previewValue}</strong>
+                </div>
+                <div className="student-firstuse-preview-line wide" />
+                <div className="student-firstuse-preview-line" />
+                <div className="student-firstuse-preview-line short" />
+              </div>
+
+              <div className="student-firstuse-tips">
+                {firstUseTutorialSteps[tutorialStep].tips.map((tip) => (
+                  <div key={tip}>
+                    <span>✓</span>
+                    <p>{tip}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="student-firstuse-actions">
+              <button
+                type="button"
+                className="hh-button-secondary"
+                disabled={tutorialStep === 0}
+                onClick={() =>
+                  setTutorialStep((current) => Math.max(0, current - 1))
+                }
+              >
+                上一步
+              </button>
+
+              {tutorialStep < firstUseTutorialSteps.length - 1 ? (
+                <button
+                  type="button"
+                  className="hh-button-primary"
+                  onClick={() =>
+                    setTutorialStep((current) =>
+                      Math.min(firstUseTutorialSteps.length - 1, current + 1),
+                    )
+                  }
+                >
+                  下一步
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="hh-button-primary"
+                  onClick={finishTutorial}
+                >
+                  開始使用
+                </button>
+              )}
+            </div>
+          </section>
+        </div>
+      )}
+
+      {installGuideOpen && (
+        <div
+          className="student-firstuse-backdrop"
+          role="presentation"
+          onClick={closeInstallGuide}
+        >
+          <section
+            className="student-install-card"
+            role="dialog"
+            aria-modal="true"
+            aria-label="加入主畫面教學"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="student-firstuse-topbar">
+              <div>
+                <div className="hh-eyebrow">ADD TO HOME SCREEN</div>
+                <strong>把解題實驗室放到主畫面</strong>
+              </div>
+              <button
+                type="button"
+                className="student-firstuse-skip"
+                onClick={closeInstallGuide}
+              >
+                ×
+              </button>
+            </div>
+
+            <p className="student-install-intro">
+              下次可以像 App 一樣直接從手機主畫面開啟。選擇你的手機查看步驟：
+            </p>
+
+            <div className="student-install-tabs" role="tablist" aria-label="選擇手機系統">
+              <button
+                type="button"
+                className={installPlatform === "ios" ? "active" : ""}
+                onClick={() => setInstallPlatform("ios")}
+              >
+                iPhone / iPad
+              </button>
+              <button
+                type="button"
+                className={installPlatform === "android" ? "active" : ""}
+                onClick={() => setInstallPlatform("android")}
+              >
+                Android
+              </button>
+            </div>
+
+            {installPlatform === "ios" ? (
+              <div className="student-install-steps">
+                <div>
+                  <span className="student-install-step-number">1</span>
+                  <p><strong>用 Safari 開啟解題實驗室</strong><small>iPhone / iPad 建議使用 Safari。</small></p>
+                </div>
+                <div>
+                  <span className="student-install-step-number">2</span>
+                  <p><strong>點下方「分享」按鈕</strong><small>圖示是方框上方有一個向上的箭頭。</small></p>
+                </div>
+                <div>
+                  <span className="student-install-step-number">3</span>
+                  <p><strong>選「加入主畫面」</strong><small>若沒看到，可在分享選單往下滑。</small></p>
+                </div>
+                <div>
+                  <span className="student-install-step-number">4</span>
+                  <p><strong>右上角按「加入」</strong><small>完成後主畫面就會出現 H.H. Science Lab。</small></p>
+                </div>
+              </div>
+            ) : (
+              <div className="student-install-steps">
+                <div>
+                  <span className="student-install-step-number">1</span>
+                  <p><strong>用 Chrome 開啟解題實驗室</strong><small>確認網址已載入完成。</small></p>
+                </div>
+                <div>
+                  <span className="student-install-step-number">2</span>
+                  <p><strong>點右上角「⋮」</strong><small>開啟 Chrome 功能選單。</small></p>
+                </div>
+                <div>
+                  <span className="student-install-step-number">3</span>
+                  <p><strong>選「加入主畫面」或「安裝應用程式」</strong><small>不同 Android / Chrome 版本文字可能略有不同。</small></p>
+                </div>
+                <div>
+                  <span className="student-install-step-number">4</span>
+                  <p><strong>確認「安裝／新增」</strong><small>完成後就能從手機主畫面直接開啟。</small></p>
+                </div>
+              </div>
+            )}
+
+            <div className="student-install-note">
+              這個提示只會自動出現一次；之後仍可從右上角 ☰ →「加入主畫面」重新查看。
+            </div>
+
+            <button
+              type="button"
+              className="hh-button-primary student-install-done"
+              onClick={closeInstallGuide}
+            >
+              我知道了
+            </button>
+          </section>
         </div>
       )}
 
@@ -3457,6 +3882,311 @@ export default function Home() {
           font-size: 11px;
         }
 
+        .student-firstuse-backdrop {
+          position: fixed;
+          inset: 0;
+          z-index: 320;
+          display: grid;
+          place-items: center;
+          padding: 18px;
+          background: rgba(12, 17, 14, .54);
+          backdrop-filter: blur(10px);
+          -webkit-backdrop-filter: blur(10px);
+        }
+
+        .student-firstuse-card,
+        .student-install-card {
+          width: min(560px, 100%);
+          max-height: min(760px, calc(100dvh - 36px));
+          overflow: auto;
+          border: 1px solid color-mix(in srgb, var(--border) 88%, transparent);
+          border-radius: 26px;
+          background:
+            radial-gradient(circle at 90% 0%, color-mix(in srgb, var(--action) 10%, transparent), transparent 34%),
+            var(--surface);
+          box-shadow: 0 34px 100px rgba(9, 14, 11, .32);
+          overscroll-behavior: contain;
+        }
+
+        .student-firstuse-topbar {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 16px;
+          padding: 20px 22px 14px;
+          border-bottom: 1px solid var(--border);
+        }
+
+        .student-firstuse-topbar strong {
+          display: block;
+          margin-top: 3px;
+          color: var(--text);
+          font-size: 15px;
+        }
+
+        .student-firstuse-skip {
+          flex: 0 0 auto;
+          min-width: 44px;
+          min-height: 38px;
+          padding: 0 10px;
+          border: 1px solid var(--border);
+          border-radius: 12px;
+          background: var(--surface-soft);
+          color: var(--text-secondary);
+          font-weight: 760;
+          cursor: pointer;
+        }
+
+        .student-firstuse-progress {
+          display: grid;
+          grid-template-columns: repeat(9, minmax(0, 1fr));
+          gap: 5px;
+          padding: 14px 22px 0;
+        }
+
+        .student-firstuse-progress span {
+          height: 3px;
+          border-radius: 99px;
+          background: var(--border);
+          transition: background .18s ease, transform .18s ease;
+        }
+
+        .student-firstuse-progress span.active {
+          background: var(--action);
+          transform: scaleY(1.25);
+        }
+
+        .student-firstuse-body {
+          padding: 24px 22px 20px;
+        }
+
+        .student-firstuse-count {
+          display: flex;
+          align-items: baseline;
+          gap: 4px;
+          margin-bottom: 14px;
+          color: var(--action);
+          font-size: 31px;
+          font-weight: 820;
+          letter-spacing: -.04em;
+        }
+
+        .student-firstuse-count span {
+          color: var(--text-muted);
+          font-size: 12px;
+          font-weight: 760;
+          letter-spacing: 0;
+        }
+
+        .student-firstuse-copy h2 {
+          margin: 5px 0 9px;
+          color: var(--text);
+          font-size: clamp(24px, 5vw, 33px);
+          line-height: 1.15;
+        }
+
+        .student-firstuse-copy > p,
+        .student-install-intro {
+          margin: 0;
+          color: var(--text-secondary);
+          font-size: 14px;
+          line-height: 1.75;
+        }
+
+        .student-firstuse-preview {
+          margin: 20px 0 14px;
+          padding: 15px;
+          border: 1px solid color-mix(in srgb, var(--action) 24%, var(--border));
+          border-radius: 18px;
+          background: color-mix(in srgb, var(--action) 5%, var(--surface-soft));
+        }
+
+        .student-firstuse-preview-head {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 12px;
+          margin-bottom: 14px;
+        }
+
+        .student-firstuse-preview-head span {
+          color: var(--text-muted);
+          font-size: 11px;
+          font-weight: 800;
+          letter-spacing: .08em;
+        }
+
+        .student-firstuse-preview-head strong {
+          color: var(--action);
+          font-size: 13px;
+        }
+
+        .student-firstuse-preview-line {
+          width: 74%;
+          height: 7px;
+          margin-top: 8px;
+          border-radius: 99px;
+          background: color-mix(in srgb, var(--text) 9%, transparent);
+        }
+
+        .student-firstuse-preview-line.wide {
+          width: 100%;
+          height: 42px;
+          margin-top: 0;
+          border-radius: 12px;
+          background:
+            linear-gradient(135deg,
+              color-mix(in srgb, var(--action) 13%, var(--surface)) 0 52%,
+              color-mix(in srgb, var(--action) 5%, var(--surface)) 52% 100%);
+        }
+
+        .student-firstuse-preview-line.short {
+          width: 47%;
+        }
+
+        .student-firstuse-tips {
+          display: grid;
+          gap: 8px;
+        }
+
+        .student-firstuse-tips > div {
+          display: grid;
+          grid-template-columns: 24px minmax(0, 1fr);
+          gap: 8px;
+          align-items: start;
+          padding: 9px 11px;
+          border-radius: 12px;
+          background: var(--surface-soft);
+        }
+
+        .student-firstuse-tips span {
+          display: grid;
+          place-items: center;
+          width: 22px;
+          height: 22px;
+          border-radius: 50%;
+          background: var(--success-soft);
+          color: var(--success);
+          font-size: 11px;
+          font-weight: 900;
+        }
+
+        .student-firstuse-tips p {
+          margin: 1px 0 0;
+          color: var(--text-secondary);
+          font-size: 12px;
+          line-height: 1.55;
+        }
+
+        .student-firstuse-actions {
+          display: grid;
+          grid-template-columns: 1fr 1.4fr;
+          gap: 10px;
+          padding: 0 22px 22px;
+        }
+
+        .student-firstuse-actions > button {
+          min-height: 46px;
+        }
+
+        .student-install-card {
+          width: min(520px, 100%);
+          padding-bottom: 22px;
+        }
+
+        .student-install-intro {
+          padding: 20px 22px 0;
+        }
+
+        .student-install-tabs {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 6px;
+          margin: 18px 22px;
+          padding: 5px;
+          border: 1px solid var(--border);
+          border-radius: 15px;
+          background: var(--surface-soft);
+        }
+
+        .student-install-tabs button {
+          min-height: 40px;
+          border: 0;
+          border-radius: 10px;
+          background: transparent;
+          color: var(--text-secondary);
+          font-weight: 800;
+          cursor: pointer;
+        }
+
+        .student-install-tabs button.active {
+          background: var(--surface);
+          color: var(--action);
+          box-shadow: var(--shadow-sm);
+        }
+
+        .student-install-steps {
+          display: grid;
+          gap: 9px;
+          padding: 0 22px;
+        }
+
+        .student-install-steps > div {
+          display: grid;
+          grid-template-columns: 36px minmax(0, 1fr);
+          gap: 11px;
+          align-items: start;
+          padding: 12px;
+          border: 1px solid var(--border);
+          border-radius: 14px;
+          background: color-mix(in srgb, var(--surface-soft) 78%, transparent);
+        }
+
+        .student-install-step-number {
+          display: grid;
+          place-items: center;
+          width: 32px;
+          height: 32px;
+          border-radius: 11px;
+          background: var(--action-soft);
+          color: var(--action);
+          font-size: 13px;
+          font-weight: 900;
+        }
+
+        .student-install-steps p {
+          display: grid;
+          gap: 3px;
+          margin: 0;
+        }
+
+        .student-install-steps strong {
+          color: var(--text);
+          font-size: 13px;
+        }
+
+        .student-install-steps small {
+          color: var(--text-muted);
+          font-size: 11px;
+          line-height: 1.5;
+        }
+
+        .student-install-note {
+          margin: 16px 22px;
+          padding: 11px 13px;
+          border-radius: 12px;
+          background: var(--info-soft);
+          color: var(--text-secondary);
+          font-size: 11px;
+          line-height: 1.55;
+        }
+
+        .student-install-done {
+          width: calc(100% - 44px);
+          min-height: 46px;
+          margin: 0 22px;
+        }
+
         .student-brand-intro {
           margin: 0 4px 22px;
         }
@@ -4217,6 +4947,55 @@ export default function Home() {
         }
 
         @media (max-width: 760px) {
+          .student-firstuse-backdrop {
+            place-items: end center;
+            padding: 10px;
+          }
+
+          .student-firstuse-card,
+          .student-install-card {
+            width: 100%;
+            max-height: calc(100dvh - 20px);
+            border-radius: 24px;
+          }
+
+          .student-firstuse-topbar {
+            padding: 17px 18px 13px;
+          }
+
+          .student-firstuse-progress {
+            padding: 12px 18px 0;
+          }
+
+          .student-firstuse-body {
+            padding: 20px 18px 16px;
+          }
+
+          .student-firstuse-actions {
+            padding: 0 18px 18px;
+          }
+
+          .student-install-intro {
+            padding: 18px 18px 0;
+          }
+
+          .student-install-tabs {
+            margin: 16px 18px;
+          }
+
+          .student-install-steps {
+            padding: 0 18px;
+          }
+
+          .student-install-note {
+            margin: 14px 18px;
+          }
+
+          .student-install-done {
+            width: calc(100% - 36px);
+            margin: 0 18px;
+          }
+
           .student-history-header {
             align-items: stretch;
             flex-direction: column;
