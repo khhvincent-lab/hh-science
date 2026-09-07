@@ -23,6 +23,25 @@ type AnalyticsRange =
   | "month";
 
 
+const SOLVE_COST_ROLES = [
+  "science_gate",
+  "primary",
+  "verifier",
+  "arbiter",
+] as const;
+
+type SolveCostRole =
+  (typeof SOLVE_COST_ROLES)[number];
+
+type SolveCostUsageRow = {
+  solve_history_id: string | null;
+  provider: string | null;
+  model: string | null;
+  role: string | null;
+  estimated_cost_usd: number | string | null;
+};
+
+
 type UsageRow = {
   usage_day: string;
   provider: string | null;
@@ -470,6 +489,66 @@ async function fetchUsageRows(
 }
 
 
+async function fetchSolveCostRows(
+  historyIds: string[],
+) {
+  const rows: SolveCostUsageRow[] = [];
+  const idChunkSize = 120;
+  const pageSize = 1000;
+
+  for (
+    let chunkStart = 0;
+    chunkStart < historyIds.length;
+    chunkStart += idChunkSize
+  ) {
+    const ids = historyIds.slice(
+      chunkStart,
+      chunkStart + idChunkSize,
+    );
+
+    for (
+      let offset = 0;
+      ;
+      offset += pageSize
+    ) {
+      const { data, error } =
+        await supabaseAdmin
+          .from("api_usage")
+          .select(`
+            solve_history_id,
+            provider,
+            model,
+            role,
+            estimated_cost_usd
+          `)
+          .in("solve_history_id", ids)
+          .in("role", [...SOLVE_COST_ROLES])
+          .range(
+            offset,
+            offset + pageSize - 1,
+          );
+
+      if (error) {
+        throw new Error(
+          `讀取每題成本資料失敗：${error.message}`,
+        );
+      }
+
+      const batch =
+        (data || []) as SolveCostUsageRow[];
+
+      rows.push(...batch);
+
+      if (batch.length < pageSize) {
+        break;
+      }
+    }
+  }
+
+  return rows;
+}
+
+
 function percent(
   numerator:
     number,
@@ -556,6 +635,77 @@ export async function GET(
           period.endDayExclusive,
         ),
       ]);
+
+
+    const solveCostRows =
+      await fetchSolveCostRows(
+        historyRows.map((row) => row.id),
+      );
+
+
+    const solveCostByHistory =
+      new Map<string, number>();
+
+    for (const row of solveCostRows) {
+      const historyId =
+        String(row.solve_history_id || "");
+
+      if (!historyId) continue;
+
+      const cost =
+        Number(row.estimated_cost_usd || 0);
+
+      solveCostByHistory.set(
+        historyId,
+        (solveCostByHistory.get(historyId) || 0) +
+          (Number.isFinite(cost) ? cost : 0),
+      );
+    }
+
+
+    const withReferenceCost = {
+      questions: 0,
+      costedQuestions: 0,
+      missingCostQuestions: 0,
+      totalCostUsd: 0,
+    };
+
+    const withoutReferenceCost = {
+      questions: 0,
+      costedQuestions: 0,
+      missingCostQuestions: 0,
+      totalCostUsd: 0,
+    };
+
+    for (const row of historyRows) {
+      const hasReference =
+        Boolean(String(row.reference_answer || "").trim());
+
+      const group = hasReference
+        ? withReferenceCost
+        : withoutReferenceCost;
+
+      group.questions += 1;
+
+      if (solveCostByHistory.has(row.id)) {
+        group.costedQuestions += 1;
+        group.totalCostUsd +=
+          solveCostByHistory.get(row.id) || 0;
+      } else {
+        group.missingCostQuestions += 1;
+      }
+    }
+
+    const serializeSolveCostGroup = (group: typeof withReferenceCost) => ({
+      questions: group.questions,
+      costedQuestions: group.costedQuestions,
+      missingCostQuestions: group.missingCostQuestions,
+      totalCostUsd: Number(group.totalCostUsd.toFixed(8)),
+      averageCostPerSolveUsd:
+        group.costedQuestions > 0
+          ? Number((group.totalCostUsd / group.costedQuestions).toFixed(8))
+          : null,
+    });
 
 
     const roleMap =
@@ -1143,6 +1293,12 @@ export async function GET(
                 ),
               )
             : 0,
+      },
+
+      solveCosts: {
+        includedRoles: [...SOLVE_COST_ROLES],
+        withReference: serializeSolveCostGroup(withReferenceCost),
+        withoutReference: serializeSolveCostGroup(withoutReferenceCost),
       },
 
       roles,

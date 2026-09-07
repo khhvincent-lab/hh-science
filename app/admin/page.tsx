@@ -186,6 +186,14 @@ type AnalyticsModelMetric = {
   verifierDisagreementRate: number | null;
 };
 
+type SolveCostGroupMetric = {
+  questions: number;
+  costedQuestions: number;
+  missingCostQuestions: number;
+  totalCostUsd: number;
+  averageCostPerSolveUsd: number | null;
+};
+
 type AnalyticsData = {
   range: AnalyticsRange;
   label: string;
@@ -197,6 +205,11 @@ type AnalyticsData = {
     apiCalls: number;
     totalCostUsd: number;
     averageCostPerSolveUsd: number;
+  };
+  solveCosts: {
+    includedRoles: string[];
+    withReference: SolveCostGroupMetric;
+    withoutReference: SolveCostGroupMetric;
   };
   roles: AnalyticsRoleMetric[];
   quality: {
@@ -1617,7 +1630,7 @@ function StudentsSection(props: {
   const [overviewRegion, setOverviewRegion] = useState("");
   const [classSortKey, setClassSortKey] = useState<ClassSortKey>("name");
   const [classSortDirection, setClassSortDirection] = useState<"asc" | "desc">("asc");
-  const [newStudentOpen, setNewStudentOpen] = useState(true);
+  const [newStudentOpen, setNewStudentOpen] = useState(false);
 
   const institutionById = useMemo(() => new Map(institutions.map((item) => [item.id, item])), [institutions]);
   const regionById = useMemo(() => new Map(regions.map((item) => [item.id, item])), [regions]);
@@ -3532,11 +3545,35 @@ function UsageStatusSection({ dashboard }: { dashboard: DashboardData | null }) 
   </div>;
 }
 
+type TeachingQuestionCostRole = {
+  role: "science_gate" | "primary" | "verifier" | "arbiter";
+  provider: string;
+  model: string;
+  calls: number;
+  costUsd: number;
+};
+
+type TeachingQuestionCost = {
+  hasCostRecord: boolean;
+  totalCostUsd: number | null;
+  totalCalls: number;
+  roles: TeachingQuestionCostRole[];
+};
+
 type TeachingQuestionRow = {
   id:string; studentId:string; studentName:string; campus:string; regionName:string; institutionName:string; className:string;
   subject:string; referenceAnswer:string; questionNote:string; answer:string; explanation:string; options:string; imageUrl?:string|null;
-  createdAt:string; primaryModel?:string|null; primaryAnswer?:string|null; verifierModel?:string|null; verifierResult?:any; arbiterModel?:string|null; arbiterAnswer?:string|null; disputeStatus:string; issue:boolean;
+  createdAt:string; primaryProvider?:string|null; primaryModel?:string|null; primaryAnswer?:string|null; verifierProvider?:string|null; verifierModel?:string|null; verifierResult?:any; arbiterProvider?:string|null; arbiterModel?:string|null; arbiterAnswer?:string|null; disputeStatus:string; issue:boolean; cost:TeachingQuestionCost;
 };
+
+const TEACHING_COST_ROLE_ORDER: TeachingQuestionCostRole["role"][] = ["science_gate", "primary", "verifier", "arbiter"];
+
+function teachingCostRoleLabel(role: TeachingQuestionCostRole["role"]) {
+  if (role === "science_gate") return "Science Gate";
+  if (role === "primary") return "Primary";
+  if (role === "verifier") return "Verifier";
+  return "Arbiter";
+}
 
 function TeachingQuestionsSection() {
   const [items,setItems]=useState<TeachingQuestionRow[]>([]);
@@ -3546,6 +3583,7 @@ function TeachingQuestionsSection() {
   const [subject,setSubject]=useState("");
   const [issues,setIssues]=useState(false);
   const [range,setRange]=useState<"today"|"all">("today");
+  const [filtersOpen,setFiltersOpen]=useState(false);
   const [teacherNote,setTeacherNote]=useState("");
   const [teacherAnswer,setTeacherAnswer]=useState("");
   const [teacherExplanation,setTeacherExplanation]=useState("");
@@ -3564,6 +3602,7 @@ function TeachingQuestionsSection() {
     } catch(e){setMessage(e instanceof Error?e.message:"讀取全站題目失敗。");} finally{setLoading(false);}
   },[q,subject,issues,range]);
   useEffect(()=>{void load();},[load]);
+  const activeFilterCount = [Boolean(q.trim()), Boolean(subject), issues, range === "all"].filter(Boolean).length;
   function open(item:TeachingQuestionRow){setSelected(item);setTeacherAnswer(item.referenceAnswer||item.answer||"");setTeacherNote("");setTeacherExplanation("");setIssueType(item.issue?"wrong_answer":"better_method");setMessage("");setAiReviseNote("");}
   async function reviseWithAI(){
     if(!selected)return;
@@ -3606,6 +3645,24 @@ function TeachingQuestionsSection() {
       <div className="teaching-context-strip"><span>學生補充敘述</span><p>{selected.questionNote||"學生沒有另外補充敘述。"}</p></div>
       <div className="teaching-answer-grid"><div><span>標準答案</span><strong>{selected.referenceAnswer||"未提供"}</strong></div><div><span>AI 最終答案</span><strong>{selected.answer||"—"}</strong></div></div>
     </section>
+    <section className="hh-card admin-panel teaching-question-cost-panel">
+      <PanelHeader eyebrow="QUESTION COST" title="本題總成本" subtitle="只統計 Science Gate／Primary／Verifier／Arbiter，不包含學生後續追問。" />
+      {selected.cost?.hasCostRecord ? <>
+        <div className="teaching-question-cost-total"><span>本題解題成本</span><strong>{formatQuestionCostTwd(selected.cost.totalCostUsd)}</strong><small>{formatInteger(selected.cost.totalCalls)} 次模型呼叫</small></div>
+        <div className="teaching-question-cost-grid">
+          {TEACHING_COST_ROLE_ORDER.map((role) => {
+            const entries = (selected.cost.roles || []).filter((entry) => entry.role === role);
+            return <article key={role}>
+              <div className="teaching-question-cost-role"><strong>{teachingCostRoleLabel(role)}</strong><span>{entries.length ? `${entries.reduce((sum, entry) => sum + entry.calls, 0)} 次` : "未啟動"}</span></div>
+              {entries.length ? entries.map((entry, index) => <div className="teaching-question-cost-model" key={`${role}-${entry.provider}-${entry.model}-${index}`}>
+                <span><b>{modelDisplayName(entry.model)}</b><small>{providerLabel(entry.provider)}</small></span>
+                <strong>{formatQuestionCostTwd(entry.costUsd)}</strong>
+              </div>) : <div className="teaching-question-cost-empty">這題沒有啟動此角色</div>}
+            </article>;
+          })}
+        </div>
+      </> : <div className="admin-notice teaching-cost-missing">這筆舊題目沒有可連結的 api_usage 成本紀錄，因此不以 NT$0.00 顯示，也不會納入每題平均成本。</div>}
+    </section>
     <section className="hh-card admin-panel"><PanelHeader eyebrow="AI RESPONSE" title="AI 原始回答" />
       <div className="teaching-ai-block"><h3>觀念解析</h3><AdminScienceText text={selected.explanation}/></div>
       {selected.options&&<div className="teaching-ai-block"><h3>選項分析</h3><AdminScienceText text={formatAdminOptions(selected.options)}/></div>}
@@ -3620,11 +3677,15 @@ function TeachingQuestionsSection() {
     </section>
   </div>}
   return <div className="admin-stack">
-    <section className="hh-card admin-panel teaching-toolbar"><div><div className="hh-eyebrow">ALL QUESTIONS</div><h2 className="hh-display">全站題目</h2><p>今天學生問過的題目由新到舊排列，點進去即可查看 AI 回答並留下你的解法。</p></div>
-      <div className="teaching-filter-row"><div className="teaching-range-switch"><button type="button" className={range==="today"?"active":""} onClick={()=>setRange("today")}>今天</button><button type="button" className={range==="all"?"active":""} onClick={()=>setRange("all")}>全部</button></div><input className="hh-input" placeholder="搜尋學生、答案或解析內容…" value={q} onChange={e=>setQ(e.target.value)}/><select className="hh-select" value={subject} onChange={e=>setSubject(e.target.value)}><option value="">全部科目</option><option value="physics">物理</option><option value="chemistry">化學</option><option value="biology">生物</option><option value="earth">地球科學</option></select><button type="button" className={issues?"hh-button-primary":"hh-button-secondary"} onClick={()=>setIssues(v=>!v)}>只看異常題</button></div>
+    <section className="hh-card admin-panel teaching-toolbar">
+      <div className="teaching-toolbar-head"><div><div className="hh-eyebrow">ALL QUESTIONS</div><h2 className="hh-display">全站題目</h2><p>今天學生問過的題目由新到舊排列，列表直接顯示本題解題成本。</p></div>
+        <button type="button" className="hh-button-secondary teaching-filter-toggle" onClick={()=>setFiltersOpen((value)=>!value)}>{filtersOpen?"收合搜尋與篩選":"搜尋與篩選"}</button>
+      </div>
+      {activeFilterCount>0&&<div className="teaching-active-filter-note">目前套用 {activeFilterCount} 個篩選條件</div>}
+      {filtersOpen&&<div className="teaching-filter-row"><div className="teaching-range-switch"><button type="button" className={range==="today"?"active":""} onClick={()=>setRange("today")}>今天</button><button type="button" className={range==="all"?"active":""} onClick={()=>setRange("all")}>全部</button></div><input className="hh-input" placeholder="搜尋學生、答案或解析內容…" value={q} onChange={e=>setQ(e.target.value)}/><select className="hh-select" value={subject} onChange={e=>setSubject(e.target.value)}><option value="">全部科目</option><option value="physics">物理</option><option value="chemistry">化學</option><option value="biology">生物</option><option value="earth">地球科學</option></select><button type="button" className={issues?"hh-button-primary":"hh-button-secondary"} onClick={()=>setIssues(v=>!v)}>只看異常題</button></div>}
     </section>
     {message&&<div className="admin-notice danger">{message}</div>}
-    <section className="teaching-question-list">{loading?<div className="hh-card admin-panel admin-empty">正在讀取全站題目…</div>:items.length===0?<div className="hh-card admin-panel admin-empty">目前沒有符合條件的題目。</div>:items.map(item=><button key={item.id} type="button" className="hh-card teaching-question-row teaching-question-row-v131" onClick={()=>open(item)}>{item.imageUrl?<img src={item.imageUrl} alt="題目縮圖"/>:<span className="teaching-thumb-empty">SCI</span>}<span className="teaching-question-main"><span className="teaching-row-topline"><span>{new Date(item.createdAt).toLocaleString("zh-TW",{month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"})}</span><span className={`teaching-subject-chip teaching-subject-${item.subject}`}>{adminSubjectLabel(item.subject)}</span>{item.issue&&<em className="teaching-inline-issue">異常</em>}</span><strong>{item.studentName}</strong><span className="teaching-question-preview">{item.questionNote?`學生補充：${item.questionNote}`:(item.explanation.replace(/\$+/g,"").slice(0,82)||"查看完整題目與 AI 解法")}</span><small>{[item.regionName,item.institutionName,item.className].filter(Boolean).join(" · ")||item.campus}</small></span><span className="teaching-row-answer"><small>AI 答案</small><b>{item.answer||"—"}</b><span>查看 →</span></span></button>)}</section>
+    <section className="teaching-question-list">{loading?<div className="hh-card admin-panel admin-empty">正在讀取全站題目…</div>:items.length===0?<div className="hh-card admin-panel admin-empty">目前沒有符合條件的題目。</div>:items.map(item=><button key={item.id} type="button" className="hh-card teaching-question-row teaching-question-row-v131" onClick={()=>open(item)}>{item.imageUrl?<img src={item.imageUrl} alt="題目縮圖"/>:<span className="teaching-thumb-empty">SCI</span>}<span className="teaching-question-main"><span className="teaching-row-topline"><span>{new Date(item.createdAt).toLocaleString("zh-TW",{month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"})}</span><span className={`teaching-subject-chip teaching-subject-${item.subject}`}>{adminSubjectLabel(item.subject)}</span>{item.issue&&<em className="teaching-inline-issue">異常</em>}</span><strong>{item.studentName}</strong><span className="teaching-question-preview">{item.questionNote?`學生補充：${item.questionNote}`:(item.explanation.replace(/\$+/g,"").slice(0,82)||"查看完整題目與 AI 解法")}</span><small>{[item.regionName,item.institutionName,item.className].filter(Boolean).join(" · ")||item.campus}</small></span><span className="teaching-row-answer"><small>AI 答案</small><b>{item.answer||"—"}</b><small className="teaching-row-cost-label">本題成本</small><strong className={`teaching-row-cost ${item.cost?.hasCostRecord?"":"missing"}`}>{item.cost?.hasCostRecord?formatQuestionCostTwd(item.cost.totalCostUsd):"無紀錄"}</strong><span>查看 →</span></span></button>)}</section>
   </div>;
 }
 
@@ -3683,10 +3744,69 @@ function TeachingRulesSection(){
 }
 
 function CostAnalyticsSection(){
-  const [range,setRange]=useState<AnalyticsRange>("month"); const [data,setData]=useState<AnalyticsData|null>(null); const [loading,setLoading]=useState(true); const [error,setError]=useState("");
-  const load=useCallback(async()=>{setLoading(true);setError("");try{const r=await fetch(`/api/admin/analytics?range=${range}`,{cache:"no-store"});const d=await r.json();if(!r.ok)throw new Error(d.error||"讀取成本分析失敗。");setData(d);}catch(e){setError(e instanceof Error?e.message:"讀取成本分析失敗。");}finally{setLoading(false);}},[range]);useEffect(()=>{void load();},[load]);
+  const [range,setRange]=useState<AnalyticsRange>("month");
+  const [data,setData]=useState<AnalyticsData|null>(null);
+  const [loading,setLoading]=useState(true);
+  const [error,setError]=useState("");
+  const load=useCallback(async()=>{
+    setLoading(true);setError("");
+    try{
+      const r=await fetch(`/api/admin/analytics?range=${range}`,{cache:"no-store"});
+      const d=await r.json();
+      if(!r.ok)throw new Error(d.error||"讀取成本分析失敗。");
+      setData(d);
+    }catch(e){setError(e instanceof Error?e.message:"讀取成本分析失敗。");}
+    finally{setLoading(false);}
+  },[range]);
+  useEffect(()=>{void load();},[load]);
   const ranges:[AnalyticsRange,string][]=[["today","今天"],["7d","7 天"],["30d","30 天"],["month","本月"]];
-  return <div className="admin-stack"><section className="hh-card admin-panel admin-analytics-toolbar"><div><div className="hh-eyebrow">COST ANALYTICS</div><h2 className="hh-display">成本分析</h2></div><div className="admin-analytics-range">{ranges.map(([v,l])=><button key={v} className={range===v?"active":""} onClick={()=>setRange(v)}>{l}</button>)}</div></section>{error&&<div className="admin-notice danger">{error}</div>}{loading&&!data?<div className="hh-card admin-panel admin-empty">正在整理成本資料…</div>:data&&<><section className="admin-kpi-grid cost-kpi-grid"><AnalyticsKpi eyebrow="TOTAL" label="估算總成本" value={formatTwdFromUsd(data.totals.totalCostUsd)} note={data.label}/><AnalyticsKpi eyebrow="PER SOLVE" label="平均每題成本" value={formatTwdFromUsd(data.totals.averageCostPerSolveUsd)} note={`${formatInteger(data.totals.solvedQuestions)} 題解題`}/><AnalyticsKpi eyebrow="CALLS" label="模型呼叫" value={`${formatInteger(data.totals.apiCalls)} 次`} note="全部 AI 角色合計"/></section><section className="hh-card admin-panel admin-data-table-panel"><PanelHeader eyebrow="COST BY MODEL" title="各模型成本"/><div className="admin-data-table-wrap"><table className="admin-data-table"><thead><tr><th>模型</th><th>呼叫</th><th>總成本</th><th>平均／次</th></tr></thead><tbody>{data.models.map(m=><tr key={`${m.provider}-${m.model}`}><td><strong>{modelDisplayName(m.model)}</strong><small>{providerLabel(m.provider)}</small></td><td>{formatInteger(m.calls)}</td><td>{formatTwdFromUsd(m.costUsd)}</td><td>{formatTwdFromUsd(m.averageCostUsd)}</td></tr>)}</tbody></table></div></section></>}</div>;
+  const linkedSolveQuestions=data?(data.solveCosts.withReference.costedQuestions+data.solveCosts.withoutReference.costedQuestions):0;
+  const linkedSolveCostUsd=data?(data.solveCosts.withReference.totalCostUsd+data.solveCosts.withoutReference.totalCostUsd):0;
+  const linkedSolveAverageUsd=linkedSolveQuestions>0?linkedSolveCostUsd/linkedSolveQuestions:null;
+
+  const renderCostGroup=(title:string,eyebrow:string,group:SolveCostGroupMetric)=>{
+    const hasLinkedCost=group.costedQuestions>0;
+    return <article className="solve-cost-group-card">
+      <div className="solve-cost-group-head"><span>{eyebrow}</span><strong>{title}</strong></div>
+      <div className="solve-cost-group-metrics">
+        <div><span>題數</span><strong>{formatInteger(group.questions)} 題</strong></div>
+        <div><span>總成本</span><strong>{hasLinkedCost?formatQuestionCostTwd(group.totalCostUsd):"—"}</strong></div>
+        <div><span>平均每題</span><strong>{hasLinkedCost?formatQuestionCostTwd(group.averageCostPerSolveUsd):"—"}</strong></div>
+      </div>
+      <div className={`solve-cost-group-note ${group.missingCostQuestions>0?"warning":""}`}>
+        {group.costedQuestions>0?<span>{formatInteger(group.costedQuestions)} 題有可連結成本紀錄</span>:<span>目前沒有可連結成本紀錄</span>}
+        {group.missingCostQuestions>0&&<b>{formatInteger(group.missingCostQuestions)} 題舊資料未連結成本，不納入平均</b>}
+      </div>
+    </article>;
+  };
+
+  return <div className="admin-stack">
+    <section className="hh-card admin-panel admin-analytics-toolbar">
+      <div><div className="hh-eyebrow">COST ANALYTICS</div><h2 className="hh-display">成本分析</h2></div>
+      <div className="admin-analytics-range">{ranges.map(([v,l])=><button key={v} className={range===v?"active":""} onClick={()=>setRange(v)}>{l}</button>)}</div>
+    </section>
+    {error&&<div className="admin-notice danger">{error}</div>}
+    {loading&&!data?<div className="hh-card admin-panel admin-empty">正在整理成本資料…</div>:data&&<>
+      <section className="admin-kpi-grid cost-kpi-grid">
+        <AnalyticsKpi eyebrow="TOTAL" label="全部 API 成本" value={formatTwdFromUsd(data.totals.totalCostUsd)} note={data.label}/>
+        <AnalyticsKpi eyebrow="PER SOLVE" label="解題平均／題" value={formatQuestionCostTwd(linkedSolveAverageUsd)} note={`${formatInteger(linkedSolveQuestions)} 題有成本紀錄`}/>
+        <AnalyticsKpi eyebrow="CALLS" label="模型呼叫" value={`${formatInteger(data.totals.apiCalls)} 次`} note="包含全部 AI 角色"/>
+      </section>
+
+      <section className="hh-card admin-panel solve-cost-breakdown-panel">
+        <PanelHeader eyebrow="PER QUESTION COST" title="每題解題成本" subtitle="分開統計有標準答案／無標準答案；只計 Science Gate、Primary、Verifier、Arbiter，不把學生後續追問混進來。舊資料若沒有可連結成本紀錄，不會以 0 元納入平均。"/>
+        <div className="solve-cost-group-grid">
+          {renderCostGroup("有標準答案","REFERENCE",data.solveCosts.withReference)}
+          {renderCostGroup("無標準答案","NO REFERENCE",data.solveCosts.withoutReference)}
+        </div>
+      </section>
+
+      <section className="hh-card admin-panel admin-data-table-panel">
+        <PanelHeader eyebrow="COST BY MODEL" title="各模型成本"/>
+        <div className="admin-data-table-wrap"><table className="admin-data-table"><thead><tr><th>模型</th><th>呼叫</th><th>總成本</th><th>平均／次</th></tr></thead><tbody>{data.models.map(m=><tr key={`${m.provider}-${m.model}`}><td><strong>{modelDisplayName(m.model)}</strong><small>{providerLabel(m.provider)}</small></td><td>{formatInteger(m.calls)}</td><td>{formatTwdFromUsd(m.costUsd)}</td><td>{formatTwdFromUsd(m.averageCostUsd)}</td></tr>)}</tbody></table></div>
+      </section>
+    </>}
+  </div>;
 }
 
 function NavButton({
@@ -3707,7 +3827,7 @@ function NavButton({
       onClick={onClick}
     >
       <span>{icon}</span>
-      {label}
+      <strong className="admin-nav-button-label">{label}</strong>
     </button>
   );
 }
@@ -4104,6 +4224,18 @@ function formatTwdFromUsd(value: number) {
   })}`;
 }
 
+function formatQuestionCostTwd(value: number | null | undefined) {
+  if (value === null || value === undefined || !Number.isFinite(Number(value))) {
+    return "—";
+  }
+
+  const amount = usdToTwd(Number(value));
+  if (amount === 0) return "NT$0.00";
+  if (amount < 0.01) return `NT$${amount.toFixed(4)}`;
+  if (amount < 1) return `NT$${amount.toFixed(3)}`;
+  return `NT$${amount.toLocaleString("zh-TW", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
 
 function formatPercent(value: number | null) {
   if (value === null || !Number.isFinite(value)) {
@@ -4237,7 +4369,7 @@ const adminStyles = `
     min-height: 100vh;
     display: grid;
     grid-template-columns: 248px minmax(0, 1fr);
-    background: var(--background);
+    background: var(--bg);
     color: var(--text);
   }
 
@@ -4249,8 +4381,8 @@ const adminStyles = `
     padding: 24px;
     background:
       radial-gradient(circle at 12% 0%, color-mix(in srgb, var(--primary) 12%, transparent), transparent 30rem),
-      radial-gradient(circle at 92% 8%, color-mix(in srgb, var(--accent-gold) 10%, transparent), transparent 28rem),
-      var(--background);
+      radial-gradient(circle at 92% 8%, color-mix(in srgb, var(--accent) 10%, transparent), transparent 28rem),
+      var(--bg);
   }
 
   .admin-loading-card,
@@ -4300,10 +4432,10 @@ const adminStyles = `
     top: 0;
     align-self: start;
     padding: 28px 18px 20px;
-    border-right: 1px solid #314039;
+    border-right: 1px solid var(--border);
     background:
-      linear-gradient(180deg, #1b2821 0%, #162019 100%);
-    color: #edf2ee;
+      linear-gradient(180deg, color-mix(in srgb, var(--surface) 96%, var(--primary) 4%) 0%, var(--surface-soft) 100%);
+    color: var(--text);
     display: flex;
     flex-direction: column;
   }
@@ -4313,18 +4445,18 @@ const adminStyles = `
   }
 
   .admin-sidebar .hh-eyebrow {
-    color: #90a296;
+    color: var(--text-secondary);
   }
 
   .admin-sidebar-title {
     margin-top: 7px;
     font-size: 25px;
-    color: #f1f3f0;
+    color: var(--text);
   }
 
   .admin-sidebar-subtitle {
     margin-top: 5px;
-    color: #7f9185;
+    color: var(--text-muted);
     font-size: 11px;
     letter-spacing: 0.04em;
   }
@@ -4343,7 +4475,7 @@ const adminStyles = `
     align-items: center;
     gap: 11px;
     background: transparent;
-    color: #aeb8b0;
+    color: var(--text-secondary);
     cursor: pointer;
     text-align: left;
     font-weight: 800;
@@ -4356,29 +4488,29 @@ const adminStyles = `
     display: grid;
     place-items: center;
     border-radius: 8px;
-    color: #9bb0a1;
+    color: var(--text-muted);
   }
 
   .admin-nav-button:hover {
-    background: rgba(255,255,255,.05);
-    color: white;
+    background: color-mix(in srgb, var(--primary) 7%, var(--surface));
+    color: var(--text);
   }
 
   .admin-nav-button.active {
-    background: #2d4337;
-    color: #fff;
-    box-shadow: inset 0 0 0 1px #41574a;
+    background: color-mix(in srgb, var(--primary) 14%, var(--surface));
+    color: var(--text);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--primary) 35%, var(--border));
   }
 
   .admin-nav-button.active span {
-    background: #a7b9aa;
-    color: #203027;
+    background: var(--action);
+    color: var(--action-text);
   }
 
   .admin-sidebar-footer {
     margin-top: auto;
     padding-top: 18px;
-    border-top: 1px solid #314039;
+    border-top: 1px solid var(--border);
     display: grid;
     gap: 4px;
   }
@@ -4386,7 +4518,7 @@ const adminStyles = `
   .admin-sidebar-link {
     border: 0;
     background: transparent;
-    color: #91a096;
+    color: var(--text-secondary);
     padding: 10px;
     text-align: left;
     text-decoration: none;
@@ -4396,7 +4528,7 @@ const adminStyles = `
   }
 
   .admin-sidebar-link:hover {
-    color: white;
+    color: var(--text);
   }
 
   .admin-main {
@@ -4552,7 +4684,7 @@ const adminStyles = `
     display: grid;
     place-items: center;
     background: var(--primary);
-    color: var(--background);
+    color: var(--bg);
     font-weight: 900;
   }
 
@@ -4686,12 +4818,12 @@ const adminStyles = `
 
   .admin-filter-pill.active {
     background: var(--primary);
-    color: var(--background);
+    color: var(--bg);
     border-color: var(--primary);
   }
 
   html:is([data-theme="sage"],[data-theme="ocean"],[data-theme="graphite"],[data-theme="burgundy"]) .admin-filter-pill.active {
-    color: #162019;
+    color: var(--action-text);
   }
 
   .admin-student-search {
@@ -4820,7 +4952,7 @@ const adminStyles = `
   .admin-usage-cell i {
     display: block;
     height: 100%;
-    background: var(--accent-gold);
+    background: var(--accent);
   }
 
   .admin-status {
@@ -5032,8 +5164,8 @@ const adminStyles = `
 
   .admin-notice.warning {
     color: #9d7427;
-    background: color-mix(in srgb, var(--accent-gold) 11%, var(--surface));
-    border-color: color-mix(in srgb, var(--accent-gold) 35%, var(--border));
+    background: color-mix(in srgb, var(--accent) 11%, var(--surface));
+    border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
   }
 
   @media (max-width: 1080px) {
@@ -5532,16 +5664,16 @@ const adminStyles = `
 
   html:is([data-theme="sage"],[data-theme="ocean"],[data-theme="graphite"],[data-theme="burgundy"]) .admin-main {
     background:
-      radial-gradient(circle at 14% 0%, rgba(116, 150, 129, .075), transparent 32rem),
-      radial-gradient(circle at 92% 10%, rgba(198, 163, 91, .055), transparent 28rem),
-      var(--background);
+      radial-gradient(circle at 14% 0%, color-mix(in srgb, var(--primary) 8%, transparent), transparent 32rem),
+      radial-gradient(circle at 92% 10%, color-mix(in srgb, var(--accent) 6%, transparent), transparent 28rem),
+      var(--bg);
   }
 
   html:is([data-theme="sage"],[data-theme="ocean"],[data-theme="graphite"],[data-theme="burgundy"]) .admin-topbar {
     background:
       linear-gradient(
         115deg,
-        color-mix(in srgb, var(--surface) 93%, #809f8c 7%),
+        color-mix(in srgb, var(--surface) 93%, var(--primary) 7%),
         color-mix(in srgb, var(--surface) 97%, transparent)
       );
   }
@@ -5550,9 +5682,9 @@ const adminStyles = `
     background:
       linear-gradient(
         145deg,
-        color-mix(in srgb, var(--surface) 90%, #90aa98 10%),
+        color-mix(in srgb, var(--surface) 90%, var(--primary) 10%),
         var(--surface) 56%,
-        color-mix(in srgb, var(--surface) 96%, #d5ae5d 4%)
+        color-mix(in srgb, var(--surface) 96%, var(--accent) 4%)
       );
     box-shadow:
       inset 0 1px 0 rgba(255,255,255,.028),
@@ -5569,9 +5701,9 @@ const adminStyles = `
     background:
       linear-gradient(
         148deg,
-        rgba(39, 54, 46, .96),
+        color-mix(in srgb, var(--surface) 92%, var(--primary) 8%),
         var(--surface) 42%,
-        rgba(31, 42, 36, .98)
+        var(--surface-soft)
       );
   }
 
@@ -5579,45 +5711,28 @@ const adminStyles = `
     background:
       linear-gradient(
         145deg,
-        rgba(37, 50, 43, .95),
+        color-mix(in srgb, var(--surface) 94%, var(--primary) 6%),
         var(--surface) 62%
       );
   }
 
-  /* Selected nav: soft sage bloom instead of a flat green block. */
+  /* Selected navigation follows the active theme instead of a fixed forest green. */
   html:is([data-theme="sage"],[data-theme="ocean"],[data-theme="graphite"],[data-theme="burgundy"]) .admin-nav-button.active {
-    border: 1px solid rgba(145, 180, 157, .34);
-    background:
-      linear-gradient(
-        105deg,
-        rgba(84, 119, 96, .58),
-        rgba(45, 67, 55, .78)
-      );
-    box-shadow:
-      inset 0 1px 0 rgba(255,255,255,.055),
-      0 0 0 1px rgba(137, 174, 149, .08),
-      0 0 24px rgba(105, 151, 120, .16);
+    border: 1px solid color-mix(in srgb, var(--primary) 42%, var(--border));
+    background: linear-gradient(105deg, color-mix(in srgb, var(--primary) 23%, var(--surface)), color-mix(in srgb, var(--primary) 12%, var(--surface-soft)));
+    box-shadow: inset 0 1px 0 color-mix(in srgb, white 5%, transparent), 0 0 22px color-mix(in srgb, var(--primary) 12%, transparent);
   }
 
   html:is([data-theme="sage"],[data-theme="ocean"],[data-theme="graphite"],[data-theme="burgundy"]) .admin-nav-button.active span {
-    box-shadow:
-      0 0 14px rgba(170, 205, 179, .18);
+    box-shadow: 0 0 14px color-mix(in srgb, var(--primary) 18%, transparent);
   }
 
-  /* Filters become luminous but remain restrained. */
+  /* Active filters inherit the selected theme. */
   html:is([data-theme="sage"],[data-theme="ocean"],[data-theme="graphite"],[data-theme="burgundy"]) .admin-filter-pill.active {
-    background:
-      linear-gradient(
-        135deg,
-        rgba(117, 151, 128, .27),
-        rgba(66, 91, 75, .55)
-      );
-    border-color: rgba(148, 181, 158, .60);
-    color: #edf3ee;
-    box-shadow:
-      inset 0 1px 0 rgba(255,255,255,.05),
-      0 0 0 1px rgba(137, 173, 148, .08),
-      0 0 18px rgba(111, 158, 125, .15);
+    background: color-mix(in srgb, var(--primary) 16%, var(--surface));
+    border-color: color-mix(in srgb, var(--primary) 58%, var(--border));
+    color: var(--text);
+    box-shadow: inset 0 1px 0 color-mix(in srgb, white 4%, transparent), 0 0 18px color-mix(in srgb, var(--primary) 12%, transparent);
   }
 
   /* Model cards: each selected model gets its own quiet glow. */
@@ -5655,18 +5770,11 @@ const adminStyles = `
       0 14px 34px rgba(0,0,0,.12);
   }
 
-  /* Reasoning selector receives the same selection language. */
+  /* Reasoning selector receives the selected theme color. */
   html:is([data-theme="sage"],[data-theme="ocean"],[data-theme="graphite"],[data-theme="burgundy"]) .admin-segmented button.active {
-    border-color: rgba(150, 185, 160, .70);
-    background:
-      linear-gradient(
-        145deg,
-        rgba(76, 108, 88, .50),
-        rgba(38, 52, 44, .86)
-      );
-    box-shadow:
-      inset 0 1px 0 rgba(255,255,255,.055),
-      0 0 22px rgba(107, 155, 122, .15);
+    border-color: color-mix(in srgb, var(--primary) 65%, var(--border));
+    background: color-mix(in srgb, var(--primary) 15%, var(--surface));
+    box-shadow: inset 0 1px 0 color-mix(in srgb, white 5%, transparent), 0 0 22px color-mix(in srgb, var(--primary) 12%, transparent);
   }
 
   html:is([data-theme="sage"],[data-theme="ocean"],[data-theme="graphite"],[data-theme="burgundy"]) .admin-pin-card {
@@ -5729,7 +5837,7 @@ const adminStyles = `
     background:
       linear-gradient(
         145deg,
-        color-mix(in srgb, var(--surface-soft) 95%, var(--accent-gold) 5%),
+        color-mix(in srgb, var(--surface-soft) 95%, var(--accent) 5%),
         var(--surface-soft)
       );
     display: grid;
@@ -5934,9 +6042,9 @@ const adminStyles = `
     background:
       linear-gradient(
         148deg,
-        rgba(37, 51, 43, .98),
+        color-mix(in srgb, var(--surface) 92%, var(--primary) 8%),
         var(--surface) 44%,
-        rgba(30, 41, 35, .98)
+        var(--surface-soft)
       );
   }
 
@@ -5944,24 +6052,24 @@ const adminStyles = `
     background:
       linear-gradient(
         110deg,
-        rgba(42, 57, 48, .92),
-        rgba(31, 42, 36, .96) 62%
+        color-mix(in srgb, var(--surface) 91%, var(--primary) 9%),
+        var(--surface-soft) 62%
       );
   }
 
   html:is([data-theme="sage"],[data-theme="ocean"],[data-theme="graphite"],[data-theme="burgundy"]) .admin-campus-row:hover {
-    border-color: rgba(139, 174, 149, .35);
+    border-color: color-mix(in srgb, var(--primary) 35%, var(--border));
     box-shadow:
       inset 0 1px 0 rgba(255,255,255,.03),
-      0 0 22px rgba(103, 151, 118, .09);
+      0 0 22px color-mix(in srgb, var(--primary) 9%, transparent);
   }
 
   html:is([data-theme="sage"],[data-theme="ocean"],[data-theme="graphite"],[data-theme="burgundy"]) .admin-system-card {
     background:
       linear-gradient(
         145deg,
-        rgba(39, 53, 45, .94),
-        rgba(30, 41, 35, .98)
+        color-mix(in srgb, var(--surface) 94%, var(--primary) 6%),
+        var(--surface-soft)
       );
     box-shadow:
       inset 0 1px 0 rgba(255,255,255,.025),
@@ -5970,20 +6078,20 @@ const adminStyles = `
 
   html:is([data-theme="sage"],[data-theme="ocean"],[data-theme="graphite"],[data-theme="burgundy"]) .admin-system-card-ai {
     background:
-      radial-gradient(circle at 95% 5%, rgba(112, 155, 125, .10), transparent 32%),
-      linear-gradient(145deg, rgba(39,53,45,.96), rgba(30,41,35,.98));
+      radial-gradient(circle at 95% 5%, color-mix(in srgb, var(--primary) 10%, transparent), transparent 32%),
+      linear-gradient(145deg, color-mix(in srgb,var(--surface) 94%,var(--primary) 6%), var(--surface-soft));
   }
 
   html:is([data-theme="sage"],[data-theme="ocean"],[data-theme="graphite"],[data-theme="burgundy"]) .admin-system-card-month {
     background:
-      radial-gradient(circle at 92% 4%, rgba(198,163,91,.09), transparent 32%),
-      linear-gradient(145deg, rgba(39,53,45,.96), rgba(30,41,35,.98));
+      radial-gradient(circle at 92% 4%, color-mix(in srgb, var(--accent) 9%, transparent), transparent 32%),
+      linear-gradient(145deg, color-mix(in srgb,var(--surface) 94%,var(--primary) 6%), var(--surface-soft));
   }
 
   html:is([data-theme="sage"],[data-theme="ocean"],[data-theme="graphite"],[data-theme="burgundy"]) .admin-system-card-actions button:hover,
   html:is([data-theme="sage"],[data-theme="ocean"],[data-theme="graphite"],[data-theme="burgundy"]) .admin-text-link:hover {
-    color: #d9e7dc;
-    text-shadow: 0 0 12px rgba(154, 194, 166, .22);
+    color: var(--text);
+    text-shadow: 0 0 12px color-mix(in srgb, var(--primary) 22%, transparent);
   }
 
   @media (max-width: 980px) {
@@ -6045,7 +6153,7 @@ const adminStyles = `
     background:
       linear-gradient(
         145deg,
-        color-mix(in srgb, var(--surface) 97%, var(--accent-gold) 3%),
+        color-mix(in srgb, var(--surface) 97%, var(--accent) 3%),
         var(--surface)
       );
   }
@@ -6165,17 +6273,17 @@ const adminStyles = `
 
   html:is([data-theme="sage"],[data-theme="ocean"],[data-theme="graphite"],[data-theme="burgundy"]) .admin-period-panel {
     background:
-      radial-gradient(circle at 8% 0%, rgba(138,122,166,.08), transparent 32%),
-      radial-gradient(circle at 92% 0%, rgba(198,163,91,.07), transparent 30%),
-      linear-gradient(145deg, rgba(39,53,45,.96), rgba(30,41,35,.99));
+      radial-gradient(circle at 8% 0%, color-mix(in srgb,var(--primary) 8%,transparent), transparent 32%),
+      radial-gradient(circle at 92% 0%, color-mix(in srgb,var(--accent) 7%,transparent), transparent 30%),
+      linear-gradient(145deg, color-mix(in srgb,var(--surface) 94%,var(--primary) 6%), var(--surface-soft));
   }
 
   html:is([data-theme="sage"],[data-theme="ocean"],[data-theme="graphite"],[data-theme="burgundy"]) .admin-period-card {
     background:
       linear-gradient(
         145deg,
-        rgba(43, 57, 49, .90),
-        rgba(31, 42, 36, .97)
+        color-mix(in srgb, var(--surface-soft) 90%, var(--primary) 10%),
+        var(--surface-soft)
       );
     box-shadow:
       inset 0 1px 0 rgba(255,255,255,.025),
@@ -6184,14 +6292,14 @@ const adminStyles = `
 
   html:is([data-theme="sage"],[data-theme="ocean"],[data-theme="graphite"],[data-theme="burgundy"]) .admin-ai-control-panel {
     background:
-      radial-gradient(circle at 92% 4%, rgba(110,143,179,.08), transparent 29%),
-      linear-gradient(145deg, rgba(39,53,45,.96), rgba(30,41,35,.99));
+      radial-gradient(circle at 92% 4%, color-mix(in srgb,var(--primary) 8%,transparent), transparent 29%),
+      linear-gradient(145deg, color-mix(in srgb,var(--surface) 94%,var(--primary) 6%), var(--surface-soft));
   }
 
   html:is([data-theme="sage"],[data-theme="ocean"],[data-theme="graphite"],[data-theme="burgundy"]) .admin-pin-overview-panel {
     background:
-      radial-gradient(circle at 8% 0%, rgba(198,163,91,.055), transparent 28%),
-      linear-gradient(145deg, rgba(39,53,45,.96), rgba(30,41,35,.99));
+      radial-gradient(circle at 8% 0%, color-mix(in srgb,var(--accent) 6%,transparent), transparent 28%),
+      linear-gradient(145deg, color-mix(in srgb,var(--surface) 94%,var(--primary) 6%), var(--surface-soft));
   }
 
   @media (max-width: 980px) {
@@ -6229,19 +6337,19 @@ const adminStyles = `
   }
 
   .admin-mini-button.quota {
-    color: var(--accent-gold);
-    border-color: color-mix(in srgb, var(--accent-gold) 32%, var(--border));
+    color: var(--accent);
+    border-color: color-mix(in srgb, var(--accent) 32%, var(--border));
     background:
       linear-gradient(
         135deg,
-        color-mix(in srgb, var(--accent-gold) 8%, var(--surface)),
+        color-mix(in srgb, var(--accent) 8%, var(--surface)),
         var(--surface)
       );
   }
 
   .admin-mini-button.quota:hover:not(:disabled) {
-    border-color: color-mix(in srgb, var(--accent-gold) 58%, var(--border));
-    box-shadow: 0 0 18px color-mix(in srgb, var(--accent-gold) 13%, transparent);
+    border-color: color-mix(in srgb, var(--accent) 58%, var(--border));
+    box-shadow: 0 0 18px color-mix(in srgb, var(--accent) 13%, transparent);
   }
 
   .admin-mini-button.quota:disabled {
@@ -6255,7 +6363,7 @@ const adminStyles = `
       linear-gradient(
         135deg,
         rgba(190, 151, 70, .12),
-        rgba(32, 42, 36, .92)
+        color-mix(in srgb,var(--surface) 92%,var(--primary) 8%)
       );
     border-color: rgba(214, 174, 88, .30);
   }
@@ -6295,7 +6403,7 @@ const adminStyles = `
   .admin-simple-setting > p {
     min-height: 40px;
     margin: 0 0 14px;
-    color: var(--muted);
+    color: var(--text-secondary);
     font-size: 12px;
     line-height: 1.65;
   }
@@ -6324,7 +6432,7 @@ const adminStyles = `
     border: 1px solid var(--border);
     border-radius: 999px;
     background: var(--surface);
-    color: var(--muted);
+    color: var(--text-secondary);
     font-size: 12px;
     font-weight: 800;
     cursor: pointer;
@@ -6348,7 +6456,7 @@ const adminStyles = `
     margin-top: 13px;
     padding-top: 12px;
     border-top: 1px solid var(--border);
-    color: var(--muted);
+    color: var(--text-secondary);
     font-size: 11px;
   }
 
@@ -6373,7 +6481,7 @@ const adminStyles = `
   .admin-router-threshold span,
   .admin-quota-control span,
   .admin-simple-setting p {
-    color: var(--muted);
+    color: var(--text-secondary);
   }
 
   .admin-number-control {
@@ -6419,7 +6527,7 @@ const adminStyles = `
     justify-content: space-between;
     gap: 10px;
     padding: 8px 10px;
-    color: #b5c0b8;
+    color: var(--text-secondary);
     font-size: 11px;
     font-weight: 800;
   }
@@ -6471,7 +6579,7 @@ const adminStyles = `
   .admin-student-mobile-progress i {
     display: block;
     height: 100%;
-    background: var(--accent-gold);
+    background: var(--accent);
   }
 
   .admin-student-mobile-actions {
@@ -9531,7 +9639,7 @@ const adminStyles = `
 /* v1.2.7 bulk student import */
 .bulk-import-panel { display: grid; gap: 16px; }
 .bulk-target-class { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 12px 14px; border: 1px solid var(--border); border-radius: 16px; background: var(--surface-soft); }
-.bulk-target-class span { color: var(--muted); font-size: 13px; font-weight: 800; }
+.bulk-target-class span { color: var(--text-secondary); font-size: 13px; font-weight: 800; }
 .bulk-target-class strong { text-align: right; font-size: 14px; }
 .bulk-import-controls { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; }
 .bulk-file-picker { min-width: 0; min-height: 48px; display: flex; align-items: center; padding: 0 16px; border: 1px dashed var(--border-strong); border-radius: 16px; cursor: pointer; background: var(--surface-soft); }
@@ -9540,12 +9648,12 @@ const adminStyles = `
 .bulk-preview-box { display: grid; gap: 12px; padding: 14px; border: 1px solid var(--border); border-radius: 18px; background: var(--surface-soft); }
 .bulk-preview-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
 .bulk-preview-stats article { padding: 10px; border-radius: 14px; background: var(--surface); border: 1px solid var(--border); }
-.bulk-preview-stats span, .bulk-preview-stats small { display: block; color: var(--muted); font-size: 11px; font-weight: 800; }
+.bulk-preview-stats span, .bulk-preview-stats small { display: block; color: var(--text-secondary); font-size: 11px; font-weight: 800; }
 .bulk-preview-stats strong { display: inline-block; margin: 2px 4px 0 0; font-size: 22px; }
 .bulk-preview-names { display: flex; flex-wrap: wrap; gap: 6px; }
 .bulk-preview-names span { padding: 5px 8px; border-radius: 999px; background: var(--surface); border: 1px solid var(--border); font-size: 12px; font-weight: 800; }
 .bulk-warning { padding: 10px 12px; border-radius: 14px; border: 1px solid rgba(184, 135, 58, .35); background: rgba(184, 135, 58, .08); }
-.bulk-warning p { margin: 3px 0; color: var(--muted); font-size: 12px; line-height: 1.55; }
+.bulk-warning p { margin: 3px 0; color: var(--text-secondary); font-size: 12px; line-height: 1.55; }
 .bulk-confirm-button { width: 100%; }
 @media (max-width: 760px) {
   .bulk-target-class { align-items: flex-start; flex-direction: column; gap: 4px; }
@@ -9561,17 +9669,18 @@ const adminStyles = `
   /* v1.3 教學引擎與二層式管理導覽 */
   .admin-nav-v13 { gap: 6px; }
   .admin-nav-group { display:grid; gap:4px; }
-  .admin-nav-group-toggle { width:100%; min-height:46px; display:grid; grid-template-columns:32px minmax(0,1fr) 22px; align-items:center; gap:7px; padding:0 10px; border:0; border-radius:12px; background:transparent; color:#dfe7e1; text-align:left; cursor:pointer; }
-  .admin-nav-group-toggle:hover,.admin-nav-group.active>.admin-nav-group-toggle { background:rgba(255,255,255,.065); }
-  .admin-nav-group-icon { display:grid; place-items:center; width:28px; height:28px; border-radius:9px; color:#93a69a; background:rgba(255,255,255,.05); font:800 10px/1 var(--font-inter),sans-serif; }
-  .admin-nav-group-toggle strong { font-size:13px; }
-  .admin-nav-chevron { color:#829287; text-align:center; transition:transform .16s ease; }
+  .admin-nav-group-toggle { width:100%; min-height:46px; display:grid; grid-template-columns:32px minmax(0,1fr) 22px; align-items:center; gap:7px; padding:0 10px; border:0; border-radius:12px; background:transparent; color:var(--text); text-align:left; cursor:pointer; }
+  .admin-nav-group-toggle:hover,.admin-nav-group.active>.admin-nav-group-toggle { background:color-mix(in srgb,var(--primary) 7%,var(--surface)); }
+  .admin-nav-group-icon { display:grid; place-items:center; width:28px; height:28px; border-radius:9px; color:var(--text-secondary); background:var(--surface-muted); font:800 10px/1 var(--font-inter),sans-serif; }
+  .admin-nav-group-toggle strong, .admin-nav-button-label { font-size:13px; font-weight:800; font-family:inherit; line-height:1.2; }
+  .admin-nav-button-label { min-width:0; }
+  .admin-nav-chevron { color:var(--text-muted); text-align:center; transition:transform .16s ease; }
   .admin-nav-group.open .admin-nav-chevron { transform:rotate(180deg); }
-  .admin-nav-children { display:grid; gap:2px; margin:0 0 3px 42px; padding-left:9px; border-left:1px solid rgba(255,255,255,.10); }
-  .admin-nav-children button { min-height:35px; display:flex; align-items:center; gap:8px; padding:0 9px; border:0; border-radius:9px; background:transparent; color:#91a197; font-size:12px; font-weight:750; text-align:left; cursor:pointer; }
+  .admin-nav-children { display:grid; gap:2px; margin:0 0 3px 42px; padding-left:9px; border-left:1px solid var(--border); }
+  .admin-nav-children button { min-height:35px; display:flex; align-items:center; gap:8px; padding:0 9px; border:0; border-radius:9px; background:transparent; color:var(--text-secondary); font-size:12px; font-weight:750; text-align:left; cursor:pointer; }
   .admin-nav-children button>span { width:5px; height:5px; border-radius:99px; background:currentColor; opacity:.55; }
-  .admin-nav-children button:hover,.admin-nav-children button.active { color:#eff4f0; background:rgba(255,255,255,.07); }
-  .admin-nav-children button.active>span { opacity:1; box-shadow:0 0 0 4px rgba(255,255,255,.06); }
+  .admin-nav-children button:hover,.admin-nav-children button.active { color:var(--text); background:color-mix(in srgb,var(--primary) 8%,var(--surface)); }
+  .admin-nav-children button.active>span { opacity:1; box-shadow:0 0 0 4px color-mix(in srgb,var(--primary) 9%,transparent); }
   .admin-usage-kpis { grid-template-columns:repeat(4,minmax(0,1fr)); }
   .teaching-toolbar { display:grid; gap:16px; }
   .teaching-toolbar h2 { margin:4px 0 4px; }
@@ -9717,6 +9826,63 @@ const adminStyles = `
     .cost-kpi-grid .hh-eyebrow { font-size:7.5px !important; letter-spacing:.08em !important; }
     .cost-kpi-grid strong { font-size:18px !important; line-height:1.05 !important; white-space:nowrap !important; }
     .cost-kpi-grid span,.cost-kpi-grid small,.cost-kpi-grid p { font-size:8.5px !important; line-height:1.35 !important; }
+  }
+
+  /* v1.3.4 admin refinements: collapsible filters + per-question costs */
+  .teaching-toolbar-head { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; }
+  .teaching-filter-toggle { flex:0 0 auto; min-width:118px; }
+  .teaching-active-filter-note { width:max-content; max-width:100%; padding:6px 10px; border:1px solid color-mix(in srgb,var(--primary) 26%,var(--border)); border-radius:999px; background:color-mix(in srgb,var(--primary) 7%,var(--surface)); color:var(--text-secondary); font-size:10px; font-weight:850; }
+  .teaching-question-row-v131 { grid-template-columns:88px minmax(0,1fr) 118px; }
+  .teaching-row-cost-label { margin-top:3px; }
+  .teaching-row-cost { color:var(--text) !important; font-size:12px !important; font-weight:900 !important; line-height:1.1; }
+  .teaching-row-cost.missing { color:var(--text-muted) !important; font-size:10px !important; }
+
+  .teaching-question-cost-panel .admin-panel-header { margin-bottom:12px; }
+  .teaching-question-cost-total { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:end; gap:4px 14px; padding:13px 14px; border:1px solid var(--border); border-radius:14px; background:color-mix(in srgb,var(--primary) 6%,var(--surface-soft)); }
+  .teaching-question-cost-total span { color:var(--text-secondary); font-size:10px; font-weight:850; }
+  .teaching-question-cost-total strong { grid-row:1 / span 2; grid-column:2; color:var(--text); font-size:24px; line-height:1; }
+  .teaching-question-cost-total small { color:var(--text-muted); font-size:10px; }
+  .teaching-question-cost-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:8px; margin-top:10px; }
+  .teaching-question-cost-grid article { min-width:0; padding:11px; border:1px solid var(--border); border-radius:13px; background:var(--surface-soft); }
+  .teaching-question-cost-role { display:flex; align-items:center; justify-content:space-between; gap:8px; padding-bottom:8px; border-bottom:1px solid var(--border); }
+  .teaching-question-cost-role strong { font-size:11px; }
+  .teaching-question-cost-role span { color:var(--text-muted); font-size:9px; font-weight:800; white-space:nowrap; }
+  .teaching-question-cost-model { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:8px; align-items:end; padding-top:8px; }
+  .teaching-question-cost-model>span { min-width:0; display:grid; gap:2px; }
+  .teaching-question-cost-model b { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:10px; }
+  .teaching-question-cost-model small { color:var(--text-muted); font-size:8px; }
+  .teaching-question-cost-model>strong { font-size:10px; white-space:nowrap; }
+  .teaching-question-cost-empty { padding-top:8px; color:var(--text-muted); font-size:9px; line-height:1.45; }
+  .teaching-cost-missing { margin:0; background:var(--surface-soft); color:var(--text-secondary); border-color:var(--border); }
+
+  .solve-cost-breakdown-panel .admin-panel-header { margin-bottom:14px; }
+  .solve-cost-group-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .solve-cost-group-card { padding:15px; border:1px solid var(--border); border-radius:15px; background:var(--surface-soft); }
+  .solve-cost-group-head { display:grid; gap:3px; }
+  .solve-cost-group-head span { color:var(--text-muted); font-size:9px; font-weight:900; letter-spacing:.08em; }
+  .solve-cost-group-head strong { font-size:16px; }
+  .solve-cost-group-metrics { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:7px; margin-top:12px; }
+  .solve-cost-group-metrics>div { min-width:0; padding:10px; border:1px solid var(--border); border-radius:11px; background:var(--surface); }
+  .solve-cost-group-metrics span { display:block; color:var(--text-secondary); font-size:9px; font-weight:800; }
+  .solve-cost-group-metrics strong { display:block; margin-top:4px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:14px; }
+  .solve-cost-group-note { display:flex; flex-wrap:wrap; gap:5px 10px; margin-top:10px; color:var(--text-secondary); font-size:9.5px; line-height:1.5; }
+  .solve-cost-group-note b { color:var(--text-secondary); font-weight:850; }
+  .solve-cost-group-note.warning b { color:var(--danger); }
+
+  @media(max-width:900px){
+    .teaching-question-cost-grid { grid-template-columns:1fr 1fr; }
+  }
+  @media(max-width:760px){
+    .teaching-toolbar-head { align-items:stretch; flex-direction:column; }
+    .teaching-filter-toggle { width:100%; }
+    .teaching-question-row-v131 { grid-template-columns:62px minmax(0,1fr) 70px !important; }
+    .teaching-row-answer { align-content:center; }
+    .teaching-row-answer .teaching-row-cost-label { display:block; }
+    .teaching-row-cost { font-size:10px !important; }
+    .teaching-question-cost-grid,.solve-cost-group-grid { grid-template-columns:1fr; }
+    .solve-cost-group-metrics { grid-template-columns:repeat(3,minmax(0,1fr)); }
+    .solve-cost-group-metrics>div { padding:8px 6px; }
+    .solve-cost-group-metrics strong { font-size:11px; }
   }
 
 `;
