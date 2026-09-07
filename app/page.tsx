@@ -408,7 +408,7 @@ type TutorialTargetRect = {
   viewportHeight: number;
 };
 
-const ONBOARDING_VERSION = "v2.2";
+const ONBOARDING_VERSION = "v2.3";
 const FIRST_USE_TOUR_KEY_PREFIX = `hh-science:first-use-tour:${ONBOARDING_VERSION}:`;
 const FIRST_USE_SETUP_KEY_PREFIX = `hh-science:first-use-setup:${ONBOARDING_VERSION}:`;
 const FIRST_USE_RESULT_PENDING_KEY_PREFIX = `hh-science:first-use-result-pending:${ONBOARDING_VERSION}:`;
@@ -445,11 +445,11 @@ const firstUseTutorialSteps: FirstUseTutorialStep[] = [
   },
   {
     eyebrow: "準備題目 · 1/5",
-    title: "先上傳題目圖片",
-    description: "拍照或從相簿選擇題目，題幹、選項與附圖盡量完整入鏡。",
+    title: "先從這裡加入題目圖片",
+    description: "之後解題時，從這裡拍照或選擇相簿圖片；導覽中不需要真的上傳。",
     previewLabel: "題目圖片",
     previewValue: "拍照／相簿",
-    tips: ["選好圖片後可自行裁切或旋轉"],
+    tips: ["正式使用時再上傳即可"],
   },
   {
     eyebrow: "準備題目 · 3/7",
@@ -813,6 +813,9 @@ export default function Home() {
     let measureTimer = 0;
     let animationFrame = 0;
 
+    const isMobileViewport = () => window.innerWidth <= 760;
+    const mobileSheetReserve = () => Math.min(236, Math.max(184, window.innerHeight * 0.28));
+
     const findTarget = () => {
       const selectors = tutorialTargetSelectors[activeTutorialStepIndex] || [];
       for (const selector of selectors) {
@@ -834,10 +837,13 @@ export default function Home() {
       const viewportWidth = window.innerWidth;
       const viewportHeight = window.innerHeight;
       const padding = 8;
+      const usableBottom = isMobileViewport()
+        ? Math.max(112, viewportHeight - mobileSheetReserve() - 12)
+        : viewportHeight - 8;
       const left = Math.max(8, rect.left - padding);
-      const top = Math.max(8, rect.top - padding);
+      const top = Math.max(8, Math.min(rect.top - padding, usableBottom - 30));
       const right = Math.min(viewportWidth - 8, rect.right + padding);
-      const bottom = Math.min(viewportHeight - 8, rect.bottom + padding);
+      const bottom = Math.max(top + 24, Math.min(usableBottom, rect.bottom + padding));
 
       setTutorialTargetRect({
         top,
@@ -845,7 +851,7 @@ export default function Home() {
         right,
         bottom,
         width: Math.max(1, right - left),
-        height: Math.max(1, bottom - top),
+        height: Math.max(24, bottom - top),
         viewportWidth,
         viewportHeight,
       });
@@ -865,30 +871,41 @@ export default function Home() {
 
       const rect = target.getBoundingClientRect();
       const startY = window.scrollY;
-      const targetY = activeTutorialStepIndex === 12
-        ? Math.max(0, startY + rect.top - 76)
-        : Math.max(0, startY + rect.top - (window.innerHeight - rect.height) / 2);
+      const viewportHeight = window.innerHeight;
+      const mobile = isMobileViewport();
+      const reservedBottom = mobile ? mobileSheetReserve() + 20 : 0;
+      const usableHeight = Math.max(180, viewportHeight - reservedBottom);
+      const targetVisualHeight = Math.min(rect.height, usableHeight * 0.72);
+      const desiredTop = activeTutorialStepIndex === 12
+        ? 76
+        : mobile
+          ? Math.max(70, (usableHeight - targetVisualHeight) * 0.44)
+          : Math.max(80, (viewportHeight - targetVisualHeight) / 2);
+      const targetY = Math.max(0, startY + rect.top - desiredTop);
       const distance = targetY - startY;
-      const duration = Math.min(620, Math.max(360, Math.abs(distance) * 0.42));
+      const duration = Math.min(760, Math.max(420, Math.abs(distance) * 0.5));
       const startedAt = performance.now();
 
       const animateScroll = (now: number) => {
         if (cancelled) return;
         const progress = Math.min(1, (now - startedAt) / duration);
-        const eased = 1 - Math.pow(1 - progress, 4);
+        const eased = progress < 0.5
+          ? 4 * progress * progress * progress
+          : 1 - Math.pow(-2 * progress + 2, 3) / 2;
         window.scrollTo(0, startY + distance * eased);
         measure();
         if (progress < 1) {
           animationFrame = window.requestAnimationFrame(animateScroll);
         } else {
-          measureTimer = window.setTimeout(measure, 80);
+          measureTimer = window.setTimeout(measure, 110);
         }
       };
 
       animationFrame = window.requestAnimationFrame(animateScroll);
     };
 
-    const prepareTimer = window.setTimeout(prepareTarget, activeTutorialStepIndex === 12 ? 140 : 90);
+    // Give result cards/menu enough time to render before measuring.
+    const prepareTimer = window.setTimeout(prepareTarget, activeTutorialStepIndex >= 7 ? 180 : 100);
     window.addEventListener("resize", scheduleMeasure);
     window.addEventListener("scroll", scheduleMeasure, true);
 
@@ -900,7 +917,7 @@ export default function Home() {
       window.removeEventListener("resize", scheduleMeasure);
       window.removeEventListener("scroll", scheduleMeasure, true);
     };
-  }, [tutorialOpen, activeTutorialStepIndex]);
+  }, [tutorialOpen, activeTutorialStepIndex, solveData?.historyId]);
 
   useEffect(() => {
     if (!tutorialOpen) {
@@ -911,14 +928,6 @@ export default function Home() {
     const timer = window.setTimeout(() => setTutorialAnimating(false), 430);
     return () => window.clearTimeout(timer);
   }, [tutorialOpen, tutorialStep, tutorialPhase]);
-
-  useEffect(() => {
-    if (!tutorialOpen || activeTutorialStepIndex !== 1 || isCropping || images.length === 0) return;
-    const timer = window.setTimeout(() => {
-      setTutorialStep((current) => Math.min(tutorialSequence.length - 1, current + 1));
-    }, 360);
-    return () => window.clearTimeout(timer);
-  }, [tutorialOpen, activeTutorialStepIndex, isCropping, images.length, tutorialSequence.length]);
 
   useEffect(() => {
     if (student && activeView === "history") {
@@ -3242,9 +3251,6 @@ export default function Home() {
                 <p>{activeTutorialStep.description}</p>
               </div>
 
-              {tutorialPhase === "setup" && activeTutorialStepIndex === 1 && isCropping && (
-                <div className="student-guided-tour-mini-tip">圖片可自行裁切／旋轉，完成後按「確認完成」即可繼續。</div>
-              )}
             </div>
 
             <div className="student-firstuse-actions">
@@ -3261,14 +3267,10 @@ export default function Home() {
                 <button
                   type="button"
                   className="hh-button-primary"
-                  disabled={tutorialAnimating || (activeTutorialStepIndex === 1 && (images.length === 0 || isCropping))}
+                  disabled={tutorialAnimating}
                   onClick={() => setTutorialStep((current) => Math.min(tutorialSequence.length - 1, current + 1))}
                 >
-                  {activeTutorialStepIndex === 1 && images.length === 0
-                    ? "請先上傳圖片"
-                    : activeTutorialStepIndex === 1 && isCropping
-                      ? "先完成圖片調整"
-                      : "下一步"}
+                  下一步
                 </button>
               ) : (
                 <button
@@ -6050,9 +6052,16 @@ export default function Home() {
           }
 
           .student-guided-tour-card {
-            width: min(390px, calc(100vw - 20px)) !important;
-            max-width: calc(100vw - 20px) !important;
+            position: fixed !important;
+            left: 10px !important;
+            right: 10px !important;
+            top: auto !important;
+            bottom: max(10px, env(safe-area-inset-bottom)) !important;
+            width: auto !important;
+            max-width: none !important;
+            max-height: min(224px, calc(100dvh - 24px)) !important;
             border-radius: 18px !important;
+            overflow: hidden !important;
           }
 
           .student-guided-tour-card .student-firstuse-topbar {
@@ -6068,7 +6077,19 @@ export default function Home() {
           }
 
           .student-guided-tour-card .student-firstuse-copy h2 {
-            font-size: 18px;
+            margin: 1px 0 3px;
+            font-size: 17px;
+            line-height: 1.25;
+          }
+
+          .student-guided-tour-card .student-firstuse-copy > p {
+            display: -webkit-box;
+            overflow: hidden;
+            -webkit-box-orient: vertical;
+            -webkit-line-clamp: 2;
+            margin: 0;
+            font-size: 10.5px;
+            line-height: 1.4;
           }
 
   
