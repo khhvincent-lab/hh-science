@@ -408,15 +408,15 @@ type TutorialTargetRect = {
   viewportHeight: number;
 };
 
-const ONBOARDING_VERSION = "v2.1";
+const ONBOARDING_VERSION = "v2.2";
 const FIRST_USE_TOUR_KEY_PREFIX = `hh-science:first-use-tour:${ONBOARDING_VERSION}:`;
 const FIRST_USE_SETUP_KEY_PREFIX = `hh-science:first-use-setup:${ONBOARDING_VERSION}:`;
 const FIRST_USE_RESULT_PENDING_KEY_PREFIX = `hh-science:first-use-result-pending:${ONBOARDING_VERSION}:`;
 const ADD_HOME_GUIDE_KEY = "hh-science:add-home-guide-seen";
 
-const SETUP_TUTORIAL_SEQUENCE = [0, 1, 2, 3, 4, 5, 6];
+const SETUP_TUTORIAL_SEQUENCE = [1, 0, 4, 5, 6];
 const RESULT_TUTORIAL_SEQUENCE = [7, 8, 9, 10, 11, 12];
-const FULL_TUTORIAL_SEQUENCE = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+const FULL_TUTORIAL_SEQUENCE = [1, 0, 4, 5, 6, 7, 8, 9, 10, 11, 12];
 
 const tutorialTargetSelectors: Record<number, string[]> = {
   0: ['[data-tour="subject-picker"]'],
@@ -436,20 +436,20 @@ const tutorialTargetSelectors: Record<number, string[]> = {
 
 const firstUseTutorialSteps: FirstUseTutorialStep[] = [
   {
-    eyebrow: "準備題目 · 1/7",
-    title: "先確認這題是哪一科",
-    description: "先選擇物理、化學、生物或地球科學。系統會依科目調整辨識與解題方式，讓後續分析更準確。",
+    eyebrow: "準備題目 · 2/5",
+    title: "再選擇題目科目",
+    description: "選擇物理、化學、生物或地球科學，系統會依科目調整解題方式。",
     previewLabel: "科目",
     previewValue: "選擇科目",
-    tips: ["每一題都先確認科目", "選中的科目會有明顯標示"],
+    tips: ["確認科目後再繼續"],
   },
   {
-    eyebrow: "準備題目 · 2/7",
-    title: "上傳你的第一題",
-    description: "點這裡拍照或從相簿選擇題目。這一步可以直接操作；選好圖片後，導覽會接著帶你調整圖片。",
+    eyebrow: "準備題目 · 1/5",
+    title: "先上傳題目圖片",
+    description: "拍照或從相簿選擇題目，題幹、選項與附圖盡量完整入鏡。",
     previewLabel: "題目圖片",
     previewValue: "拍照／相簿",
-    tips: ["題幹與選項盡量完整入鏡", "跨頁或有附圖時可以一次上傳多張"],
+    tips: ["選好圖片後可自行裁切或旋轉"],
   },
   {
     eyebrow: "準備題目 · 3/7",
@@ -468,33 +468,33 @@ const firstUseTutorialSteps: FirstUseTutorialStep[] = [
     tips: ["可以連續旋轉多次", "方向正確有助於文字與公式辨識"],
   },
   {
-    eyebrow: "準備題目 · 5/7",
-    title: "有標準答案時，建議填上",
-    description: "如果老師、講義或答案卡已提供正確答案，填入這裡能讓 AI 多一個校準依據；不知道答案時直接留白即可。",
+    eyebrow: "準備題目 · 3/5",
+    title: "有答案就填上",
+    description: "已知標準答案時建議填入，可提高解析穩定度；不知道就留白。",
     previewLabel: "標準參考答案",
     previewValue: "例如：B、ACD、2.5 mol",
-    tips: ["有答案時建議填入，可提高解析穩定度", "這個欄位不是必填"],
+    tips: ["這個欄位不是必填"],
   },
   {
-    eyebrow: "準備題目 · 6/7",
-    title: "有特殊需求再補充說明",
-    description: "可以補充你卡住的位置、圖片中要特別看的區域，或指定想釐清某個選項。一般題目不填也沒關係。",
+    eyebrow: "準備題目 · 4/5",
+    title: "需要時再補充",
+    description: "可補充卡住的位置或想特別釐清的選項；一般題目可以不填。",
     previewLabel: "補充敘述",
     previewValue: "例如：想特別問 C 選項",
-    tips: ["適合題意模糊或條件很多的題目", "一句話說明重點就足夠"],
+    tips: ["一句話說明重點就夠"],
   },
   {
-    eyebrow: "準備題目 · 7/7",
-    title: "準備好就開始解題",
-    description: "送出前最後確認圖片、科目與補充資訊。按下「開始解題」後，系統會產生答案、詳解與選項分析。",
+    eyebrow: "準備題目 · 5/5",
+    title: "開始解題",
+    description: "確認圖片與科目後按下開始解題，完成後會接著教你怎麼看解析。",
     previewLabel: "開始解題",
     previewValue: "開始解題",
-    tips: ["送出前確認題目沒有裁掉重要資訊", "完成第一題後還有一段結果頁導覽"],
+    tips: ["完成第一題後會自動接續結果頁導覽"],
   },
   {
     eyebrow: "看懂解析 · 1/6",
     title: "先讀觀念解析與解題脈絡",
-    description: "這裡不是只給答案，而是把關鍵觀念、公式與計算步驟整理成完整脈絡。建議先看這區，再回頭比較自己的想法。",
+    description: "這裡會整理關鍵觀念、公式與解題步驟，先理解再看答案。",
     previewLabel: "觀念解析",
     previewValue: "詳解與解題步驟",
     tips: ["先理解為什麼，再記答案", "公式與重要數值會保留在解題流程中"],
@@ -502,7 +502,7 @@ const firstUseTutorialSteps: FirstUseTutorialStep[] = [
   {
     eyebrow: "看懂解析 · 2/6",
     title: "詳解裡的數字可以點",
-    description: "看到有底色或可點擊標記的數字時，可以直接點一下。系統會補充這個數值代表什麼、從哪裡來，以及在這一步怎麼使用。",
+    description: "詳解中有標記的數字可以直接點擊，查看數值來源與用途。",
     previewLabel: "互動數字",
     previewValue: "點擊詳解中的數字",
     tips: ["適合追公式中的數值來源", "若這題沒有互動數字，導覽會自動略過這一步"],
@@ -510,7 +510,7 @@ const firstUseTutorialSteps: FirstUseTutorialStep[] = [
   {
     eyebrow: "看懂解析 · 3/6",
     title: "選擇題再看選項分析",
-    description: "每個選項會拆開說明為什麼正確或錯誤。訂正時不要只記答案，也一起看錯誤選項用了什麼陷阱。",
+    description: "選擇題可逐項查看為什麼正確或錯誤。",
     previewLabel: "選項分析",
     previewValue: "A / B / C / D",
     tips: ["特別適合訂正選擇題", "非選擇題沒有這區時會自動略過"],
@@ -518,7 +518,7 @@ const firstUseTutorialSteps: FirstUseTutorialStep[] = [
   {
     eyebrow: "看懂解析 · 4/6",
     title: "看不懂的地方直接追問",
-    description: "針對同一題繼續問，不需要重新拍照或重新建立題目。可以問某一步、某個公式，也可以請 AI 換一種更簡單的說法。",
+    description: "看不懂某一步或公式，可以直接針對同一題繼續追問。",
     previewLabel: "還有疑問？",
     previewValue: "同一題繼續追問",
     tips: ["可以直接指定『第 2 步看不懂』", "同題追問不需要重新上傳圖片"],
@@ -526,7 +526,7 @@ const firstUseTutorialSteps: FirstUseTutorialStep[] = [
   {
     eyebrow: "看懂解析 · 5/6",
     title: "最後兩個按鈕也很重要",
-    description: "需要真人確認時可以用 LINE 詢問老師；想收藏完整解析則產生解析圖片，再分享或存到照片裡複習。",
+    description: "可用 LINE 詢問老師，也能產生解析圖片收藏或分享。",
     previewLabel: "題目工具",
     previewValue: "詢問老師／產生解析圖片",
     tips: ["LINE：把疑問帶去給老師確認", "解析圖片：方便收藏、傳送與複習"],
@@ -534,7 +534,7 @@ const firstUseTutorialSteps: FirstUseTutorialStep[] = [
   {
     eyebrow: "看懂解析 · 6/6",
     title: "之後都可以從右上角選單回來",
-    description: "漢堡選單可以切換開始解題與我的解題紀錄，也能重新開啟這份使用教學、查看加入主畫面方式，或登出帳號。",
+    description: "右上角選單可查看解題紀錄、重播教學與加入主畫面。",
     previewLabel: "功能選單",
     previewValue: "☰",
     tips: ["歷史題目可以重新打開複習", "忘記操作時可隨時重播使用教學"],
@@ -863,15 +863,29 @@ export default function Home() {
         return;
       }
 
-      setTutorialTargetRect(null);
-      target.scrollIntoView({
-        behavior: "smooth",
-        block: activeTutorialStepIndex === 12 ? "start" : "center",
-        inline: "nearest",
-      });
+      const rect = target.getBoundingClientRect();
+      const startY = window.scrollY;
+      const targetY = activeTutorialStepIndex === 12
+        ? Math.max(0, startY + rect.top - 76)
+        : Math.max(0, startY + rect.top - (window.innerHeight - rect.height) / 2);
+      const distance = targetY - startY;
+      const duration = Math.min(620, Math.max(360, Math.abs(distance) * 0.42));
+      const startedAt = performance.now();
 
-      measure();
-      measureTimer = window.setTimeout(measure, 620);
+      const animateScroll = (now: number) => {
+        if (cancelled) return;
+        const progress = Math.min(1, (now - startedAt) / duration);
+        const eased = 1 - Math.pow(1 - progress, 4);
+        window.scrollTo(0, startY + distance * eased);
+        measure();
+        if (progress < 1) {
+          animationFrame = window.requestAnimationFrame(animateScroll);
+        } else {
+          measureTimer = window.setTimeout(measure, 80);
+        }
+      };
+
+      animationFrame = window.requestAnimationFrame(animateScroll);
     };
 
     const prepareTimer = window.setTimeout(prepareTarget, activeTutorialStepIndex === 12 ? 140 : 90);
@@ -894,17 +908,17 @@ export default function Home() {
       return;
     }
     setTutorialAnimating(true);
-    const timer = window.setTimeout(() => setTutorialAnimating(false), 560);
+    const timer = window.setTimeout(() => setTutorialAnimating(false), 430);
     return () => window.clearTimeout(timer);
   }, [tutorialOpen, tutorialStep, tutorialPhase]);
 
   useEffect(() => {
-    if (!tutorialOpen || activeTutorialStepIndex !== 1 || !isCropping) return;
+    if (!tutorialOpen || activeTutorialStepIndex !== 1 || isCropping || images.length === 0) return;
     const timer = window.setTimeout(() => {
       setTutorialStep((current) => Math.min(tutorialSequence.length - 1, current + 1));
-    }, 520);
+    }, 360);
     return () => window.clearTimeout(timer);
-  }, [tutorialOpen, activeTutorialStepIndex, isCropping, tutorialSequence.length]);
+  }, [tutorialOpen, activeTutorialStepIndex, isCropping, images.length, tutorialSequence.length]);
 
   useEffect(() => {
     if (student && activeView === "history") {
@@ -1152,7 +1166,7 @@ export default function Home() {
       setPinChangeError("");
       await loadUsage();
 
-      // 初次密碼設定完成後直接啟動 V2.1 導覽。
+      // 初次密碼設定完成後直接啟動 V2.2 導覽。
       // 使用新的版本化 localStorage key，避免舊版導覽紀錄讓新版完全不出現。
       window.setTimeout(() => {
         startTutorial("setup", true);
@@ -3162,7 +3176,6 @@ export default function Home() {
           )}
 
           <section
-            key={`${tutorialPhase}-${activeTutorialStepIndex}`}
             className="student-firstuse-card student-guided-tour-card"
             role="dialog"
             aria-modal="true"
@@ -3178,7 +3191,6 @@ export default function Home() {
                     bottom: tutorialCardAbove
                       ? tutorialTargetRect.viewportHeight - tutorialTargetRect.top + 14
                       : undefined,
-                    maxHeight: tutorialCardMaxHeight,
                   }
                 : undefined
             }
@@ -3222,49 +3234,16 @@ export default function Home() {
                   {String(tutorialStep + 1).padStart(2, "0")}
                   <span>/ {String(tutorialSequence.length).padStart(2, "0")}</span>
                 </div>
-                <div className="student-guided-tour-target-label">
-                  {activeTutorialStep.previewLabel}
-                </div>
+                <div className="hh-eyebrow">{activeTutorialStep.eyebrow}</div>
               </div>
 
               <div className="student-firstuse-copy">
-                <div className="hh-eyebrow">{activeTutorialStep.eyebrow}</div>
                 <h2 className="hh-display">{activeTutorialStep.title}</h2>
                 <p>{activeTutorialStep.description}</p>
               </div>
 
-              <div className="student-guided-tour-live-note">
-                <span>正在指向</span>
-                <strong>{activeTutorialStep.previewValue}</strong>
-              </div>
-
-              {tutorialPhase === "setup" && tutorialStep === 0 && (
-                <div className="student-guided-tour-version-note">新版互動導覽 {ONBOARDING_VERSION.toUpperCase()}：會跟著實際畫面移動</div>
-              )}
-
-              <div className="student-firstuse-tips">
-                {activeTutorialStep.tips.map((tip) => (
-                  <div key={tip}>
-                    <span>✓</span>
-                    <p>{tip}</p>
-                  </div>
-                ))}
-              </div>
-
-              {tutorialPhase === "setup" && activeTutorialStepIndex === 1 && !isCropping && images.length === 0 && (
-                <p className="student-guided-tour-continuation student-guided-tour-interactive-hint">
-                  ↑ 直接點上方真正的上傳區選一張題目，選好後會自動帶你進到裁切教學。
-                </p>
-              )}
-              {tutorialPhase === "setup" && activeTutorialStepIndex === 3 && isCropping && (
-                <p className="student-guided-tour-continuation student-guided-tour-interactive-hint">
-                  旋轉與裁切完成後，請先在圖片編輯器按「確認完成」，再繼續下一步。
-                </p>
-              )}
-              {tutorialPhase === "setup" && tutorialStep === tutorialSequence.length - 1 && (
-                <p className="student-guided-tour-continuation">
-                  完成第一題後，系統會自動接著帶你看「觀念解析、互動數字、選項分析、追問與題目工具」。
-                </p>
+              {tutorialPhase === "setup" && activeTutorialStepIndex === 1 && isCropping && (
+                <div className="student-guided-tour-mini-tip">圖片可自行裁切／旋轉，完成後按「確認完成」即可繼續。</div>
               )}
             </div>
 
@@ -3282,13 +3261,13 @@ export default function Home() {
                 <button
                   type="button"
                   className="hh-button-primary"
-                  disabled={tutorialAnimating || (activeTutorialStepIndex === 1 && !isCropping && images.length === 0) || (activeTutorialStepIndex === 3 && isCropping)}
+                  disabled={tutorialAnimating || (activeTutorialStepIndex === 1 && (images.length === 0 || isCropping))}
                   onClick={() => setTutorialStep((current) => Math.min(tutorialSequence.length - 1, current + 1))}
                 >
-                  {activeTutorialStepIndex === 1 && !isCropping && images.length === 0
-                    ? "請先上傳一題"
-                    : activeTutorialStepIndex === 3 && isCropping
-                      ? "先確認圖片調整"
+                  {activeTutorialStepIndex === 1 && images.length === 0
+                    ? "請先上傳圖片"
+                    : activeTutorialStepIndex === 1 && isCropping
+                      ? "先完成圖片調整"
                       : "下一步"}
                 </button>
               ) : (
@@ -5334,7 +5313,7 @@ export default function Home() {
 
         .student-history-answer strong {
           color: var(--primary);
-          font-size: 24px;
+          font-size: 20px;
         }
 
         .student-history-analysis-block {
@@ -5893,7 +5872,7 @@ export default function Home() {
             0 14px 42px rgba(0, 0, 0, .2);
           pointer-events: none;
           will-change: top, left, width, height, opacity;
-          transition: top .48s cubic-bezier(.16,1,.3,1), left .48s cubic-bezier(.16,1,.3,1), width .48s cubic-bezier(.16,1,.3,1), height .48s cubic-bezier(.16,1,.3,1), opacity .22s ease;
+          transition: top .36s cubic-bezier(.22,1,.36,1), left .36s cubic-bezier(.22,1,.36,1), width .36s cubic-bezier(.22,1,.36,1), height .36s cubic-bezier(.22,1,.36,1), opacity .18s ease;
         }
 
         .student-guided-tour-card {
@@ -5901,7 +5880,7 @@ export default function Home() {
           pointer-events: auto;
           z-index: 342;
           max-width: calc(100vw - 24px);
-          overflow: auto;
+          overflow: hidden;
           border-radius: 20px;
           box-shadow: 0 24px 70px rgba(5, 10, 7, .34);
           overscroll-behavior: contain;
@@ -5915,7 +5894,7 @@ export default function Home() {
         }
 
         .student-guided-tour-card .student-firstuse-topbar {
-          padding: 14px 16px 11px;
+          padding: 10px 14px 8px;
         }
 
         .student-guided-tour-card .student-firstuse-topbar strong {
@@ -5923,11 +5902,11 @@ export default function Home() {
         }
 
         .student-guided-tour-card .student-firstuse-progress {
-          padding: 10px 16px 0;
+          padding: 7px 14px 0;
         }
 
         .student-guided-tour-body {
-          padding: 15px 16px 13px;
+          padding: 9px 14px 8px;
         }
 
         .student-guided-tour-heading {
@@ -5935,7 +5914,7 @@ export default function Home() {
           align-items: center;
           justify-content: space-between;
           gap: 10px;
-          margin-bottom: 8px;
+          margin-bottom: 4px;
         }
 
         .student-guided-tour-card .student-firstuse-count {
@@ -5955,13 +5934,13 @@ export default function Home() {
         }
 
         .student-guided-tour-card .student-firstuse-copy h2 {
-          margin: 4px 0 6px;
-          font-size: clamp(19px, 3.4vw, 25px);
+          margin: 2px 0 4px;
+          font-size: clamp(18px, 3.2vw, 23px);
         }
 
         .student-guided-tour-card .student-firstuse-copy > p {
-          font-size: 12px;
-          line-height: 1.6;
+          font-size: 11px;
+          line-height: 1.45;
         }
 
         .student-guided-tour-live-note {
@@ -6029,14 +6008,25 @@ export default function Home() {
           line-height: 1.5;
         }
 
+
+        .student-guided-tour-mini-tip {
+          margin-top: 7px;
+          padding: 6px 8px;
+          border-radius: 9px;
+          background: color-mix(in srgb, var(--action) 7%, var(--surface-soft));
+          color: var(--text-secondary);
+          font-size: 9.5px;
+          line-height: 1.4;
+        }
+
         .student-guided-tour-card .student-firstuse-actions {
-          gap: 8px;
-          padding: 0 16px 14px;
+          gap: 7px;
+          padding: 0 14px 10px;
         }
 
         .student-guided-tour-card .student-firstuse-actions > button {
-          min-height: 40px;
-          font-size: 12px;
+          min-height: 36px;
+          font-size: 11px;
         }
 
 
@@ -6066,23 +6056,34 @@ export default function Home() {
           }
 
           .student-guided-tour-card .student-firstuse-topbar {
-            padding: 12px 14px 9px;
+            padding: 9px 12px 7px;
           }
 
           .student-guided-tour-card .student-firstuse-progress {
-            padding: 9px 14px 0;
+            padding: 6px 12px 0;
           }
 
           .student-guided-tour-body {
-            padding: 12px 14px 11px;
+            padding: 8px 12px 7px;
           }
 
           .student-guided-tour-card .student-firstuse-copy h2 {
-            font-size: 20px;
+            font-size: 18px;
           }
 
-          .student-guided-tour-card .student-firstuse-actions {
-            padding: 0 14px 12px;
+  
+        .student-guided-tour-mini-tip {
+          margin-top: 7px;
+          padding: 6px 8px;
+          border-radius: 9px;
+          background: color-mix(in srgb, var(--action) 7%, var(--surface-soft));
+          color: var(--text-secondary);
+          font-size: 9.5px;
+          line-height: 1.4;
+        }
+
+        .student-guided-tour-card .student-firstuse-actions {
+            padding: 0 12px 9px;
           }
         }
 
