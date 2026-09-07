@@ -408,7 +408,7 @@ type TutorialTargetRect = {
   viewportHeight: number;
 };
 
-const ONBOARDING_VERSION = "v2.3";
+const ONBOARDING_VERSION = "v2.4";
 const FIRST_USE_TOUR_KEY_PREFIX = `hh-science:first-use-tour:${ONBOARDING_VERSION}:`;
 const FIRST_USE_SETUP_KEY_PREFIX = `hh-science:first-use-setup:${ONBOARDING_VERSION}:`;
 const FIRST_USE_RESULT_PENDING_KEY_PREFIX = `hh-science:first-use-result-pending:${ONBOARDING_VERSION}:`;
@@ -811,7 +811,8 @@ export default function Home() {
 
     let cancelled = false;
     let measureTimer = 0;
-    let animationFrame = 0;
+    let scrollAnimationFrame = 0;
+    let measureAnimationFrame = 0;
 
     const isMobileViewport = () => window.innerWidth <= 760;
     const mobileSheetReserve = () => Math.min(236, Math.max(184, window.innerHeight * 0.28));
@@ -858,8 +859,8 @@ export default function Home() {
     };
 
     const scheduleMeasure = () => {
-      window.cancelAnimationFrame(animationFrame);
-      animationFrame = window.requestAnimationFrame(measure);
+      window.cancelAnimationFrame(measureAnimationFrame);
+      measureAnimationFrame = window.requestAnimationFrame(measure);
     };
 
     const prepareTarget = () => {
@@ -870,20 +871,23 @@ export default function Home() {
       }
 
       const rect = target.getBoundingClientRect();
-      const startY = window.scrollY;
+      const scrollingElement = document.scrollingElement || document.documentElement;
+      const startY = scrollingElement.scrollTop || window.scrollY || 0;
       const viewportHeight = window.innerHeight;
       const mobile = isMobileViewport();
-      const reservedBottom = mobile ? mobileSheetReserve() + 20 : 0;
+      const reservedBottom = mobile ? mobileSheetReserve() + 26 : 0;
       const usableHeight = Math.max(180, viewportHeight - reservedBottom);
-      const targetVisualHeight = Math.min(rect.height, usableHeight * 0.72);
+      const targetVisualHeight = Math.min(rect.height, usableHeight * 0.68);
       const desiredTop = activeTutorialStepIndex === 12
-        ? 76
+        ? 72
         : mobile
-          ? Math.max(70, (usableHeight - targetVisualHeight) * 0.44)
+          ? Math.max(64, Math.min(usableHeight * 0.32, usableHeight - targetVisualHeight - 28))
           : Math.max(80, (viewportHeight - targetVisualHeight) / 2);
-      const targetY = Math.max(0, startY + rect.top - desiredTop);
+      const rawTargetY = Math.max(0, startY + rect.top - desiredTop);
+      const maxScrollY = Math.max(0, scrollingElement.scrollHeight - viewportHeight);
+      const targetY = Math.min(rawTargetY, maxScrollY);
       const distance = targetY - startY;
-      const duration = Math.min(760, Math.max(420, Math.abs(distance) * 0.5));
+      const duration = Math.min(900, Math.max(460, Math.abs(distance) * 0.58));
       const startedAt = performance.now();
 
       const animateScroll = (now: number) => {
@@ -892,20 +896,21 @@ export default function Home() {
         const eased = progress < 0.5
           ? 4 * progress * progress * progress
           : 1 - Math.pow(-2 * progress + 2, 3) / 2;
-        window.scrollTo(0, startY + distance * eased);
+        const nextY = startY + distance * eased;
+        scrollingElement.scrollTop = nextY;
         measure();
         if (progress < 1) {
-          animationFrame = window.requestAnimationFrame(animateScroll);
+          scrollAnimationFrame = window.requestAnimationFrame(animateScroll);
         } else {
           measureTimer = window.setTimeout(measure, 110);
         }
       };
 
-      animationFrame = window.requestAnimationFrame(animateScroll);
+      scrollAnimationFrame = window.requestAnimationFrame(animateScroll);
     };
 
     // Give result cards/menu enough time to render before measuring.
-    const prepareTimer = window.setTimeout(prepareTarget, activeTutorialStepIndex >= 7 ? 180 : 100);
+    const prepareTimer = window.setTimeout(prepareTarget, activeTutorialStepIndex >= 7 ? 260 : 120);
     window.addEventListener("resize", scheduleMeasure);
     window.addEventListener("scroll", scheduleMeasure, true);
 
@@ -913,7 +918,8 @@ export default function Home() {
       cancelled = true;
       window.clearTimeout(prepareTimer);
       window.clearTimeout(measureTimer);
-      window.cancelAnimationFrame(animationFrame);
+      window.cancelAnimationFrame(scrollAnimationFrame);
+      window.cancelAnimationFrame(measureAnimationFrame);
       window.removeEventListener("resize", scheduleMeasure);
       window.removeEventListener("scroll", scheduleMeasure, true);
     };
@@ -2050,7 +2056,7 @@ export default function Home() {
   }
 
   return (
-    <main className="hh-page student-page">
+    <main className={`hh-page student-page ${tutorialOpen && tutorialPhase !== "setup" ? "student-tour-results-active" : ""}`}>
       <div className="student-top-glow" />
 
       <div className="student-container">
@@ -5848,6 +5854,11 @@ export default function Home() {
         @keyframes studentTourCardIn { from { opacity:0; transform:translateY(10px) scale(.985); } to { opacity:1; transform:translateY(0) scale(1); } }
 
         /* v1.3.4 guided walkthrough: move to and spotlight the real interface */
+        .student-page.student-tour-results-active {
+          padding-bottom: calc(290px + env(safe-area-inset-bottom));
+          transition: padding-bottom .28s ease;
+        }
+
         .student-guided-tour-layer {
           position: fixed;
           inset: 0;
@@ -6059,7 +6070,7 @@ export default function Home() {
             bottom: max(10px, env(safe-area-inset-bottom)) !important;
             width: auto !important;
             max-width: none !important;
-            max-height: min(224px, calc(100dvh - 24px)) !important;
+            max-height: min(208px, calc(100dvh - 24px)) !important;
             border-radius: 18px !important;
             overflow: hidden !important;
           }
