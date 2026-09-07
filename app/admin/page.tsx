@@ -1618,7 +1618,7 @@ function StudentsSection(props: {
 }) {
   type Region = { id: string; name: string; active: boolean };
   type Institution = { id: string; region_id: string; name: string; active: boolean };
-  type ClassRow = { id: string; institution_id: string; name: string; active: boolean; academic_year?: number };
+  type ClassRow = { id: string; institution_id: string; name: string; active: boolean; academic_year?: number; allowed_subjects?: string[] | null };
   type AssignmentDraft = { regionId: string; institutionId: string; classId: string };
 
   const [regions, setRegions] = useState<Region[]>([]);
@@ -1637,6 +1637,19 @@ function StudentsSection(props: {
   const [promotionSourceClass, setPromotionSourceClass] = useState("");
   const [promotionTargetClass, setPromotionTargetClass] = useState("");
   const currentAcademicYear = new Date().getFullYear();
+  const classSubjectOptions = [
+    { value: "physics", label: "物理" },
+    { value: "chemistry", label: "化學" },
+    { value: "biology", label: "生物" },
+    { value: "earth", label: "地球科學" },
+  ];
+  const selectedClass = classes.find((item) => item.id === classId);
+  const [classSubjectDraft, setClassSubjectDraft] = useState<string[]>([]);
+
+  useEffect(() => {
+    const configured = selectedClass?.allowed_subjects;
+    setClassSubjectDraft(Array.isArray(configured) && configured.length ? configured : ["chemistry"]);
+  }, [selectedClass?.id, selectedClass?.allowed_subjects]);
   type BulkPreview = {
     totalRows: number;
     validCount: number;
@@ -1830,7 +1843,7 @@ function StudentsSection(props: {
     setOrgBusy(true);
     setOrgMessage("");
     try {
-      const body: Record<string, string> = { type, name: name.trim() };
+      const body: Record<string, unknown> = { type, name: name.trim() };
       if (type === "institution") body.regionId = parent || "";
       if (type === "class") {
         body.institutionId = parent || "";
@@ -1838,6 +1851,10 @@ function StudentsSection(props: {
         const year = window.prompt("這個班級屬於哪個學年度？例如 2026", suggestedYear)?.trim();
         if (!year) { setOrgBusy(false); return; }
         body.academicYear = year;
+        const subjectInput = window.prompt("這個班級要開放哪些科目？\n可輸入：物理、化學、生物、地科（用逗號分隔）", "化學") || "化學";
+        const subjectMap: Record<string, string> = { "物理": "physics", "化學": "chemistry", "生物": "biology", "地科": "earth", "地球科學": "earth" };
+        const allowedSubjects = subjectInput.split(/[、,，\s]+/).map((item) => subjectMap[item.trim()]).filter(Boolean);
+        (body as Record<string, unknown>).allowedSubjects = allowedSubjects.length ? Array.from(new Set(allowedSubjects)) : ["chemistry"];
       }
 
       const response = await fetch("/api/admin/organizations", {
@@ -1851,6 +1868,31 @@ function StudentsSection(props: {
       await loadOrg();
     } catch (error) {
       setOrgMessage(error instanceof Error ? error.message : "新增失敗。");
+    } finally {
+      setOrgBusy(false);
+    }
+  }
+
+  async function saveClassSubjects() {
+    if (!selectedClass) return;
+    if (!classSubjectDraft.length) {
+      setOrgMessage("至少要開放 1 個科目。");
+      return;
+    }
+    setOrgBusy(true);
+    setOrgMessage("正在更新班級科目…");
+    try {
+      const response = await fetch("/api/admin/organizations", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "update_class_subjects", classId: selectedClass.id, allowedSubjects: classSubjectDraft }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "更新班級科目失敗。");
+      setOrgMessage(`已更新「${selectedClass.name}」開放科目。`);
+      await loadOrg();
+    } catch (error) {
+      setOrgMessage(error instanceof Error ? error.message : "更新班級科目失敗。");
     } finally {
       setOrgBusy(false);
     }
@@ -2181,6 +2223,27 @@ function StudentsSection(props: {
             </div>
           </div>
         </div>
+        {selectedClass && (
+          <div className="class-subject-access">
+            <div>
+              <small>SUBJECT ACCESS</small>
+              <strong>「{compactClassLabel(selectedClass)}」開放科目</strong>
+              <span>每個班級可獨立設定；舊班級也能隨時調整。學生下次登入後就會看到新的科目。</span>
+            </div>
+            <div className="class-subject-options">
+              {classSubjectOptions.map((item) => {
+                const checked = classSubjectDraft.includes(item.value);
+                return (
+                  <label key={item.value} className={checked ? "active" : ""}>
+                    <input type="checkbox" checked={checked} onChange={() => setClassSubjectDraft((current) => checked ? current.filter((value) => value !== item.value) : [...current, item.value])} />
+                    <span>{item.label}</span>
+                  </label>
+                );
+              })}
+            </div>
+            <button type="button" className="hh-button-primary" disabled={orgBusy || !classSubjectDraft.length} onClick={() => void saveClassSubjects()}>儲存開放科目</button>
+          </div>
+        )}
         {orgMessage && <div className="org-message">{orgMessage}</div>}
       </section>
 
@@ -2450,6 +2513,17 @@ function StudentsSection(props: {
         .org-item.active { border-color: var(--primary); background: color-mix(in srgb, var(--primary) 7%, var(--surface)); }
         .org-item .del { text-align: center; padding: 0; color: var(--text-secondary); }
         .org-add-row, .org-filter-row { display: grid; grid-template-columns: minmax(110px, .8fr) minmax(150px, 1.2fr) minmax(110px, .8fr) minmax(150px, 1.2fr) auto; gap: 8px; align-items: center; }
+        .class-subject-access { margin-top:18px; padding:18px; border:1px solid var(--border); border-radius:22px; display:grid; grid-template-columns:minmax(0,1.5fr) minmax(240px,1fr) auto; gap:16px; align-items:center; background:var(--surface-soft); }
+        .class-subject-access > div:first-child { display:grid; gap:5px; }
+        .class-subject-access small { letter-spacing:.14em; opacity:.62; font-weight:800; }
+        .class-subject-access strong { font-size:18px; }
+        .class-subject-access span { opacity:.72; line-height:1.55; }
+        .class-subject-options { display:flex; gap:8px; flex-wrap:wrap; }
+        .class-subject-options label { cursor:pointer; }
+        .class-subject-options input { position:absolute; opacity:0; pointer-events:none; }
+        .class-subject-options label span { display:block; padding:10px 14px; border:1px solid var(--border); border-radius:999px; font-weight:800; opacity:1; }
+        .class-subject-options label.active span { background:var(--text); color:var(--surface); border-color:var(--text); }
+        @media (max-width:760px) { .class-subject-access { grid-template-columns:1fr; } .class-subject-access .hh-button-primary { width:100%; } }
         .org-message { margin-top: 10px; font-size: 13px; color: var(--primary); }
         .compact-student-list { display: grid; border-top: 1px solid var(--border); margin-top: 12px; }
         .compact-student { border-bottom: 1px solid var(--border); }

@@ -112,7 +112,7 @@ export async function POST(request: NextRequest) {
 
   const { data: classRow, error: classError } = await supabaseAdmin
     .from("classes")
-    .select("id,active")
+    .select("id,active,allowed_subjects")
     .eq("id", classId)
     .eq("active", true)
     .maybeSingle();
@@ -199,6 +199,7 @@ export async function POST(request: NextRequest) {
       campus: student.campus,
       name: student.name,
       classId: student.class_id,
+      allowedSubjects: Array.isArray(classRow.allowed_subjects) ? classRow.allowed_subjects : [],
       mustChangePin: Boolean(student.must_change_pin),
     },
   });

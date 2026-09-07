@@ -26,12 +26,15 @@ type LoginClass = {
   institution_id: string;
   name: string;
   academic_year?: number | null;
+  allowed_subjects?: string[] | null;
 };
 
 type StudentSession = {
   id: string;
   campus: Campus;
   name: string;
+  classId?: string | null;
+  allowedSubjects?: string[] | null;
   mustChangePin: boolean;
 };
 
@@ -171,6 +174,35 @@ const subjectPermissions: Record<Campus, SubjectOption[]> = {
   員林班: [{ value: "chemistry", label: "化學" }],
 };
 
+const allSubjectOptions: SubjectOption[] = [
+  { value: "physics", label: "物理" },
+  { value: "chemistry", label: "化學" },
+  { value: "biology", label: "生物" },
+  { value: "earth", label: "地球科學" },
+];
+
+function subjectsForStudent(student: StudentSession | null) {
+  if (!student) return [];
+  const configured = Array.isArray(student.allowedSubjects) ? student.allowedSubjects : [];
+  if (configured.length) {
+    const allowed = new Set(configured);
+    return allSubjectOptions.filter((item) => allowed.has(item.value));
+  }
+  return subjectPermissions[student.campus] || allSubjectOptions;
+}
+
+function normalizeScienceMarkup(text: string) {
+  return text
+    .replace(/\\n/g, "\n")
+    .replace(/\\\[/g, "$$")
+    .replace(/\\\]/g, "$$")
+    .replace(/\\\(/g, "$")
+    .replace(/\\\)/g, "$")
+    .replace(/\*\*/g, "")
+    .replace(/^---+$/gm, "")
+    .trim();
+}
+
 function displayClassName(name: string) {
   return name
     .replace(/(?:19|20)\d{2}\s*年?/gu, "")
@@ -243,11 +275,7 @@ function ScienceText({
 }) {
   if (!text) return null;
 
-  const cleaned = text
-    .replace(/\\n/g, "\n")
-    .replace(/\*\*/g, "")
-    .replace(/^---+$/gm, "")
-    .trim();
+  const cleaned = normalizeScienceMarkup(text);
 
   const annotationMap = new Map((annotations || []).map((item) => [item.id, item]));
 
@@ -322,7 +350,7 @@ function ScienceText({
 
 function ModalScienceText({ text }: { text: string }) {
   if (!text) return null;
-  const cleaned = text.replace(/\\n/g, "\n").trim();
+  const cleaned = normalizeScienceMarkup(text);
   const blocks = cleaned.split(/(\$\$[\s\S]*?\$\$)/);
 
   return (
@@ -943,7 +971,15 @@ export default function Home() {
   }, [activeView, student?.id]);
 
   function setupSubject(currentStudent: StudentSession) {
-    const allowed = subjectPermissions[currentStudent.campus];
+    const classConfigured = loginClasses.find((item) => item.id === currentStudent.classId)?.allowed_subjects;
+    const configured = Array.isArray(currentStudent.allowedSubjects) && currentStudent.allowedSubjects.length
+      ? currentStudent.allowedSubjects
+      : Array.isArray(classConfigured) && classConfigured.length
+        ? classConfigured
+        : null;
+    const allowed = configured
+      ? allSubjectOptions.filter((item) => configured.includes(item.value))
+      : subjectPermissions[currentStudent.campus] || allSubjectOptions;
     setSubject(allowed.length === 1 ? allowed[0].value : "");
   }
 
@@ -1643,7 +1679,17 @@ export default function Home() {
     }
   }
 
-  const availableSubjects = student ? subjectPermissions[student.campus] : [];
+  const availableSubjects = (() => {
+    if (!student) return [];
+    const classConfigured = loginClasses.find((item) => item.id === student.classId)?.allowed_subjects;
+    const configured = Array.isArray(student.allowedSubjects) && student.allowedSubjects.length
+      ? student.allowedSubjects
+      : Array.isArray(classConfigured) && classConfigured.length
+        ? classConfigured
+        : null;
+    if (configured) return allSubjectOptions.filter((item) => configured.includes(item.value));
+    return subjectsForStudent(student);
+  })();
 
   async function handleFollowupSubmit() {
     const question = followupQuestion.trim();

@@ -17,7 +17,7 @@ export async function GET() {
           .order("name", { ascending: true }),
         supabaseAdmin
           .from("classes")
-          .select("id,institution_id,name,active,academic_year")
+          .select("id,institution_id,name,active,academic_year,allowed_subjects")
           .eq("active", true)
           .order("academic_year", { ascending: false })
           .order("name", { ascending: true }),

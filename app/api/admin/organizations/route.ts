@@ -7,13 +7,18 @@ async function requireAdmin(request: NextRequest) {
   return token ? verifyAdminSessionToken(token) : null;
 }
 const clean = (v: unknown) => typeof v === "string" ? v.trim() : "";
+const ALL_SUBJECTS = ["physics","chemistry","biology","earth"];
+function cleanSubjects(value: unknown) {
+  if (!Array.isArray(value)) return [];
+  return [...new Set(value.map(clean).filter((item) => ALL_SUBJECTS.includes(item)))];
+}
 
 export async function GET(request: NextRequest) {
   if (!(await requireAdmin(request))) return NextResponse.json({error:"未登入管理員。"},{status:401});
   const [{data:regions,error:re},{data:institutions,error:ie},{data:classes,error:ce},{data:students,error:se}] = await Promise.all([
     supabaseAdmin.from("regions").select("id,name,active,sort_order").order("sort_order").order("name"),
     supabaseAdmin.from("institutions").select("id,region_id,name,active,sort_order").order("sort_order").order("name"),
-    supabaseAdmin.from("classes").select("id,institution_id,name,active,sort_order,academic_year").order("academic_year",{ascending:false}).order("sort_order").order("name"),
+    supabaseAdmin.from("classes").select("id,institution_id,name,active,sort_order,academic_year,allowed_subjects").order("academic_year",{ascending:false}).order("sort_order").order("name"),
     supabaseAdmin.from("students").select("id,region_id,institution_id,class_id"),
   ]);
   const error=re||ie||ce||se; if(error) return NextResponse.json({error:`讀取組織資料失敗：${error.message}`},{status:500});
@@ -37,7 +42,8 @@ export async function POST(request: NextRequest) {
     const institutionId=clean(body.institutionId); if(!institutionId) return NextResponse.json({error:"缺少合作單位。"},{status:400});
     const academicYearRaw=Number(body.academicYear);
     const academicYear=Number.isInteger(academicYearRaw)&&academicYearRaw>=2020&&academicYearRaw<=2100?academicYearRaw:new Date().getFullYear();
-    const {data,error}=await supabaseAdmin.from("classes").insert({institution_id:institutionId,name,academic_year:academicYear}).select().single();
+    const allowedSubjects=cleanSubjects(body.allowedSubjects);
+    const {data,error}=await supabaseAdmin.from("classes").insert({institution_id:institutionId,name,academic_year:academicYear,allowed_subjects:allowedSubjects.length?allowedSubjects:["chemistry"]}).select().single();
     return error?NextResponse.json({error:error.code==="23505"?"此合作單位已有同名班級。":error.message},{status:error.code==="23505"?409:500}):NextResponse.json({item:data});
   }
   return NextResponse.json({error:"未知的新增類型。"},{status:400});
@@ -47,6 +53,14 @@ export async function PATCH(request: NextRequest) {
   if (!(await requireAdmin(request))) return NextResponse.json({error:"未登入管理員。"},{status:401});
   const body=await request.json().catch(()=>null); if(!body) return NextResponse.json({error:"資料格式錯誤。"},{status:400});
   const action=clean(body.action);
+  if(action==="update_class_subjects") {
+    const classId=clean(body.classId);
+    const allowedSubjects=cleanSubjects(body.allowedSubjects);
+    if(!classId) return NextResponse.json({error:"缺少班級。"},{status:400});
+    if(!allowedSubjects.length) return NextResponse.json({error:"至少要開放 1 個科目。"},{status:400});
+    const {data,error}=await supabaseAdmin.from("classes").update({allowed_subjects:allowedSubjects}).eq("id",classId).select("id,name,allowed_subjects").single();
+    return error?NextResponse.json({error:error.message},{status:500}):NextResponse.json({success:true,item:data});
+  }
   if(action!=="promote_class") return NextResponse.json({error:"未知操作。"},{status:400});
   const sourceClassId=clean(body.sourceClassId), targetClassId=clean(body.targetClassId);
   if(!sourceClassId||!targetClassId||sourceClassId===targetClassId) return NextResponse.json({error:"請選擇不同的來源班級與目標班級。"},{status:400});
