@@ -408,9 +408,10 @@ type TutorialTargetRect = {
   viewportHeight: number;
 };
 
-const FIRST_USE_TOUR_KEY_PREFIX = "hh-science:first-use-tour:";
-const FIRST_USE_SETUP_KEY_PREFIX = "hh-science:first-use-setup:";
-const FIRST_USE_RESULT_PENDING_KEY_PREFIX = "hh-science:first-use-result-pending:";
+const ONBOARDING_VERSION = "v2.1";
+const FIRST_USE_TOUR_KEY_PREFIX = `hh-science:first-use-tour:${ONBOARDING_VERSION}:`;
+const FIRST_USE_SETUP_KEY_PREFIX = `hh-science:first-use-setup:${ONBOARDING_VERSION}:`;
+const FIRST_USE_RESULT_PENDING_KEY_PREFIX = `hh-science:first-use-result-pending:${ONBOARDING_VERSION}:`;
 const ADD_HOME_GUIDE_KEY = "hh-science:add-home-guide-seen";
 
 const SETUP_TUTORIAL_SEQUENCE = [0, 1, 2, 3, 4, 5, 6];
@@ -1150,6 +1151,12 @@ export default function Home() {
       setConfirmPin("");
       setPinChangeError("");
       await loadUsage();
+
+      // 初次密碼設定完成後直接啟動 V2.1 導覽。
+      // 使用新的版本化 localStorage key，避免舊版導覽紀錄讓新版完全不出現。
+      window.setTimeout(() => {
+        startTutorial("setup", true);
+      }, 260);
     } catch (error) {
       setPinChangeError(
         error instanceof Error
@@ -3182,8 +3189,8 @@ export default function Home() {
                   {tutorialPhase === "setup"
                     ? "QUICK START · BASIC"
                     : tutorialPhase === "results"
-                      ? "QUICK START · RESULTS"
-                      : "QUICK START"}
+                      ? `QUICK START · RESULTS · ${ONBOARDING_VERSION.toUpperCase()}`
+                      : `QUICK START · ${ONBOARDING_VERSION.toUpperCase()}`}
                 </div>
                 <strong>跟著畫面完成導覽</strong>
               </div>
@@ -3230,6 +3237,10 @@ export default function Home() {
                 <span>正在指向</span>
                 <strong>{activeTutorialStep.previewValue}</strong>
               </div>
+
+              {tutorialPhase === "setup" && tutorialStep === 0 && (
+                <div className="student-guided-tour-version-note">新版互動導覽 {ONBOARDING_VERSION.toUpperCase()}：會跟著實際畫面移動</div>
+              )}
 
               <div className="student-firstuse-tips">
                 {activeTutorialStep.tips.map((tip) => (
@@ -5881,11 +5892,13 @@ export default function Home() {
             0 0 0 9999px rgba(7, 11, 9, .62),
             0 14px 42px rgba(0, 0, 0, .2);
           pointer-events: none;
-          transition: top .38s cubic-bezier(.2,.8,.2,1), left .38s cubic-bezier(.2,.8,.2,1), width .38s cubic-bezier(.2,.8,.2,1), height .38s cubic-bezier(.2,.8,.2,1), opacity .2s ease;
+          will-change: top, left, width, height, opacity;
+          transition: top .48s cubic-bezier(.16,1,.3,1), left .48s cubic-bezier(.16,1,.3,1), width .48s cubic-bezier(.16,1,.3,1), height .48s cubic-bezier(.16,1,.3,1), opacity .22s ease;
         }
 
         .student-guided-tour-card {
           position: fixed;
+          pointer-events: auto;
           z-index: 342;
           max-width: calc(100vw - 24px);
           overflow: auto;
@@ -6024,6 +6037,18 @@ export default function Home() {
         .student-guided-tour-card .student-firstuse-actions > button {
           min-height: 40px;
           font-size: 12px;
+        }
+
+
+        .student-guided-tour-version-note {
+          margin: 8px 0 9px; padding: 7px 9px; border-radius: 10px;
+          background: color-mix(in srgb, var(--action) 10%, var(--surface-soft));
+          color: var(--action); font-size: 10px; font-weight: 900; line-height: 1.4;
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .student-guided-tour-spotlight, .student-guided-tour-card, .student-first-action-nudge {
+            transition-duration: .01ms !important; animation-duration: .01ms !important;
+          }
         }
 
         @media (max-width: 760px) {

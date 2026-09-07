@@ -3695,7 +3695,7 @@ function TeachingQuestionsSection() {
           <button
             key={item.id}
             type="button"
-            className="hh-card teaching-question-row teaching-question-row-v131 teaching-question-row-readable"
+            className="hh-card teaching-question-row-readable"
             onClick={() => open(item)}
           >
             <span className="teaching-question-media">
@@ -10264,6 +10264,59 @@ const adminStyles = `
     .teaching-row-open b {
       font-size: 12px !important;
     }
+  }
+
+  /* v1.3.4 V2.1: final override — remove legacy row typography and make mobile cards scan-first */
+  .teaching-question-row-readable {
+    width:100%; border:1px solid var(--border); background:var(--surface); color:var(--text); text-align:left; cursor:pointer;
+  }
+  @media(max-width:760px){
+    .teaching-question-row-readable {
+      display:grid !important; grid-template-columns:76px minmax(0,1fr) !important; gap:10px !important;
+      padding:10px !important; min-height:0 !important; border-radius:15px !important;
+    }
+    .teaching-question-media { width:76px !important; align-self:start !important; }
+    .teaching-question-media > img, .teaching-question-media > .teaching-thumb-empty {
+      width:76px !important; height:68px !important; border-radius:11px !important;
+    }
+    .teaching-question-row-readable .teaching-question-main { min-width:0; display:grid; gap:4px !important; align-content:start; }
+    .teaching-question-row-readable .teaching-row-topline { display:flex; flex-wrap:wrap; align-items:center; gap:4px 6px !important; font-size:8.5px !important; }
+    .teaching-question-student-line { display:flex !important; align-items:baseline; gap:5px 7px !important; min-width:0; }
+    .teaching-question-student-line > strong { font-size:12px !important; line-height:1.2 !important; font-weight:900 !important; }
+    .teaching-question-student-line > small { font-size:8.5px !important; line-height:1.25 !important; }
+    .teaching-question-row-readable .teaching-question-preview {
+      margin:0 !important; color:var(--text-secondary) !important; font-size:9.5px !important; line-height:1.45 !important;
+      -webkit-line-clamp:3 !important;
+    }
+    .teaching-row-summary {
+      grid-column:1 / -1 !important; display:grid !important; grid-template-columns:minmax(0,1fr) auto auto !important;
+      align-items:center !important; gap:8px !important; margin-top:1px; padding:8px 2px 0 !important;
+      border-top:1px solid var(--border) !important; border-left:0 !important;
+    }
+    .teaching-row-metric {
+      min-height:0 !important; padding:0 !important; border:0 !important; border-radius:0 !important; background:transparent !important; gap:2px !important;
+    }
+    .teaching-row-metric small { font-size:7.5px !important; line-height:1.1 !important; letter-spacing:.02em !important; }
+    .teaching-row-metric-answer { min-width:0; }
+    .teaching-row-metric-answer b {
+      display:-webkit-box !important; overflow:hidden !important; margin:0 !important; color:var(--text) !important;
+      font-size:10.5px !important; line-height:1.25 !important; font-weight:850 !important;
+      -webkit-box-orient:vertical; -webkit-line-clamp:2 !important; word-break:break-word;
+    }
+    .teaching-row-metric-cost { padding-left:8px !important; border-left:1px solid var(--border) !important; white-space:nowrap; }
+    .teaching-row-metric-cost .teaching-row-cost { font-size:10px !important; line-height:1.15 !important; font-weight:900 !important; }
+    .teaching-row-open {
+      display:flex !important; align-items:center !important; justify-content:flex-end !important; gap:3px !important;
+      margin:0 !important; padding-left:8px !important; border-left:1px solid var(--border); font-size:8.5px !important; white-space:nowrap;
+    }
+    .teaching-row-open b { font-size:11px !important; }
+  }
+  @media(max-width:390px){
+    .teaching-question-row-readable { grid-template-columns:68px minmax(0,1fr) !important; gap:8px !important; padding:9px !important; }
+    .teaching-question-media { width:68px !important; }
+    .teaching-question-media > img, .teaching-question-media > .teaching-thumb-empty { width:68px !important; height:62px !important; }
+    .teaching-row-summary { grid-template-columns:minmax(0,1fr) auto !important; }
+    .teaching-row-open { grid-column:1 / -1; justify-content:flex-end !important; padding:5px 0 0 !important; border-left:0 !important; border-top:1px dashed var(--border); }
   }
 
 `;
