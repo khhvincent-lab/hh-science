@@ -292,6 +292,31 @@ function stripExportAnnotationCommands(formula: string) {
   return result;
 }
 
+function stripBareAnnotationCommands(text: string) {
+  if (!text) return "";
+  // 保留公式區塊內的 annotation，讓互動點仍可點擊；
+  // 只清掉 AI 誤放在一般文字中的 \htmlData{annotation=...}{...} 外殼。
+  const parts = text.split(/(\$\$[\s\S]*?\$\$|\$[^$\n]+\$)/g);
+  return parts
+    .map((part) => {
+      const isMath =
+        (part.startsWith("$$") && part.endsWith("$$")) ||
+        (part.startsWith("$") && part.endsWith("$"));
+      return isMath ? part : stripExportAnnotationCommands(part);
+    })
+    .join("");
+}
+
+function historyPlainPreview(text: string) {
+  return stripExportAnnotationCommands(normalizeScienceMarkup(text || ""))
+    .replace(/\$+/g, "")
+    .replace(/\\(?:mathrm|text|mathbf|operatorname)\{([^{}]*)\}/g, "$1")
+    .replace(/[{}]/g, "")
+    .replace(/\\[A-Za-z]+/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function formatOptionAnalysis(text: string) {
   if (!text) return "";
 
@@ -315,7 +340,7 @@ function ScienceText({
 }) {
   if (!text) return null;
 
-  const cleaned = normalizeScienceMarkup(text);
+  const cleaned = stripBareAnnotationCommands(normalizeScienceMarkup(text));
 
   const annotationMap = new Map((annotations || []).map((item) => [item.id, item]));
 
@@ -417,7 +442,7 @@ function renderAnnotationDisplay(display: string) {
 
 function ModalScienceText({ text }: { text: string }) {
   if (!text) return null;
-  const cleaned = normalizeScienceMarkup(text);
+  const cleaned = stripBareAnnotationCommands(normalizeScienceMarkup(text));
   const blocks = cleaned.split(/(\$\$[\s\S]*?\$\$)/);
 
   return (
@@ -3130,7 +3155,9 @@ export default function Home() {
                   <section className="student-history-answer">
                     <div className="hh-eyebrow">FINAL ANSWER</div>
                     <span>AI 最終答案</span>
-                    <strong>{selectedHistory.answer || "—"}</strong>
+                    <div className="student-history-answer-rendered">
+                      <ScienceText text={selectedHistory.answer || "—"} />
+                    </div>
                   </section>
 
                   <section className="student-history-analysis-block">
@@ -3213,16 +3240,13 @@ export default function Home() {
                               <span>{formatHistoryDate(item.createdAt)}</span>
                             </div>
 
-                            <strong className="student-history-item-answer">
-                              {item.answer || "查看完整解析"}
-                            </strong>
+                            <div className="student-history-item-answer student-history-item-answer-rendered">
+                              <ScienceText text={item.answer || "查看完整解析"} />
+                            </div>
 
                             <p>
                               {item.questionNote ||
-                                item.explanation
-                                  .replace(/\$+/g, "")
-                                  .replace(/\\htmlData\{[^}]+\}\{([^}]+)\}/g, "$1")
-                                  .slice(0, 90) ||
+                                historyPlainPreview(item.explanation).slice(0, 90) ||
                                 "點擊查看完整解題紀錄"}
                             </p>
 
