@@ -309,10 +309,10 @@ export async function buildTeachingContext(subject: string, input: TeachingRetri
   ].filter(Boolean);
 
   const densityText = settings.general.annotationDensity === "rich"
-    ? "互動數字偏豐富：若題目有足夠數值，優先標出 3～6 個真正有學習價值的常數、關鍵中間值、換算因子或臨界值。"
+    ? "互動式詳解偏豐富：若內容足夠，優先標出 6～10 個真正有學習價值的數值、變數、單位、公式片段、化學式或關鍵常數。"
     : settings.general.annotationDensity === "light"
-      ? "互動數字精簡：只標 1～2 個最關鍵的數值。"
-      : "互動數字標準：通常標 2～4 個最有學習價值的數值。";
+      ? "互動式詳解精簡：只標 2～4 個最關鍵的數值、變數或公式片段。"
+      : "互動式詳解標準：通常標 4～6 個最有學習價值的數值、變數、單位或公式片段。";
 
   const subjectRule = settings.subjects[subject as keyof typeof settings.subjects] || "";
   const rulesText = rules.length
@@ -322,7 +322,7 @@ export async function buildTeachingContext(subject: string, input: TeachingRetri
   const examplesText = examples.length
     ? examples.map((item, index) => {
         const exact = (item.similarity || 0) >= 0.95;
-        return `案例 ${index + 1}${exact ? "（高度相似／可能同題，核心解法優先遵循）" : "（相似題，只學習策略與表達）"}\n主題：${item.topic || "未標記"}\n教師答案：${item.teacherAnswer || "未指定"}\n教師解題策略：${item.teacherStrategy || "未填"}\n教師詳解：${item.teacherExplanation || "未填"}\n教師備註：${item.teacherNote || "無"}\n互動數字範例：${item.annotations?.length ? JSON.stringify(item.annotations) : "無"}`;
+        return `案例 ${index + 1}${exact ? "（高度相似／可能同題，核心解法優先遵循）" : "（相似題，只學習策略與表達）"}\n主題：${item.topic || "未標記"}\n教師答案：${item.teacherAnswer || "未指定"}\n教師解題策略：${item.teacherStrategy || "未填"}\n教師詳解：${item.teacherExplanation || "未填"}\n教師備註：${item.teacherNote || "無"}\n互動重點範例：${item.annotations?.length ? JSON.stringify(item.annotations) : "無"}`;
       }).join("\n\n")
     : legacy.length
       ? legacy.map((item, index) => `舊案例 ${index + 1}\n老師認定答案：${item.correctedAnswer || "未指定"}\n老師解法：${item.correctedExplanation}\n老師備註：${item.teacherNote || "無"}`).join("\n\n")

@@ -8,6 +8,34 @@ import "katex/dist/katex.min.css";
 
 const USD_TO_TWD_RATE = 32.5;
 
+
+async function adminTeachingFilesToDataUrls(files: FileList | null) {
+  if (!files?.length) return [] as string[];
+  const picked = Array.from(files).slice(0, 4);
+  return Promise.all(picked.map((file) => new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("讀取詳解圖片失敗。"));
+    reader.onload = () => {
+      const source = String(reader.result || "");
+      const image = new Image();
+      image.onerror = () => resolve(source);
+      image.onload = () => {
+        const maxSide = 1800;
+        const scale = Math.min(1, maxSide / Math.max(image.width, image.height));
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.max(1, Math.round(image.width * scale));
+        canvas.height = Math.max(1, Math.round(image.height * scale));
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return resolve(source);
+        ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL("image/jpeg", 0.88));
+      };
+      image.src = source;
+    };
+    reader.readAsDataURL(file);
+  })));
+}
+
 type AdminSection = "dashboard" | "siteQuestions" | "usage" | "classes" | "students" | "ai" | "pin" | "analytics" | "cost" | "teachingOverview" | "teachingQuestions" | "teachingExamples" | "teachingRuleLibrary" | "teachingCoach" | "teachingTraining" | "teachingSettings" | "teachingQueue" | "teachingRules";
 
 type DashboardData = {
@@ -3720,6 +3748,7 @@ function SiteQuestionsSection({onCalibrate}:{onCalibrate:(historyId:string)=>voi
   const [subject,setSubject]=useState("");
   const [range,setRange]=useState<"today"|"all">("today");
   const [filtersOpen,setFiltersOpen]=useState(false);
+  const [focus,setFocus]=useState<"all"|"followup"|"issue"|"verifier"|"arbiter"|"highCost">("all");
 
   const load=useCallback(async()=>{
     setLoading(true); setMessage("");
@@ -3735,6 +3764,7 @@ function SiteQuestionsSection({onCalibrate}:{onCalibrate:(historyId:string)=>voi
     finally{setLoading(false);}
   },[q,subject,range]);
   useEffect(()=>{void load();},[load]);
+  const visibleItems=items.filter(item=>{if(focus==="followup")return (item.followups?.length||0)>0;if(focus==="issue")return item.issue;if(focus==="verifier")return Boolean(item.verifierModel);if(focus==="arbiter")return Boolean(item.arbiterModel);if(focus==="highCost")return Boolean(item.cost?.hasCostRecord&&Number(item.cost.totalCostUsd||0)>=0.006);return true;});
 
   if(selected){
     return <div className="admin-stack site-question-detail-v21">
@@ -3760,9 +3790,9 @@ function SiteQuestionsSection({onCalibrate}:{onCalibrate:(historyId:string)=>voi
   }
 
   return <div className="admin-stack site-questions-v21">
-    <section className="hh-card admin-panel teaching-toolbar site-question-toolbar"><div className="teaching-toolbar-head"><div><div className="hh-eyebrow">ALL QUESTIONS</div><h2 className="hh-display">全站題目</h2><p>只用來巡覽學生實際問過的題目。看答案、詳解、追問與每題成本；需要修改時再快速前往「教師校正」。</p></div><button type="button" className="hh-button-secondary teaching-filter-toggle" onClick={()=>setFiltersOpen(v=>!v)}>{filtersOpen?"收合搜尋":"搜尋與篩選"}</button></div>{filtersOpen&&<div className="teaching-filter-row"><div className="teaching-range-switch"><button type="button" className={range==="today"?"active":""} onClick={()=>setRange("today")}>今天</button><button type="button" className={range==="all"?"active":""} onClick={()=>setRange("all")}>全部</button></div><input className="hh-input" placeholder="搜尋學生、題目或答案…" value={q} onChange={e=>setQ(e.target.value)}/><select className="hh-select" value={subject} onChange={e=>setSubject(e.target.value)}><option value="">全部科目</option><option value="physics">物理</option><option value="chemistry">化學</option><option value="biology">生物</option><option value="earth">地球科學</option></select></div>}</section>
+    <section className="hh-card admin-panel teaching-toolbar site-question-toolbar"><div className="teaching-toolbar-head"><div><div className="hh-eyebrow">AI MONITOR</div><h2 className="hh-display">全站題目工作台</h2><p>每天先看需要老師注意的題：學生有追問、模型衝突、Verifier／Arbiter 出場或成本偏高，再決定是否進教師校正。</p></div><button type="button" className="hh-button-secondary teaching-filter-toggle" onClick={()=>setFiltersOpen(v=>!v)}>{filtersOpen?"收合搜尋":"搜尋與篩選"}</button></div><div className="site-focus-filters">{([["all","全部"],["followup","有追問"],["issue","需注意"],["verifier","Verifier"],["arbiter","Arbiter"],["highCost","高成本"]] as const).map(([key,label])=><button key={key} type="button" className={focus===key?"active":""} onClick={()=>setFocus(key)}>{label}</button>)}</div>{filtersOpen&&<div className="teaching-filter-row"><div className="teaching-range-switch"><button type="button" className={range==="today"?"active":""} onClick={()=>setRange("today")}>今天</button><button type="button" className={range==="all"?"active":""} onClick={()=>setRange("all")}>全部</button></div><input className="hh-input" placeholder="搜尋學生、題目或答案…" value={q} onChange={e=>setQ(e.target.value)}/><select className="hh-select" value={subject} onChange={e=>setSubject(e.target.value)}><option value="">全部科目</option><option value="physics">物理</option><option value="chemistry">化學</option><option value="biology">生物</option><option value="earth">地球科學</option></select></div>}</section>
     {message&&<div className="admin-notice danger">{message}</div>}
-    <section className="site-question-list">{loading?<div className="hh-card admin-panel admin-empty">正在讀取全站題目…</div>:items.length===0?<div className="hh-card admin-panel admin-empty">目前沒有符合條件的題目。</div>:items.map(item=><button type="button" className="hh-card site-question-row" key={item.id} onClick={()=>setSelected(item)}><span className="site-question-thumb">{item.imageUrls?.[0]?<img src={item.imageUrls[0]} alt="題目縮圖"/>:<span>SCI</span>}</span><span className="site-question-copy"><span className="site-question-topline"><b>{new Date(item.createdAt).toLocaleString("zh-TW",{month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"})}</b><em className={`teaching-subject-chip teaching-subject-${item.subject}`}>{adminSubjectLabel(item.subject)}</em>{item.issue&&<i>異常</i>}</span><strong>{item.studentName}</strong><small>{[item.regionName,item.institutionName,item.className].filter(Boolean).join(" · ")||item.campus}</small><p>{item.questionNote||item.explanation||"尚無題目摘要"}</p></span><span className="site-question-status"><span><small>AI 答案</small><b>{item.answer||"—"}</b></span><span><small>本題成本</small><b>{item.cost?.hasCostRecord?formatQuestionCostTwd(item.cost.totalCostUsd):"—"}</b></span><span><small>追問</small><b>{item.followups?.length||0}</b></span><strong className="site-question-open">查看 →</strong></span></button>)}</section>
+    <section className="site-question-list">{loading?<div className="hh-card admin-panel admin-empty">正在讀取全站題目…</div>:visibleItems.length===0?<div className="hh-card admin-panel admin-empty">目前沒有符合條件的題目。</div>:visibleItems.map(item=><button type="button" className="hh-card site-question-row" key={item.id} onClick={()=>setSelected(item)}><span className="site-question-thumb">{item.imageUrls?.[0]?<img src={item.imageUrls[0]} alt="題目縮圖"/>:<span>SCI</span>}</span><span className="site-question-copy"><span className="site-question-topline"><b>{new Date(item.createdAt).toLocaleString("zh-TW",{month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"})}</b><em className={`teaching-subject-chip teaching-subject-${item.subject}`}>{adminSubjectLabel(item.subject)}</em>{item.issue&&<i>需注意</i>}{item.verifierModel&&<i className="neutral">Verifier</i>}{item.arbiterModel&&<i className="warning">Arbiter</i>}{(item.followups?.length||0)>0&&<i className="info">追問 {item.followups.length}</i>}</span><strong>{item.studentName}</strong><small>{[item.regionName,item.institutionName,item.className].filter(Boolean).join(" · ")||item.campus}</small><p>{item.questionNote||item.explanation||"尚無題目摘要"}</p></span><span className="site-question-status"><span><small>AI 答案</small><b>{item.answer||"—"}</b></span><span><small>本題成本</small><b>{item.cost?.hasCostRecord?formatQuestionCostTwd(item.cost.totalCostUsd):"—"}</b></span><span><small>追問</small><b>{item.followups?.length||0}</b></span><strong className="site-question-open">查看 →</strong></span></button>)}</section>
   </div>
 }
 
@@ -3800,6 +3830,8 @@ function TeachingQuestionsSection({initialHistoryId,onInitialHistoryHandled}:{in
   const [coachBusy,setCoachBusy]=useState(false);
   const [coachMessages,setCoachMessages]=useState<CoachMessage[]>([]);
   const [aiReviseNote,setAiReviseNote]=useState("");
+  const [teacherReferenceImages,setTeacherReferenceImages]=useState<string[]>([]);
+  const [coachReferenceImages,setCoachReferenceImages]=useState<string[]>([]);
 
   const load=useCallback(async()=>{
     setLoading(true); setMessage("");
@@ -3843,6 +3875,8 @@ function TeachingQuestionsSection({initialHistoryId,onInitialHistoryHandled}:{in
     setCoachOpen(false);
     setCoachInput("");
     setCoachMessages([]);
+    setTeacherReferenceImages([]);
+    setCoachReferenceImages([]);
     try{
       const response=await fetch(`/api/admin/teaching-knowledge?view=example&historyId=${encodeURIComponent(item.id)}`,{cache:"no-store"});
       const data=await response.json();
@@ -3868,7 +3902,7 @@ function TeachingQuestionsSection({initialHistoryId,onInitialHistoryHandled}:{in
     if(!selected)return;
     setAiRevising(true); setAiReviseNote(""); setMessage("");
     try{
-      const response=await fetch("/api/admin/teaching-coach",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({task:"revise",subject:selected.subject,questionNote:selected.questionNote,referenceAnswer:selected.referenceAnswer,aiAnswer:selected.answer,aiExplanation:selected.explanation,aiOptions:selected.options,teacherAnswer,teacherExplanation,teacherOptions,teacherStrategy,teacherNote,topic,keywords,questionSignature})});
+      const response=await fetch("/api/admin/teaching-coach",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({task:"revise",subject:selected.subject,questionNote:selected.questionNote,referenceAnswer:selected.referenceAnswer,aiAnswer:selected.answer,aiExplanation:selected.explanation,aiOptions:selected.options,teacherAnswer,teacherExplanation,teacherOptions,teacherStrategy,teacherNote,topic,keywords,questionSignature,images:teacherReferenceImages})});
       const data=await response.json();
       if(!response.ok) throw new Error(data.error||"AI 協助校正失敗。");
       if(data.answer)setTeacherAnswer(data.answer);
@@ -3891,20 +3925,21 @@ function TeachingQuestionsSection({initialHistoryId,onInitialHistoryHandled}:{in
     try{
       const response=await fetch("/api/admin/teaching-coach",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({task:"annotations",subject:selected.subject,teacherExplanation,aiExplanation:selected.explanation,topic,keywords,questionSignature})});
       const data=await response.json();
-      if(!response.ok)throw new Error(data.error||"互動數字整理失敗。");
+      if(!response.ok)throw new Error(data.error||"互動重點整理失敗。");
       if(data.explanation)setTeacherExplanation(data.explanation);
       if(Array.isArray(data.annotations))setTeacherAnnotations(data.annotations);
-      setMessage(`已重新整理互動數字，目前 ${Array.isArray(data.annotations)?data.annotations.length:0} 個。請確認後再儲存。`);
-    }catch(e){setMessage(e instanceof Error?e.message:"互動數字整理失敗。");}
+      setMessage(`已重新整理互動重點，目前 ${Array.isArray(data.annotations)?data.annotations.length:0} 個。請確認後再儲存。`);
+    }catch(e){setMessage(e instanceof Error?e.message:"互動重點整理失敗。");}
     finally{setAnnotationBusy(false);}
   }
 
   async function sendCoach(){
-    if(!selected||!coachInput.trim()||coachBusy)return;
-    const next=[...coachMessages,{role:"user" as const,content:coachInput.trim()}];
+    if(!selected||coachBusy||(!coachInput.trim()&&!coachReferenceImages.length))return;
+    const coachText=coachInput.trim()||(coachReferenceImages.length?"請直接讀取我附上的詳解圖片，整理我的解題順序與教學偏好。":"");
+    const next=[...coachMessages,{role:"user" as const,content:coachText}];
     setCoachMessages(next);setCoachInput("");setCoachBusy(true);setMessage("");
     try{
-      const response=await fetch("/api/admin/teaching-coach",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({task:"chat",subject:selected.subject,questionNote:selected.questionNote,referenceAnswer:selected.referenceAnswer,aiAnswer:selected.answer,aiExplanation:selected.explanation,teacherAnswer,teacherExplanation,teacherOptions,teacherStrategy,teacherNote,topic,keywords,questionSignature,messages:next})});
+      const response=await fetch("/api/admin/teaching-coach",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({task:"chat",subject:selected.subject,questionNote:selected.questionNote,referenceAnswer:selected.referenceAnswer,aiAnswer:selected.answer,aiExplanation:selected.explanation,teacherAnswer,teacherExplanation,teacherOptions,teacherStrategy,teacherNote,topic,keywords,questionSignature,messages:next,images:coachReferenceImages})});
       const data=await response.json(); if(!response.ok)throw new Error(data.error||"AI 教練回應失敗。");
       setCoachMessages(v=>[...v,{role:"assistant",content:data.reply||"我已理解你的調整方向。"}]);
       if(data.strategy)setTeacherStrategy(data.strategy);
@@ -3947,7 +3982,7 @@ function TeachingQuestionsSection({initialHistoryId,onInitialHistoryHandled}:{in
     </section>
 
     <section className="hh-card admin-panel teacher-solution-panel"><div className="teacher-calibration-head"><div><div className="hh-eyebrow">TEACHER VERSION</div><h2 className="hh-display">教師核准版本</h2><p>可直接修改，也可先讓 AI 依你的備註整理；儲存後會同步更新本題並建立可檢索的教師範例。</p></div><button type="button" className="hh-button-secondary" onClick={()=>void reviseWithAI()} disabled={aiRevising}>{aiRevising?"AI 整理中…":"AI 協助整理教師版本"}</button></div>
-      <div className="teacher-solution-grid"><label><span>問題類型</span><select className="hh-select" value={issueType} onChange={e=>setIssueType(e.target.value)}><option value="wrong_answer">答案錯誤</option><option value="better_method">解法可更好</option><option value="unclear">說明不清楚</option><option value="format">格式問題</option><option value="invalid_input">應阻擋輸入</option><option value="other">其他</option></select></label><label><span>老師認定答案</span><input className="hh-input" value={teacherAnswer} onChange={e=>setTeacherAnswer(e.target.value)} placeholder="例如 B、2.5 mol"/></label></div>
+      <div className="teacher-reference-upload"><div><strong>上傳你的詳解圖片</strong><span>可放手寫解法、講義批註或你習慣的板書。AI 只在你按「AI 協助整理教師版本」時讀取，最多 4 張。</span></div><label className="hh-button-secondary teacher-image-upload-button">＋ 選擇圖片<input type="file" accept="image/*" multiple onChange={async e=>{try{setTeacherReferenceImages(await adminTeachingFilesToDataUrls(e.target.files));setMessage("");}catch(err){setMessage(err instanceof Error?err.message:"讀取圖片失敗。");}e.currentTarget.value="";}}/></label></div>{teacherReferenceImages.length>0&&<div className="teacher-reference-thumbs">{teacherReferenceImages.map((src,index)=><div key={index}><img src={src} alt={`教師詳解 ${index+1}`}/><button type="button" onClick={()=>setTeacherReferenceImages(v=>v.filter((_,i)=>i!==index))}>×</button></div>)}</div>}<div className="teacher-solution-grid"><label><span>問題類型</span><select className="hh-select" value={issueType} onChange={e=>setIssueType(e.target.value)}><option value="wrong_answer">答案錯誤</option><option value="better_method">解法可更好</option><option value="unclear">說明不清楚</option><option value="format">格式問題</option><option value="invalid_input">應阻擋輸入</option><option value="other">其他</option></select></label><label><span>老師認定答案</span><input className="hh-input" value={teacherAnswer} onChange={e=>setTeacherAnswer(e.target.value)} placeholder="例如 B、2.5 mol"/></label></div>
       <label className="teacher-solution-field"><span>老師解題策略</span><textarea className="hh-input" value={teacherStrategy} onChange={e=>setTeacherStrategy(e.target.value)} placeholder="例如：先由反應式係數比較可生成產物的莫耳數，再判斷限制試劑；避免一開始設太多未知數。"/></label>
       <label className="teacher-solution-field"><span>老師版詳解</span><textarea className="hh-input teacher-method-textarea teacher-method-large" value={teacherExplanation} onChange={e=>setTeacherExplanation(e.target.value)} placeholder="寫下你真正會給學生看的解法。"/></label>
       <label className="teacher-solution-field"><span>老師版選項分析</span><textarea className="hh-input" value={teacherOptions} onChange={e=>setTeacherOptions(e.target.value)} placeholder="(A) 對／錯：…"/></label>
@@ -3955,10 +3990,10 @@ function TeachingQuestionsSection({initialHistoryId,onInitialHistoryHandled}:{in
       {aiReviseNote&&<div className="teaching-ai-revise-note">{aiReviseNote}</div>}
     </section>
 
-    <section className="hh-card admin-panel teacher-annotation-panel"><div className="teacher-calibration-head"><div><div className="hh-eyebrow">INTERACTIVE NUMBERS</div><h2 className="hh-display">可點擊數字管理</h2><p>不再只靠模型偶爾標幾個。你可以讓 AI 重新挑 3～6 個，或手動新增／修改每個數字的意義、來源與用途。</p></div><button type="button" className="hh-button-secondary" onClick={()=>void generateAnnotations()} disabled={annotationBusy||!teacherExplanation.trim()}>{annotationBusy?"整理中…":"AI 建議互動數字"}</button></div>
-      <div className="teacher-annotation-summary"><strong>{teacherAnnotations.length}</strong><span>個互動數字</span><small>儲存後會同步到學生這題的詳解；相似題也會把這種標註密度當成教師範例。</small></div>
-      <div className="teacher-annotation-list">{teacherAnnotations.map((a,index)=><article key={`${a.id}-${index}`}><div className="teacher-annotation-head"><input className="hh-input" value={a.display} onChange={e=>updateAnnotation(index,{display:e.target.value})} placeholder="顯示數字"/><input className="hh-input" value={a.label} onChange={e=>updateAnnotation(index,{label:e.target.value})} placeholder="名稱，例如：莫耳質量"/><button type="button" onClick={()=>setTeacherAnnotations(v=>v.filter((_,i)=>i!==index))}>刪除</button></div><textarea className="hh-input" value={a.meaning} onChange={e=>updateAnnotation(index,{meaning:e.target.value})} placeholder="這個數字代表什麼"/><div className="teacher-annotation-two"><input className="hh-input" value={a.source} onChange={e=>updateAnnotation(index,{source:e.target.value})} placeholder="如何得到／從哪裡來"/><input className="hh-input" value={a.usage} onChange={e=>updateAnnotation(index,{usage:e.target.value})} placeholder="這一步為什麼用它"/></div></article>)}{teacherAnnotations.length===0&&<div className="admin-empty">目前沒有互動數字。按「AI 建議互動數字」會依老師版詳解重新整理。</div>}</div>
-      <button type="button" className="hh-button-secondary teacher-add-annotation" onClick={()=>setTeacherAnnotations(v=>[...v,{id:`t${v.length+1}`,display:"",label:"",meaning:"",source:"",usage:""}])}>＋ 手動新增互動數字</button>
+    <section className="hh-card admin-panel teacher-annotation-panel"><div className="teacher-calibration-head"><div><div className="hh-eyebrow">INTERACTIVE NUMBERS</div><h2 className="hh-display">互動式詳解管理</h2><p>不再只靠模型偶爾標幾個。你可以讓 AI 重新挑 4～8 個，或手動新增／修改每個數值、變數、單位或公式片段的意義、來源與用途。</p></div><button type="button" className="hh-button-secondary" onClick={()=>void generateAnnotations()} disabled={annotationBusy||!teacherExplanation.trim()}>{annotationBusy?"整理中…":"AI 建議互動重點"}</button></div>
+      <div className="teacher-annotation-summary"><strong>{teacherAnnotations.length}</strong><span>個互動重點</span><small>儲存後會同步到學生這題的詳解；相似題也會把這種標註密度當成教師範例。</small></div>
+      <div className="teacher-annotation-list">{teacherAnnotations.map((a,index)=><article key={`${a.id}-${index}`}><div className="teacher-annotation-head"><input className="hh-input" value={a.display} onChange={e=>updateAnnotation(index,{display:e.target.value})} placeholder="顯示內容，例如 22.4、R、K_a"/><input className="hh-input" value={a.label} onChange={e=>updateAnnotation(index,{label:e.target.value})} placeholder="名稱，例如：莫耳質量"/><button type="button" onClick={()=>setTeacherAnnotations(v=>v.filter((_,i)=>i!==index))}>刪除</button></div><textarea className="hh-input" value={a.meaning} onChange={e=>updateAnnotation(index,{meaning:e.target.value})} placeholder="這個互動重點代表什麼"/><div className="teacher-annotation-two"><input className="hh-input" value={a.source} onChange={e=>updateAnnotation(index,{source:e.target.value})} placeholder="如何得到／從哪裡來"/><input className="hh-input" value={a.usage} onChange={e=>updateAnnotation(index,{usage:e.target.value})} placeholder="這一步為什麼用它"/></div></article>)}{teacherAnnotations.length===0&&<div className="admin-empty">目前沒有互動重點。按「AI 建議互動重點」會依老師版詳解重新整理。</div>}</div>
+      <button type="button" className="hh-button-secondary teacher-add-annotation" onClick={()=>setTeacherAnnotations(v=>[...v,{id:`t${v.length+1}`,display:"",label:"",meaning:"",source:"",usage:""}])}>＋ 手動新增互動重點</button>
       {teacherExplanation&&<div className="teacher-annotation-preview"><span>詳解預覽</span><AdminScienceText text={teacherExplanation}/></div>}
     </section>
 
@@ -3969,7 +4004,7 @@ function TeachingQuestionsSection({initialHistoryId,onInitialHistoryHandled}:{in
 
     {suggestedRules.length>0&&<section className="hh-card admin-panel"><PanelHeader eyebrow="RULE SUGGESTIONS" title="AI 建議保存的教學規則" subtitle="預設全部不勾選；只有你確認值得跨題重用的規則才會寫入規則庫。"/><div className="teacher-rule-suggestion-list">{suggestedRules.map((r,index)=><label key={index}><input type="checkbox" checked={Boolean(r.selected)} onChange={e=>setSuggestedRules(v=>v.map((x,i)=>i===index?{...x,selected:e.target.checked}:x))}/><span><strong>{r.title||"教學規則"}</strong><p>{r.content}</p><small>{r.scope==="global"?"全站":r.scope==="subject"?adminSubjectLabel(selected.subject):`${adminSubjectLabel(selected.subject)} · ${r.topic||topic||"主題"}`}</small></span></label>)}</div></section>}
 
-    <section className="hh-card admin-panel teacher-inline-coach"><button type="button" className="teacher-inline-coach-toggle" onClick={()=>setCoachOpen(v=>!v)}><span><strong>AI 教練</strong><small>直接告訴 AI「你希望它怎麼想、怎麼教」</small></span><b>{coachOpen?"收合":"展開 ＋"}</b></button>{coachOpen&&<div className="teacher-inline-coach-body"><div className="teacher-inline-chat">{coachMessages.length===0&&<div className="admin-empty">例如：「這題不要先套公式，我會先讓學生判斷比例關係。」</div>}{coachMessages.map((m,i)=><article key={i} className={m.role}><span>{m.role==="user"?"老師":"AI 教練"}</span><p>{m.content}</p></article>)}{coachBusy&&<article className="assistant"><span>AI 教練</span><p>正在整理你的教學偏好…</p></article>}</div><div className="teacher-inline-compose"><textarea className="hh-input" value={coachInput} onChange={e=>setCoachInput(e.target.value)} placeholder="說明你會怎麼教、哪個步驟應該先做…"/><button className="hh-button-primary" onClick={()=>void sendCoach()} disabled={coachBusy||!coachInput.trim()}>送出</button></div></div>}</section>
+    <section className="hh-card admin-panel teacher-inline-coach"><button type="button" className="teacher-inline-coach-toggle" onClick={()=>setCoachOpen(v=>!v)}><span><strong>AI 教練</strong><small>直接告訴 AI「你希望它怎麼想、怎麼教」</small></span><b>{coachOpen?"收合":"展開 ＋"}</b></button>{coachOpen&&<div className="teacher-inline-coach-body"><div className="teacher-inline-chat">{coachMessages.length===0&&<div className="admin-empty">例如：「這題不要先套公式，我會先讓學生判斷比例關係。」</div>}{coachMessages.map((m,i)=><article key={i} className={m.role}><span>{m.role==="user"?"老師":"AI 教練"}</span><p>{m.content}</p></article>)}{coachBusy&&<article className="assistant"><span>AI 教練</span><p>正在整理你的教學偏好…</p></article>}</div><div className="teacher-coach-image-bar"><span>{coachReferenceImages.length?`已附 ${coachReferenceImages.length} 張詳解圖片`:"可附上你的詳解圖片讓 AI 一起看"}</span><label>＋ 附圖<input type="file" accept="image/*" multiple onChange={async e=>{try{setCoachReferenceImages(await adminTeachingFilesToDataUrls(e.target.files));}catch(err){setMessage(err instanceof Error?err.message:"讀取圖片失敗。");}e.currentTarget.value="";}}/></label>{coachReferenceImages.length>0&&<button type="button" onClick={()=>setCoachReferenceImages([])}>清除</button>}</div><div className="teacher-inline-compose"><textarea className="hh-input" value={coachInput} onChange={e=>setCoachInput(e.target.value)} placeholder="說明你會怎麼教、哪個步驟應該先做…"/><button className="hh-button-primary" onClick={()=>void sendCoach()} disabled={coachBusy||(!coachInput.trim()&&!coachReferenceImages.length)}>送出</button></div></div>}</section>
 
     <section className="hh-card admin-panel teacher-save-panel"><div><strong>確認後儲存教師校正</strong><span>會更新本題、建立教師範例，並只新增你有勾選的規則。</span></div><button type="button" className="hh-button-primary teacher-save-button" onClick={()=>void saveTeacherSolution()} disabled={saving||!teacherExplanation.trim()}>{saving?"儲存中…":"儲存並套用"}</button></section>
 
@@ -3980,7 +4015,7 @@ function TeachingQuestionsSection({initialHistoryId,onInitialHistoryHandled}:{in
 
   return <div className="admin-stack">
     <section className="hh-card admin-panel teaching-toolbar">
-      <div className="teaching-toolbar-head"><div><div className="hh-eyebrow">TEACHER CALIBRATION</div><h2 className="hh-display">教師校正</h2><p>直接檢視學生真實題目與 AI 回答；點進去可修改答案、詳解、選項分析、互動數字，並決定要不要讓相似題學習。</p></div><button type="button" className="hh-button-secondary teaching-filter-toggle" onClick={()=>setFiltersOpen(v=>!v)}>{filtersOpen?"收合搜尋與篩選":"搜尋與篩選"}</button></div>
+      <div className="teaching-toolbar-head"><div><div className="hh-eyebrow">TEACHER CALIBRATION</div><h2 className="hh-display">教師校正</h2><p>直接檢視學生真實題目與 AI 回答；點進去可修改答案、詳解、選項分析、互動重點，並決定要不要讓相似題學習。</p></div><button type="button" className="hh-button-secondary teaching-filter-toggle" onClick={()=>setFiltersOpen(v=>!v)}>{filtersOpen?"收合搜尋與篩選":"搜尋與篩選"}</button></div>
       {activeFilterCount>0&&<div className="teaching-active-filter-note">目前套用 {activeFilterCount} 個篩選條件</div>}
       {filtersOpen&&<div className="teaching-filter-row"><div className="teaching-range-switch"><button type="button" className={range==="today"?"active":""} onClick={()=>setRange("today")}>今天</button><button type="button" className={range==="all"?"active":""} onClick={()=>setRange("all")}>全部</button></div><input className="hh-input" placeholder="搜尋學生、答案或解析內容…" value={q} onChange={e=>setQ(e.target.value)}/><select className="hh-select" value={subject} onChange={e=>setSubject(e.target.value)}><option value="">全部科目</option><option value="physics">物理</option><option value="chemistry">化學</option><option value="biology">生物</option><option value="earth">地球科學</option></select><label className="teaching-issue-filter"><input type="checkbox" checked={issues} onChange={e=>setIssues(e.target.checked)}/> 只看異常題</label></div>}
     </section>
@@ -4042,7 +4077,7 @@ function TeachingRulesSection(){
     <section className="hh-card admin-panel teaching-settings-clarifier"><div className="hh-eyebrow">GLOBAL BASELINE</div><h2 className="hh-display">這裡是「全站預設」</h2><p><b>全站預設</b>＝每題固定先遵守的系統底線；<b>教學規則庫</b>＝老師針對特定科目／單元累積、符合條件才檢索的教法。兩者不再混在同一層。</p></section>
     {message&&<div className={`admin-notice ${message.includes("已更新")?"success":"danger"}`}>{message}</div>}
     <section className="hh-card admin-panel"><PanelHeader eyebrow="TEACHING MODE" title="解題模式" subtitle="設定整個解題實驗室預設的教學深度。"/><div className="teaching-mode-list">{modes.map(m=><button key={m.key} type="button" className={settings.mode===m.key?"active":""} onClick={()=>setSettings({...settings,mode:m.key})}><span className="teaching-mode-radio"/><strong>{m.name}</strong><span>{m.desc}</span></button>)}</div><div className="teaching-mode-current">目前模式：<strong>{activeMode.name}</strong> · {activeMode.desc}</div></section>
-    <section className="hh-card admin-panel"><PanelHeader eyebrow="GLOBAL DEFAULTS" title="全站解題預設" subtitle="這裡是所有題目固定套用的基礎開關與互動數字密度，不是老師從個別題目教給 AI 的知識。跨題教法請放在「教學規則庫」。"/><div className="teaching-rule-checks">{general.map(([key,label])=><label key={key}><input type="checkbox" checked={Boolean(settings.general[key])} onChange={e=>setSettings({...settings,general:{...settings.general,[key]:e.target.checked}})}/><span>{label}</span></label>)}</div><div className="teaching-annotation-density"><div><strong>可點擊數字密度</strong><span>控制新解題預設要標多少個真正有教學價值的數字；教師校正仍可逐題覆寫。</span></div><select className="hh-select" value={settings.general.annotationDensity||"rich"} onChange={e=>setSettings({...settings,general:{...settings.general,annotationDensity:e.target.value}})}><option value="light">精簡 · 約 1～2 個</option><option value="standard">標準 · 約 2～4 個</option><option value="rich">豐富 · 約 3～6 個</option></select></div></section>
+    <section className="hh-card admin-panel"><PanelHeader eyebrow="GLOBAL DEFAULTS" title="全站解題預設" subtitle="這裡是所有題目固定套用的基礎開關與互動重點密度，不是老師從個別題目教給 AI 的知識。跨題教法請放在「教學規則庫」。"/><div className="teaching-rule-checks">{general.map(([key,label])=><label key={key}><input type="checkbox" checked={Boolean(settings.general[key])} onChange={e=>setSettings({...settings,general:{...settings.general,[key]:e.target.checked}})}/><span>{label}</span></label>)}</div><div className="teaching-annotation-density"><div><strong>互動式詳解密度</strong><span>控制新解題預設要標多少個真正有教學價值的數值、變數、單位或公式片段；教師校正仍可逐題覆寫。</span></div><select className="hh-select" value={settings.general.annotationDensity||"rich"} onChange={e=>setSettings({...settings,general:{...settings.general,annotationDensity:e.target.value}})}><option value="light">精簡 · 約 1～2 個</option><option value="standard">標準 · 約 2～4 個</option><option value="rich">豐富 · 約 4～8 個</option></select></div></section>
     <section className="hh-card admin-panel input-guard-panel"><PanelHeader eyebrow="INPUT GUARD" title="圖片有效性與阻擋規則" subtitle="先擋無效圖片，再做自然科判斷。被擋的圖片不扣題數，也不會進入正式 Primary／Verifier／Arbiter 解題。"/><label className="input-guard-master"><input type="checkbox" checked={Boolean(guard.enabled)} onChange={e=>setGuard({...guard,enabled:e.target.checked})}/><span><strong>啟用輸入阻擋</strong><small>建議保持開啟</small></span></label><div className="teaching-rule-checks input-guard-checks">{guardRules.map(([key,label])=><label key={key}><input type="checkbox" checked={Boolean(guard[key])} onChange={e=>setGuard({...guard,[key]:e.target.checked})}/><span>{label}</span></label>)}</div><label className="teaching-subject-editor"><span>老師自訂阻擋規則</span><small>每行一條。也可以在「全站題目」個別題目中按「加入阻擋規則」。</small><textarea className="hh-input" value={(guard.customRules||[]).join("\n")} onChange={e=>setGuard({...guard,customRules:e.target.value.split("\n").map((v:string)=>v.trim()).filter(Boolean)})} placeholder={'例如：圖片只有黑底沒有題目內容時直接阻擋\n例如：學生上傳與自然科題目無關的聊天截圖時直接阻擋'}/></label></section>
     <section className="hh-card admin-panel"><PanelHeader eyebrow="SUBJECT BASELINE" title="各科基礎指示" subtitle="這裡放每一題都要遵守的科目級底線；若是特定單元或題型的教法，請改放「教學規則庫」。"/><div className="teaching-subject-tabs">{subjects.map(([key,label])=><button key={key} type="button" className={activeSubject===key?"active":""} onClick={()=>setActiveSubject(key)}>{label}</button>)}</div><label className="teaching-subject-editor"><span>{activeSubjectLabel}基礎指示</span><textarea className="hh-input" value={settings.subjects[activeSubject]||""} onChange={e=>setSettings({...settings,subjects:{...settings.subjects,[activeSubject]:e.target.value}})}/></label><button type="button" className="hh-button-primary teaching-rules-save" onClick={()=>void save()} disabled={saving}>{saving?"儲存中…":"儲存全部規則"}</button></section>
   </div>;
@@ -10683,6 +10718,18 @@ const adminStyles = `
     .teacher-original-panel{grid-template-columns:1fr}.teacher-original-panel>*{grid-column:auto!important}.teacher-calibration-v2>.admin-panel{padding:13px!important}
     .site-question-row{grid-template-columns:78px minmax(0,1fr);gap:10px;padding:10px!important}.site-question-thumb{width:78px;height:70px}.site-question-status{grid-column:1/-1;grid-template-columns:1.2fr .9fr .55fr;gap:6px;padding:8px 0 0;border-left:0;border-top:1px solid var(--border)}.site-question-status>span{padding:6px 7px}.site-question-status small{font-size:7px}.site-question-status b{font-size:9.5px}.site-question-open{padding-top:2px;font-size:9px}.site-question-copy>strong{font-size:13px}.site-question-copy>p{font-size:9.5px;-webkit-line-clamp:3}.site-question-detail-actions{align-items:stretch;flex-direction:column}.site-question-detail-actions .hh-button-primary{width:100%}.site-question-identity-main{flex-direction:column}.site-question-meta-grid{grid-template-columns:1fr 1fr}.site-question-meta-grid article:last-child{grid-column:1/-1}.site-question-images,.teaching-question-image-grid{grid-template-columns:1fr}.site-answer-hero strong{font-size:17px}.site-calibrate-sticky{bottom:calc(10px + env(safe-area-inset-bottom))}
   }
+
+  /* Teacher knowledge image learning + design-system polish */
+  .teacher-reference-upload{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 13px;margin:12px 0 8px;border:1px dashed var(--border);border-radius:14px;background:var(--surface-soft)}
+  .teacher-reference-upload>div{display:grid;gap:4px;min-width:0}.teacher-reference-upload strong{font-size:11px}.teacher-reference-upload span{font-size:9px;line-height:1.55;color:var(--text-secondary)}
+  .teacher-image-upload-button{position:relative;overflow:hidden;white-space:nowrap}.teacher-image-upload-button input,.teacher-coach-image-bar input{position:absolute;inset:0;opacity:0;cursor:pointer}
+  .teacher-reference-thumbs{display:flex;gap:8px;overflow:auto;padding:2px 0 10px}.teacher-reference-thumbs>div{position:relative;flex:0 0 82px;height:82px;border:1px solid var(--border);border-radius:12px;overflow:hidden;background:var(--surface-soft)}.teacher-reference-thumbs img{width:100%;height:100%;object-fit:cover}.teacher-reference-thumbs button{position:absolute;right:4px;top:4px;width:24px;height:24px;border:0;border-radius:999px;background:rgba(0,0,0,.68);color:#fff;font-weight:900}
+  .teacher-coach-image-bar{display:flex;align-items:center;gap:8px;padding:9px 10px;border-top:1px solid var(--border);background:var(--surface-soft);font-size:9px;color:var(--text-secondary)}.teacher-coach-image-bar span{margin-right:auto}.teacher-coach-image-bar label{position:relative;overflow:hidden;padding:6px 9px;border:1px solid var(--border);border-radius:999px;color:var(--text);font-weight:800;cursor:pointer}.teacher-coach-image-bar button{border:0;background:transparent;color:var(--danger);font-size:9px}
+  .hh-card,.admin-panel{border-radius:16px}.hh-button-primary,.hh-button-secondary,.hh-input,.hh-select{border-radius:12px}.hh-display{letter-spacing:-.02em}
+  @media(max-width:760px){.teacher-reference-upload{align-items:stretch;flex-direction:column}.teacher-reference-upload .teacher-image-upload-button{width:100%;justify-content:center}.teacher-reference-thumbs>div{flex-basis:72px;height:72px}.teacher-coach-image-bar{flex-wrap:wrap}.teacher-coach-image-bar span{width:100%}}
+
+.site-focus-filters{display:flex;gap:6px;flex-wrap:wrap;margin-top:12px}.site-focus-filters button{border:1px solid var(--border);border-radius:999px;background:var(--surface-soft);color:var(--text-secondary);padding:6px 9px;font:inherit;font-size:8.5px;font-weight:900;cursor:pointer}.site-focus-filters button.active{background:var(--primary);border-color:var(--primary);color:var(--primary-contrast,#fff)}.site-question-topline i.neutral{background:var(--surface-soft);color:var(--text-secondary)}.site-question-topline i.warning{background:color-mix(in srgb,#d9952b 15%,var(--surface));color:#c8861f}.site-question-topline i.info{background:color-mix(in srgb,#4f82d9 13%,var(--surface));color:#4f82d9}
+
 
 
 `;

@@ -447,10 +447,11 @@ type TutorialTargetRect = {
   viewportHeight: number;
 };
 
-const ONBOARDING_VERSION = "v2.4";
-const FIRST_USE_TOUR_KEY_PREFIX = `hh-science:first-use-tour:${ONBOARDING_VERSION}:`;
-const FIRST_USE_SETUP_KEY_PREFIX = `hh-science:first-use-setup:${ONBOARDING_VERSION}:`;
-const FIRST_USE_RESULT_PENDING_KEY_PREFIX = `hh-science:first-use-result-pending:${ONBOARDING_VERSION}:`;
+const ONBOARDING_VERSION = "v3.0";
+// 完成狀態使用穩定 key，不再因為導覽版本更新或重新整理而重新教一次。
+const FIRST_USE_TOUR_KEY_PREFIX = "hh-science:first-use-tour:";
+const FIRST_USE_SETUP_KEY_PREFIX = "hh-science:first-use-setup:";
+const FIRST_USE_RESULT_PENDING_KEY_PREFIX = "hh-science:first-use-result-pending:";
 const ADD_HOME_GUIDE_KEY = "hh-science:add-home-guide-seen";
 
 const SETUP_TUTORIAL_SEQUENCE = [1, 0, 4, 5, 6];
@@ -540,11 +541,11 @@ const firstUseTutorialSteps: FirstUseTutorialStep[] = [
   },
   {
     eyebrow: "看懂解析 · 2/6",
-    title: "詳解裡的數字可以點",
-    description: "詳解中有標記的數字可以直接點擊，查看數值來源與用途。",
-    previewLabel: "互動數字",
-    previewValue: "點擊詳解中的數字",
-    tips: ["適合追公式中的數值來源", "若這題沒有互動數字，導覽會自動略過這一步"],
+    title: "詳解裡的關鍵數字與符號可以點",
+    description: "詳解中有標記的數字、變數、單位或公式片段可以直接點擊，快速看懂它在這一步代表什麼。",
+    previewLabel: "互動重點",
+    previewValue: "點擊詳解中的標記",
+    tips: ["適合追公式中的數值來源", "若這題沒有互動重點，導覽會自動略過這一步"],
   },
   {
     eyebrow: "看懂解析 · 3/6",
