@@ -359,6 +359,17 @@ function ScienceText({
   );
 }
 
+
+function renderAnnotationDisplay(display: string) {
+  let formula = normalizeScienceMarkup(display || "").trim();
+  if (formula.startsWith("$$") && formula.endsWith("$$")) {
+    formula = formula.slice(2, -2).trim();
+  } else if (formula.startsWith("$") && formula.endsWith("$")) {
+    formula = formula.slice(1, -1).trim();
+  }
+  return renderKatex(stripExportAnnotationCommands(formula), false);
+}
+
 function ModalScienceText({ text }: { text: string }) {
   if (!text) return null;
   const cleaned = normalizeScienceMarkup(text);
@@ -3474,9 +3485,9 @@ export default function Home() {
           <div className="student-modal-card" onClick={(event) => event.stopPropagation()}>
             <div className="student-modal-header">
               <div>
-                <div className="hh-eyebrow">NUMBER NOTE</div>
-                <h3 className="hh-display student-modal-title">{selectedAnnotation.display}</h3>
-                <div className="student-modal-subtitle">這個數字代表什麼？</div>
+                <div className="hh-eyebrow">INTERACTIVE NOTE</div>
+                <h3 className="hh-display student-modal-title" dangerouslySetInnerHTML={{ __html: renderAnnotationDisplay(selectedAnnotation.display) }} />
+                <div className="student-modal-subtitle">這個重點代表什麼？</div>
               </div>
               <button type="button" onClick={() => setSelectedAnnotation(null)} className="student-modal-close">×</button>
             </div>

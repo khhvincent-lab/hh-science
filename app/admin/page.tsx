@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import katex from "katex";
 import ThemeToggle from "@/components/theme-toggle";
 import { TeachingOverviewSection, TeachingExamplesSection, TeachingRuleLibrarySection, TeachingCoachSection, TeachingTrainingSection } from "@/components/admin/teaching-engine-v2";
@@ -3792,7 +3792,7 @@ function SiteQuestionsSection({onCalibrate}:{onCalibrate:(historyId:string)=>voi
   return <div className="admin-stack site-questions-v21">
     <section className="hh-card admin-panel teaching-toolbar site-question-toolbar"><div className="teaching-toolbar-head"><div><div className="hh-eyebrow">AI MONITOR</div><h2 className="hh-display">全站題目工作台</h2><p>每天先看需要老師注意的題：學生有追問、模型衝突、Verifier／Arbiter 出場或成本偏高，再決定是否進教師校正。</p></div><button type="button" className="hh-button-secondary teaching-filter-toggle" onClick={()=>setFiltersOpen(v=>!v)}>{filtersOpen?"收合搜尋":"搜尋與篩選"}</button></div><div className="site-focus-filters">{([["all","全部"],["followup","有追問"],["issue","需注意"],["verifier","Verifier"],["arbiter","Arbiter"],["highCost","高成本"]] as const).map(([key,label])=><button key={key} type="button" className={focus===key?"active":""} onClick={()=>setFocus(key)}>{label}</button>)}</div>{filtersOpen&&<div className="teaching-filter-row"><div className="teaching-range-switch"><button type="button" className={range==="today"?"active":""} onClick={()=>setRange("today")}>今天</button><button type="button" className={range==="all"?"active":""} onClick={()=>setRange("all")}>全部</button></div><input className="hh-input" placeholder="搜尋學生、題目或答案…" value={q} onChange={e=>setQ(e.target.value)}/><select className="hh-select" value={subject} onChange={e=>setSubject(e.target.value)}><option value="">全部科目</option><option value="physics">物理</option><option value="chemistry">化學</option><option value="biology">生物</option><option value="earth">地球科學</option></select></div>}</section>
     {message&&<div className="admin-notice danger">{message}</div>}
-    <section className="site-question-list">{loading?<div className="hh-card admin-panel admin-empty">正在讀取全站題目…</div>:visibleItems.length===0?<div className="hh-card admin-panel admin-empty">目前沒有符合條件的題目。</div>:visibleItems.map(item=><button type="button" className="hh-card site-question-row" key={item.id} onClick={()=>setSelected(item)}><span className="site-question-thumb">{item.imageUrls?.[0]?<img src={item.imageUrls[0]} alt="題目縮圖"/>:<span>SCI</span>}</span><span className="site-question-copy"><span className="site-question-topline"><b>{new Date(item.createdAt).toLocaleString("zh-TW",{month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"})}</b><em className={`teaching-subject-chip teaching-subject-${item.subject}`}>{adminSubjectLabel(item.subject)}</em>{item.issue&&<i>需注意</i>}{item.verifierModel&&<i className="neutral">Verifier</i>}{item.arbiterModel&&<i className="warning">Arbiter</i>}{(item.followups?.length||0)>0&&<i className="info">追問 {item.followups.length}</i>}</span><strong>{item.studentName}</strong><small>{[item.regionName,item.institutionName,item.className].filter(Boolean).join(" · ")||item.campus}</small><p>{item.questionNote||item.explanation||"尚無題目摘要"}</p></span><span className="site-question-status"><span><small>AI 答案</small><b>{item.answer||"—"}</b></span><span><small>本題成本</small><b>{item.cost?.hasCostRecord?formatQuestionCostTwd(item.cost.totalCostUsd):"—"}</b></span><span><small>追問</small><b>{item.followups?.length||0}</b></span><strong className="site-question-open">查看 →</strong></span></button>)}</section>
+    <section className="site-question-list">{loading?<div className="hh-card admin-panel admin-empty">正在讀取全站題目…</div>:visibleItems.length===0?<div className="hh-card admin-panel admin-empty">目前沒有符合條件的題目。</div>:visibleItems.map(item=><button type="button" className="hh-card site-question-row" key={item.id} onClick={()=>setSelected(item)}><span className="site-question-thumb">{item.imageUrls?.[0]?<img src={item.imageUrls[0]} alt="題目縮圖"/>:<span>SCI</span>}</span><span className="site-question-copy"><span className="site-question-topline"><b>{new Date(item.createdAt).toLocaleString("zh-TW",{month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"})}</b><em className={`teaching-subject-chip teaching-subject-${item.subject}`}>{adminSubjectLabel(item.subject)}</em>{item.issue&&<i>需注意</i>}{item.verifierModel&&<i className="neutral">Verifier</i>}{item.arbiterModel&&<i className="warning">Arbiter</i>}{(item.followups?.length||0)>0&&<i className="info">追問 {item.followups.length}</i>}</span><strong>{item.studentName}</strong><small>{[item.regionName,item.institutionName,item.className].filter(Boolean).join(" · ")||item.campus}</small><p>{item.questionNote||item.explanation||"尚無題目摘要"}</p></span><span className="site-question-status"><span><small>AI 答案</small><span className="admin-answer-preview"><AdminScienceText text={item.answer||"—"} /></span></span><span><small>本題成本</small><b>{item.cost?.hasCostRecord?formatQuestionCostTwd(item.cost.totalCostUsd):"—"}</b></span><span><small>追問</small><b>{item.followups?.length||0}</b></span><strong className="site-question-open">查看 →</strong></span></button>)}</section>
   </div>
 }
 
@@ -3812,6 +3812,7 @@ function TeachingQuestionsSection({initialHistoryId,onInitialHistoryHandled}:{in
   const [teacherNote,setTeacherNote]=useState("");
   const [teacherAnswer,setTeacherAnswer]=useState("");
   const [teacherExplanation,setTeacherExplanation]=useState("");
+  const teacherExplanationRef=useRef<HTMLTextAreaElement|null>(null);
   const [teacherOptions,setTeacherOptions]=useState("");
   const [teacherStrategy,setTeacherStrategy]=useState("");
   const [topic,setTopic]=useState("");
@@ -3952,6 +3953,48 @@ function TeachingQuestionsSection({initialHistoryId,onInitialHistoryHandled}:{in
     setTeacherAnnotations(rows=>rows.map((row,i)=>i===index?{...row,...patch}:row));
   }
 
+
+  function insertTeacherExplanationSnippet(snippet:string,cursorOffset?:number){
+    const textarea=teacherExplanationRef.current;
+    if(!textarea){
+      setTeacherExplanation(value=>`${value}${value && !value.endsWith("\n") ? "\n" : ""}${snippet}`);
+      return;
+    }
+    const start=textarea.selectionStart ?? teacherExplanation.length;
+    const end=textarea.selectionEnd ?? start;
+    const selectedText=teacherExplanation.slice(start,end);
+    const expanded=snippet.replace("__SELECTED__",selectedText);
+    const next=teacherExplanation.slice(0,start)+expanded+teacherExplanation.slice(end);
+    setTeacherExplanation(next);
+    requestAnimationFrame(()=>{
+      textarea.focus();
+      const nextCursor=start+(cursorOffset ?? expanded.length);
+      textarea.setSelectionRange(nextCursor,nextCursor);
+    });
+  }
+
+  function insertFraction(){
+    const numerator=window.prompt("分子要寫什麼？","");
+    if(numerator===null)return;
+    const denominator=window.prompt("分母要寫什麼？","");
+    if(denominator===null)return;
+    insertTeacherExplanationSnippet(`$\\frac{${numerator}}{${denominator}}$`);
+  }
+
+  function insertRoot(){
+    const value=window.prompt("根號裡要寫什麼？","");
+    if(value===null)return;
+    insertTeacherExplanationSnippet(`$\\sqrt{${value}}$`);
+  }
+
+  function insertScript(kind:"sub"|"sup"){
+    const base=window.prompt("底數／符號，例如 H、x、10：","");
+    if(base===null)return;
+    const value=window.prompt(kind==="sub"?"下標內容：":"上標內容：","");
+    if(value===null)return;
+    insertTeacherExplanationSnippet(`$${base}${kind==="sub"?"_":"^"}{${value}}$`);
+  }
+
   async function saveTeacherSolution(){
     if(!selected||!teacherExplanation.trim()) return;
     setSaving(true); setMessage("");
@@ -3984,7 +4027,7 @@ function TeachingQuestionsSection({initialHistoryId,onInitialHistoryHandled}:{in
     <section className="hh-card admin-panel teacher-solution-panel"><div className="teacher-calibration-head"><div><div className="hh-eyebrow">TEACHER VERSION</div><h2 className="hh-display">教師核准版本</h2><p>可直接修改，也可先讓 AI 依你的備註整理；儲存後會同步更新本題並建立可檢索的教師範例。</p></div><button type="button" className="hh-button-secondary" onClick={()=>void reviseWithAI()} disabled={aiRevising}>{aiRevising?"AI 整理中…":"AI 協助整理教師版本"}</button></div>
       <div className="teacher-reference-upload"><div><strong>上傳你的詳解圖片</strong><span>可放手寫解法、講義批註或你習慣的板書。AI 只在你按「AI 協助整理教師版本」時讀取，最多 4 張。</span></div><label className="hh-button-secondary teacher-image-upload-button">＋ 選擇圖片<input type="file" accept="image/*" multiple onChange={async e=>{try{setTeacherReferenceImages(await adminTeachingFilesToDataUrls(e.target.files));setMessage("");}catch(err){setMessage(err instanceof Error?err.message:"讀取圖片失敗。");}e.currentTarget.value="";}}/></label></div>{teacherReferenceImages.length>0&&<div className="teacher-reference-thumbs">{teacherReferenceImages.map((src,index)=><div key={index}><img src={src} alt={`教師詳解 ${index+1}`}/><button type="button" onClick={()=>setTeacherReferenceImages(v=>v.filter((_,i)=>i!==index))}>×</button></div>)}</div>}<div className="teacher-solution-grid"><label><span>問題類型</span><select className="hh-select" value={issueType} onChange={e=>setIssueType(e.target.value)}><option value="wrong_answer">答案錯誤</option><option value="better_method">解法可更好</option><option value="unclear">說明不清楚</option><option value="format">格式問題</option><option value="invalid_input">應阻擋輸入</option><option value="other">其他</option></select></label><label><span>老師認定答案</span><input className="hh-input" value={teacherAnswer} onChange={e=>setTeacherAnswer(e.target.value)} placeholder="例如 B、2.5 mol"/></label></div>
       <label className="teacher-solution-field"><span>老師解題策略</span><textarea className="hh-input" value={teacherStrategy} onChange={e=>setTeacherStrategy(e.target.value)} placeholder="例如：先由反應式係數比較可生成產物的莫耳數，再判斷限制試劑；避免一開始設太多未知數。"/></label>
-      <label className="teacher-solution-field"><span>老師版詳解</span><textarea className="hh-input teacher-method-textarea teacher-method-large" value={teacherExplanation} onChange={e=>setTeacherExplanation(e.target.value)} placeholder="寫下你真正會給學生看的解法。"/></label>
+      <div className="teacher-solution-field teacher-rich-editor"><div className="teacher-rich-editor-head"><span>老師版詳解</span><small>直接打中文即可；公式用下面按鈕插入，不需要背語法。</small></div><div className="teacher-math-toolbar" role="toolbar" aria-label="公式快速工具"><button type="button" onClick={()=>insertFraction()}>分數</button><button type="button" onClick={()=>insertRoot()}>根號</button><button type="button" onClick={()=>insertScript("sub")}>下標</button><button type="button" onClick={()=>insertScript("sup")}>上標</button><button type="button" onClick={()=>insertTeacherExplanationSnippet("$\\times$")}>×</button><button type="button" onClick={()=>insertTeacherExplanationSnippet("$\\rightarrow$")}>→</button><button type="button" onClick={()=>insertTeacherExplanationSnippet("$\\pi$")}>π</button><button type="button" onClick={()=>insertTeacherExplanationSnippet("$\\theta$")}>θ</button><button type="button" onClick={()=>insertTeacherExplanationSnippet("$\\Delta$")}>Δ</button><button type="button" onClick={()=>insertTeacherExplanationSnippet("$^\\circ$")}>°</button><button type="button" onClick={()=>insertTeacherExplanationSnippet("$\\mathrm{mol}$")}>mol</button><button type="button" onClick={()=>insertTeacherExplanationSnippet("$$\n\n$$",3)}>置中公式</button></div><textarea ref={teacherExplanationRef} className="hh-input teacher-method-textarea teacher-method-large" value={teacherExplanation} onChange={e=>setTeacherExplanation(e.target.value)} placeholder="寫下你真正會給學生看的解法。一般文字直接輸入；遇到分數、根號、上下標或反應箭頭，直接按上方工具。"/>{teacherExplanation.trim()&&<div className="teacher-live-preview"><span>即時預覽</span><AdminScienceText text={teacherExplanation}/></div>}</div>
       <label className="teacher-solution-field"><span>老師版選項分析</span><textarea className="hh-input" value={teacherOptions} onChange={e=>setTeacherOptions(e.target.value)} placeholder="(A) 對／錯：…"/></label>
       <label className="teacher-solution-field"><span>老師備註</span><textarea className="hh-input" value={teacherNote} onChange={e=>setTeacherNote(e.target.value)} placeholder="只給教學引擎看的提醒，例如 AI 原本哪裡容易誤判。"/></label>
       {aiReviseNote&&<div className="teaching-ai-revise-note">{aiReviseNote}</div>}
@@ -4023,7 +4066,7 @@ function TeachingQuestionsSection({initialHistoryId,onInitialHistoryHandled}:{in
     <section className="teaching-question-list">{loading?<div className="hh-card admin-panel admin-empty">正在讀取題目…</div>:items.length===0?<div className="hh-card admin-panel admin-empty">目前沒有符合條件的題目。</div>:items.map(item=><button type="button" className="hh-card teaching-question-row teaching-question-row-v134" key={item.id} onClick={()=>void open(item)}>
       <span className="teaching-question-media">{item.imageUrls?.[0]?<img src={item.imageUrls[0]} alt="題目縮圖"/>:<span className="teaching-thumb-empty">SCI</span>}</span>
       <span className="teaching-question-main"><span className="teaching-row-topline"><span>{new Date(item.createdAt).toLocaleString("zh-TW", { month:"2-digit", day:"2-digit", hour:"2-digit", minute:"2-digit" })}</span><span className={`teaching-subject-chip teaching-subject-${item.subject}`}>{adminSubjectLabel(item.subject)}</span>{item.issue&&<em className="teaching-inline-issue">異常</em>}</span><strong>{item.studentName}</strong><small>{[item.regionName,item.institutionName,item.className].filter(Boolean).join(" · ")||item.campus}</small><span className="teaching-question-preview">{item.questionNote||item.explanation||"尚無題目摘要"}</span></span>
-      <span className="teaching-row-answer"><small>AI 答案</small><b>{item.answer||"—"}</b><span className="teaching-row-cost-label">本題成本</span><strong className={`teaching-row-cost ${item.cost?.hasCostRecord?"":"missing"}`}>{item.cost?.hasCostRecord?formatQuestionCostTwd(item.cost.totalCostUsd):"—"}</strong><span className="teaching-calibrate-link">教師校正 →</span></span>
+      <span className="teaching-row-answer"><small>AI 答案</small><span className="admin-answer-preview"><AdminScienceText text={item.answer||"—"} /></span><span className="teaching-row-cost-label">本題成本</span><strong className={`teaching-row-cost ${item.cost?.hasCostRecord?"":"missing"}`}>{item.cost?.hasCostRecord?formatQuestionCostTwd(item.cost.totalCostUsd):"—"}</strong><span className="teaching-calibrate-link">教師校正 →</span></span>
     </button>)}</section>
   </div>;
 }
@@ -10615,6 +10658,20 @@ const adminStyles = `
   .teacher-calibration-v2 .teacher-calibration-head h2 { margin:4px 0 5px; }
   .teacher-calibration-v2 .teacher-calibration-head p { max-width:720px; margin:0; color:var(--text-secondary); font-size:10px; line-height:1.6; }
   .teacher-method-large { min-height:190px !important; }
+  .teacher-rich-editor { padding:12px; border:1px solid var(--border); border-radius:14px; background:var(--surface-soft); }
+  .teacher-rich-editor-head { display:flex; align-items:baseline; justify-content:space-between; gap:10px; flex-wrap:wrap; }
+  .teacher-rich-editor-head>span { color:var(--text); font-size:12px; font-weight:900; }
+  .teacher-rich-editor-head>small { color:var(--text-muted); font-size:9px; }
+  .teacher-math-toolbar { display:flex; flex-wrap:wrap; gap:6px; margin:8px 0; }
+  .teacher-math-toolbar button { min-height:32px; padding:5px 9px; border:1px solid var(--border); border-radius:9px; background:var(--surface); color:var(--text); font-size:10px; font-weight:850; cursor:pointer; }
+  .teacher-math-toolbar button:hover { border-color:var(--primary); background:color-mix(in srgb,var(--primary) 7%,var(--surface)); }
+  .teacher-live-preview { margin-top:8px; padding:10px 12px; border:1px dashed var(--border-strong); border-radius:11px; background:var(--surface); }
+  .teacher-live-preview>span { display:block; margin-bottom:6px; color:var(--text-muted); font-size:8px; font-weight:900; letter-spacing:.08em; }
+  .admin-answer-preview { display:block; min-width:0; max-width:100%; color:var(--text); font-weight:850; overflow:hidden; }
+  .admin-answer-preview .admin-science-text { font-size:10px; line-height:1.25; max-height:2.7em; overflow:hidden; }
+  .admin-answer-preview .admin-science-text p { display:inline; margin:0; }
+  .admin-answer-preview .admin-science-text .katex { font-size:1em; }
+  .admin-answer-preview .admin-display-formula { display:inline-block; margin:0; }
   .teacher-annotation-panel { display:grid; gap:12px; }
   .teacher-annotation-summary { display:grid; grid-template-columns:auto auto minmax(0,1fr); align-items:baseline; gap:5px 8px; padding:11px 13px; border:1px solid var(--border); border-radius:12px; background:color-mix(in srgb,var(--primary) 6%,var(--surface-soft)); }
   .teacher-annotation-summary strong { font-size:24px; color:var(--primary); }
