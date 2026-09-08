@@ -954,6 +954,16 @@ export async function POST(
               .result
               .annotations,
 
+          diagram:
+            routed
+              .result
+              .diagram,
+
+          chemical_structure:
+            routed
+              .result
+              .chemicalStructure,
+
           primary_provider:
             routed
               .models
@@ -1097,6 +1107,16 @@ export async function POST(
         routed
           .result
           .annotations,
+
+      diagram:
+        routed
+          .result
+          .diagram,
+
+      chemicalStructure:
+        routed
+          .result
+          .chemicalStructure,
 
       historyId,
 

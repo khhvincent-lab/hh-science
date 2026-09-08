@@ -12,6 +12,7 @@ export type TeachingEngineSettings = {
     keepKeySteps: boolean;
     avoidOverreach: boolean;
     annotationDensity: "light" | "standard" | "rich";
+    diagramMode: "auto" | "off";
   };
   subjects: Record<"physics" | "chemistry" | "biology" | "earth", string>;
 };
@@ -64,12 +65,13 @@ export const DEFAULT_TEACHING_ENGINE_SETTINGS: TeachingEngineSettings = {
     keepKeySteps: true,
     avoidOverreach: true,
     annotationDensity: "rich",
+    diagramMode: "auto",
   },
   subjects: {
-    physics: "先整理已知條件與方向，再選公式；所有物理量保留單位；圖像題先說明圖意。",
+    physics: "先整理已知條件與方向，再選公式；所有物理量保留單位；圖像題先說明圖意。若受力、幾何、光學、圓周、彈簧或電路關係用簡圖會明顯更清楚，可附精確 SVG 圖解。",
     chemistry: "優先列出必要反應式；計量題先處理莫耳關係；酸鹼、平衡與氧化還原先判斷核心物種與方向。",
     biology: "使用高中課綱術語；先說清楚機制或因果，再判斷選項；避免不必要的大學程度延伸。",
-    earth: "圖表題先讀座標與位置；氣象題先判斷氣壓、氣團與風向；天文題先建立觀測位置與尺度。",
+    earth: "圖表題先讀座標與位置；氣象題先判斷氣壓、氣團與風向；天文題先建立觀測位置與尺度。板塊、地層、日地月、太陽入射角、大氣或海洋環流若簡圖能幫助理解，可附精確 SVG 圖解。",
   },
 };
 
@@ -80,12 +82,16 @@ function normalizeSettings(raw: any): TeachingEngineSettings {
   const annotationDensity = ["light", "standard", "rich"].includes(String(raw?.general?.annotationDensity))
     ? raw.general.annotationDensity
     : DEFAULT_TEACHING_ENGINE_SETTINGS.general.annotationDensity;
+  const diagramMode = ["auto", "off"].includes(String(raw?.general?.diagramMode))
+    ? raw.general.diagramMode
+    : DEFAULT_TEACHING_ENGINE_SETTINGS.general.diagramMode;
   return {
     mode,
     general: {
       ...DEFAULT_TEACHING_ENGINE_SETTINGS.general,
       ...(raw?.general || {}),
       annotationDensity,
+      diagramMode,
     },
     subjects: {
       ...DEFAULT_TEACHING_ENGINE_SETTINGS.subjects,
@@ -314,6 +320,14 @@ export async function buildTeachingContext(subject: string, input: TeachingRetri
       ? "互動式詳解精簡：只標 2～4 個最關鍵的數值、變數或公式片段。"
       : "互動式詳解標準：通常標 4～6 個最有學習價值的數值、變數、單位或公式片段。";
 
+  const diagramText = settings.general.diagramMode === "off"
+    ? "Science Diagram Engine：關閉。本題 diagram 必須為 null。"
+    : "Science Diagram Engine：自動。只有物理／地科或少數實驗題在圖解能明顯降低理解門檻時才附精確簡圖；純計算題不要為了裝飾畫圖。教師規則若指定應附圖或指定圖中元素，優先遵循。";
+
+  const chemicalStructureText = subject === "chemistry"
+    ? "Chemical Structure Renderer：自動。只有在結構式本身能幫助辨識官能基、鍵結、異構物或反應位置時才附原子／鍵 SVG；不確定結構時禁止猜測。"
+    : "Chemical Structure Renderer：非化學題通常不使用。";
+
   const subjectRule = settings.subjects[subject as keyof typeof settings.subjects] || "";
   const rulesText = rules.length
     ? rules.map((rule, index) => `R${index + 1} [${rule.scope}${rule.topic ? `/${rule.topic}` : ""}] ${rule.content}`).join("\n")
@@ -337,6 +351,8 @@ export async function buildTeachingContext(subject: string, input: TeachingRetri
 通用規則：
 ${baseRules.map((rule) => `- ${rule}`).join("\n")}
 - ${densityText}
+- ${diagramText}
+- ${chemicalStructureText}
 
 本科既有規則：
 ${subjectRule || "無"}

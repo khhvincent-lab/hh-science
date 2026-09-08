@@ -3,6 +3,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import katex from "katex";
 import ThemeToggle from "@/components/theme-toggle";
+import ScienceDiagramView from "@/components/science-diagram";
+import ChemicalStructureView from "@/components/chemical-structure";
+import type { ChemicalStructure, ScienceDiagram } from "@/lib/ai/types";
 import { TeachingOverviewSection, TeachingExamplesSection, TeachingRuleLibrarySection, TeachingCoachSection, TeachingTrainingSection } from "@/components/admin/teaching-engine-v2";
 import "katex/dist/katex.min.css";
 
@@ -362,11 +365,11 @@ function stripAdminAnnotationCommands(formula: string) {
   return result;
 }
 
-function AdminScienceText({ text }: { text: string }) {
-  if (!text) return null;
-
-  const cleaned = text
+function normalizeAdminScienceMarkup(text: string) {
+  return String(text || "")
     .replace(/\\n/g, "\n")
+    .replace(/\\([A-Za-z])/g, "\\$1")
+    .replace(/\\([()\[\]{}])/g, "\\$1")
     .replace(/\\\[/g, "$$")
     .replace(/\\\]/g, "$$")
     .replace(/\\\(/g, "$")
@@ -374,6 +377,31 @@ function AdminScienceText({ text }: { text: string }) {
     .replace(/\*\*/g, "")
     .replace(/^---+$/gm, "")
     .trim();
+}
+
+function looksLikeAdminMathExpression(text: string) {
+  const value = stripAdminAnnotationCommands(normalizeAdminScienceMarkup(text || "")).trim();
+  if (!value) return false;
+  if (/\\[A-Za-z]+/.test(value)) return true;
+  if (/[{}_^]/.test(value)) return true;
+  if (/^[A-Za-z][A-Za-z0-9]*(?:_[A-Za-z0-9{}()+-]+|\^[A-Za-z0-9{}()+-]+)+$/.test(value)) return true;
+  if (/^[A-Za-z0-9\s=+\-*/().,:;]+$/.test(value) && /[=^_]/.test(value)) return true;
+  return false;
+}
+
+function chemistryToLatex(raw: string) {
+  return raw
+    .trim()
+    .replace(/\s+/g, "")
+    .replace(/([A-Za-z\)])(\d+)/g, "$1_$2")
+    .replace(/([+\-])(\d+)/g, "$1^{$2}")
+    .replace(/(\d+)([+\-])/g, "^{$1$2}");
+}
+
+function AdminScienceText({ text }: { text: string }) {
+  if (!text) return null;
+
+  const cleaned = normalizeAdminScienceMarkup(text);
 
   const blocks = cleaned.split(/(\$\$[\s\S]*?\$\$)/);
 
@@ -411,6 +439,13 @@ function AdminScienceText({ text }: { text: string }) {
                     key={pieceIndex}
                     dangerouslySetInnerHTML={{
                       __html: adminRenderKatex(stripAdminAnnotationCommands(piece.slice(1, -1)), false),
+                    }}
+                  />
+                ) : looksLikeAdminMathExpression(piece.trim()) ? (
+                  <span
+                    key={pieceIndex}
+                    dangerouslySetInnerHTML={{
+                      __html: adminRenderKatex(stripAdminAnnotationCommands(piece.trim()), false),
                     }}
                   />
                 ) : (
@@ -3725,7 +3760,7 @@ type TeachingQuestionCost = {
 
 type TeachingQuestionRow = {
   id:string; studentId:string; studentName:string; campus:string; regionName:string; institutionName:string; className:string;
-  subject:string; referenceAnswer:string; questionNote:string; answer:string; explanation:string; options:string; annotations:any[]; imageUrls:string[]; followups:AdminFollowup[];
+  subject:string; referenceAnswer:string; questionNote:string; answer:string; explanation:string; options:string; annotations:any[]; diagram:ScienceDiagram|null; chemicalStructure:ChemicalStructure|null; imageUrls:string[]; followups:AdminFollowup[];
   createdAt:string; primaryProvider?:string|null; primaryModel?:string|null; primaryAnswer?:string|null; verifierProvider?:string|null; verifierModel?:string|null; verifierResult?:any; arbiterProvider?:string|null; arbiterModel?:string|null; arbiterAnswer?:string|null; disputeStatus:string; issue:boolean; cost:TeachingQuestionCost;
 };
 
@@ -3779,7 +3814,7 @@ function SiteQuestionsSection({onCalibrate}:{onCalibrate:(historyId:string)=>voi
         {selected.questionNote&&<div className="site-question-note"><span>學生補充敘述</span><p>{selected.questionNote}</p></div>}
       </section>
 
-      <section className="hh-card admin-panel site-student-view-card"><div className="hh-eyebrow">STUDENT VIEW</div><h2 className="hh-display">學生看到的解題內容</h2><div className="site-answer-hero"><span>答案</span><div className="admin-formula-value"><AdminScienceText text={selected.answer||"—"} /></div></div><div className="site-result-section"><h3>觀念解析／詳解</h3><AdminScienceText text={selected.explanation||"目前沒有詳解內容。"}/></div>{selected.options&&<div className="site-result-section"><h3>選項分析</h3><AdminScienceText text={formatAdminOptions(selected.options)}/></div>}</section>
+      <section className="hh-card admin-panel site-student-view-card"><div className="hh-eyebrow">STUDENT VIEW</div><h2 className="hh-display">學生看到的解題內容</h2><div className="site-answer-hero"><span>答案</span><div className="admin-formula-value"><AdminScienceText text={selected.answer||"—"} /></div></div><div className="site-result-section"><h3>觀念解析／詳解</h3><AdminScienceText text={selected.explanation||"目前沒有詳解內容。"}/></div><ScienceDiagramView diagram={selected.diagram} compact /><ChemicalStructureView structure={selected.chemicalStructure} compact />{selected.options&&<div className="site-result-section"><h3>選項分析</h3><AdminScienceText text={formatAdminOptions(selected.options)}/></div>}</section>
 
       <section className="hh-card admin-panel site-followup-card"><div className="teacher-v2-section-head"><div><div className="hh-eyebrow">FOLLOW-UP</div><h2 className="hh-display">學生追問紀錄</h2><p>完整保留學生後續問題與 AI 回答，方便判斷原詳解哪裡不夠清楚。</p></div><span className="site-followup-count">{selected.followups?.length||0} 次</span></div>{selected.followups?.length?<div className="site-followup-list">{selected.followups.map((f,index)=><article key={f.id||index}><div className="site-followup-q"><span>學生追問 {index+1}</span><p>{f.question}</p></div><div className="site-followup-a"><span>AI 回答</span><AdminScienceText text={f.answer}/></div></article>)}</div>:<div className="admin-empty">這題目前沒有追問。</div>}</section>
 
@@ -3995,6 +4030,24 @@ function TeachingQuestionsSection({initialHistoryId,onInitialHistoryHandled}:{in
     insertTeacherExplanationSnippet(`$${base}${kind==="sub"?"_":"^"}{${value}}$`);
   }
 
+  function insertChemicalFormula(){
+    const raw=window.prompt("直接輸入化學式，例如 CH2O、H2SO4、SO4^2-：","");
+    if(raw===null||!raw.trim())return;
+    insertTeacherExplanationSnippet(`$\\mathrm{${chemistryToLatex(raw)}}$`);
+  }
+
+  function insertPlainEquation(){
+    const raw=window.prompt("直接輸入公式或關係式，例如 P1L1=P2L2、v=Δx/Δt：","");
+    if(raw===null||!raw.trim())return;
+    const latex=raw
+      .replace(/->/g, "\\rightarrow ")
+      .replace(/pi/g, "\\pi")
+      .replace(/theta/g, "\\theta")
+      .replace(/Delta/g, "\\Delta")
+      .replace(/\*/g, " \\times ");
+    insertTeacherExplanationSnippet(`$${latex}$`);
+  }
+
   async function saveTeacherSolution(){
     if(!selected||!teacherExplanation.trim()) return;
     setSaving(true); setMessage("");
@@ -4021,13 +4074,15 @@ function TeachingQuestionsSection({initialHistoryId,onInitialHistoryHandled}:{in
 
     <section className="hh-card admin-panel teacher-original-panel"><PanelHeader eyebrow="AI ORIGINAL" title="AI 原始解法" subtitle="保留原回答做比較；下方教師版本才是之後 AI 會學習的內容。" />
       <div className="teaching-ai-block"><h3>觀念解析</h3><AdminScienceText text={selected.explanation}/></div>
+      <ScienceDiagramView diagram={selected.diagram} compact />
+      <ChemicalStructureView structure={selected.chemicalStructure} compact />
       {selected.options&&<div className="teaching-ai-block"><h3>選項分析</h3><AdminScienceText text={formatAdminOptions(selected.options)}/></div>}
     </section>
 
     <section className="hh-card admin-panel teacher-solution-panel"><div className="teacher-calibration-head"><div><div className="hh-eyebrow">TEACHER VERSION</div><h2 className="hh-display">教師核准版本</h2><p>可直接修改，也可先讓 AI 依你的備註整理；儲存後會同步更新本題並建立可檢索的教師範例。</p></div><button type="button" className="hh-button-secondary" onClick={()=>void reviseWithAI()} disabled={aiRevising}>{aiRevising?"AI 整理中…":"AI 協助整理教師版本"}</button></div>
       <div className="teacher-reference-upload"><div><strong>上傳你的詳解圖片</strong><span>可放手寫解法、講義批註或你習慣的板書。AI 只在你按「AI 協助整理教師版本」時讀取，最多 4 張。</span></div><label className="hh-button-secondary teacher-image-upload-button">＋ 選擇圖片<input type="file" accept="image/*" multiple onChange={async e=>{try{setTeacherReferenceImages(await adminTeachingFilesToDataUrls(e.target.files));setMessage("");}catch(err){setMessage(err instanceof Error?err.message:"讀取圖片失敗。");}e.currentTarget.value="";}}/></label></div>{teacherReferenceImages.length>0&&<div className="teacher-reference-thumbs">{teacherReferenceImages.map((src,index)=><div key={index}><img src={src} alt={`教師詳解 ${index+1}`}/><button type="button" onClick={()=>setTeacherReferenceImages(v=>v.filter((_,i)=>i!==index))}>×</button></div>)}</div>}<div className="teacher-solution-grid"><label><span>問題類型</span><select className="hh-select" value={issueType} onChange={e=>setIssueType(e.target.value)}><option value="wrong_answer">答案錯誤</option><option value="better_method">解法可更好</option><option value="unclear">說明不清楚</option><option value="format">格式問題</option><option value="invalid_input">應阻擋輸入</option><option value="other">其他</option></select></label><label><span>老師認定答案</span><input className="hh-input" value={teacherAnswer} onChange={e=>setTeacherAnswer(e.target.value)} placeholder="例如 B、2.5 mol"/></label></div>
       <label className="teacher-solution-field"><span>老師解題策略</span><textarea className="hh-input" value={teacherStrategy} onChange={e=>setTeacherStrategy(e.target.value)} placeholder="例如：先由反應式係數比較可生成產物的莫耳數，再判斷限制試劑；避免一開始設太多未知數。"/></label>
-      <div className="teacher-solution-field teacher-rich-editor"><div className="teacher-rich-editor-head"><span>老師版詳解</span><small>直接打中文即可；公式用下面按鈕插入，不需要背語法。</small></div><div className="teacher-math-toolbar" role="toolbar" aria-label="公式快速工具"><button type="button" onClick={()=>insertFraction()}>分數</button><button type="button" onClick={()=>insertRoot()}>根號</button><button type="button" onClick={()=>insertScript("sub")}>下標</button><button type="button" onClick={()=>insertScript("sup")}>上標</button><button type="button" onClick={()=>insertTeacherExplanationSnippet("$\\times$")}>×</button><button type="button" onClick={()=>insertTeacherExplanationSnippet("$\\rightarrow$")}>→</button><button type="button" onClick={()=>insertTeacherExplanationSnippet("$\\pi$")}>π</button><button type="button" onClick={()=>insertTeacherExplanationSnippet("$\\theta$")}>θ</button><button type="button" onClick={()=>insertTeacherExplanationSnippet("$\\Delta$")}>Δ</button><button type="button" onClick={()=>insertTeacherExplanationSnippet("$^\\circ$")}>°</button><button type="button" onClick={()=>insertTeacherExplanationSnippet("$\\mathrm{mol}$")}>mol</button><button type="button" onClick={()=>insertTeacherExplanationSnippet("$$\n\n$$",3)}>置中公式</button></div><textarea ref={teacherExplanationRef} className="hh-input teacher-method-textarea teacher-method-large" value={teacherExplanation} onChange={e=>setTeacherExplanation(e.target.value)} placeholder="寫下你真正會給學生看的解法。一般文字直接輸入；遇到分數、根號、上下標或反應箭頭，直接按上方工具。"/>{teacherExplanation.trim()&&<div className="teacher-live-preview"><span>即時預覽</span><AdminScienceText text={teacherExplanation}/></div>}</div>
+      <div className="teacher-solution-field teacher-rich-editor"><div className="teacher-rich-editor-head"><span>老師版詳解</span><small>一般中文直接輸入；常用公式、化學式與關係式可按下面按鈕自動插入，不需要背 LaTeX。</small></div><div className="teacher-math-toolbar" role="toolbar" aria-label="公式快速工具"><button type="button" onClick={()=>insertFraction()}>分數</button><button type="button" onClick={()=>insertRoot()}>根號</button><button type="button" onClick={()=>insertScript("sub")}>下標</button><button type="button" onClick={()=>insertScript("sup")}>上標</button><button type="button" onClick={()=>insertChemicalFormula()}>化學式</button><button type="button" onClick={()=>insertPlainEquation()}>關係式</button><button type="button" onClick={()=>insertTeacherExplanationSnippet("$\\times$")}>×</button><button type="button" onClick={()=>insertTeacherExplanationSnippet("$\\rightarrow$")}>→</button><button type="button" onClick={()=>insertTeacherExplanationSnippet("$\\pi$")}>π</button><button type="button" onClick={()=>insertTeacherExplanationSnippet("$\\theta$")}>θ</button><button type="button" onClick={()=>insertTeacherExplanationSnippet("$\\Delta$")}>Δ</button><button type="button" onClick={()=>insertTeacherExplanationSnippet("$^\\circ$")}>°</button><button type="button" onClick={()=>insertTeacherExplanationSnippet("$\\mathrm{mol}$")}>mol</button><button type="button" onClick={()=>insertTeacherExplanationSnippet("$$\n\n$$",3)}>置中公式</button></div><div className="teacher-math-toolbar teacher-toolbar-note"><small>例如：按「化學式」後直接輸入 CH2O；按「關係式」後直接輸入 P1L1=P2L2，系統會自動轉成公式格式。</small></div><textarea ref={teacherExplanationRef} className="hh-input teacher-method-textarea teacher-method-large" value={teacherExplanation} onChange={e=>setTeacherExplanation(e.target.value)} placeholder="寫下你真正會給學生看的解法。一般文字直接輸入；遇到分數、根號、上下標、化學式或關係式時，直接按上方工具。"/>{teacherExplanation.trim()&&<div className="teacher-live-preview"><span>即時預覽</span><AdminScienceText text={teacherExplanation}/></div>}</div>
       <label className="teacher-solution-field"><span>老師版選項分析</span><textarea className="hh-input" value={teacherOptions} onChange={e=>setTeacherOptions(e.target.value)} placeholder="(A) 對／錯：…"/></label>
       <label className="teacher-solution-field"><span>老師備註</span><textarea className="hh-input" value={teacherNote} onChange={e=>setTeacherNote(e.target.value)} placeholder="只給教學引擎看的提醒，例如 AI 原本哪裡容易誤判。"/></label>
       {aiReviseNote&&<div className="teaching-ai-revise-note">{aiReviseNote}</div>}
@@ -4120,7 +4175,7 @@ function TeachingRulesSection(){
     <section className="hh-card admin-panel teaching-settings-clarifier"><div className="hh-eyebrow">GLOBAL BASELINE</div><h2 className="hh-display">這裡是「全站預設」</h2><p><b>全站預設</b>＝每題固定先遵守的系統底線；<b>教學規則庫</b>＝老師針對特定科目／單元累積、符合條件才檢索的教法。兩者不再混在同一層。</p></section>
     {message&&<div className={`admin-notice ${message.includes("已更新")?"success":"danger"}`}>{message}</div>}
     <section className="hh-card admin-panel"><PanelHeader eyebrow="TEACHING MODE" title="解題模式" subtitle="設定整個解題實驗室預設的教學深度。"/><div className="teaching-mode-list">{modes.map(m=><button key={m.key} type="button" className={settings.mode===m.key?"active":""} onClick={()=>setSettings({...settings,mode:m.key})}><span className="teaching-mode-radio"/><strong>{m.name}</strong><span>{m.desc}</span></button>)}</div><div className="teaching-mode-current">目前模式：<strong>{activeMode.name}</strong> · {activeMode.desc}</div></section>
-    <section className="hh-card admin-panel"><PanelHeader eyebrow="GLOBAL DEFAULTS" title="全站解題預設" subtitle="這裡是所有題目固定套用的基礎開關與互動重點密度，不是老師從個別題目教給 AI 的知識。跨題教法請放在「教學規則庫」。"/><div className="teaching-rule-checks">{general.map(([key,label])=><label key={key}><input type="checkbox" checked={Boolean(settings.general[key])} onChange={e=>setSettings({...settings,general:{...settings.general,[key]:e.target.checked}})}/><span>{label}</span></label>)}</div><div className="teaching-annotation-density"><div><strong>互動式詳解密度</strong><span>控制新解題預設要標多少個真正有教學價值的數值、變數、單位或公式片段；教師校正仍可逐題覆寫。</span></div><select className="hh-select" value={settings.general.annotationDensity||"rich"} onChange={e=>setSettings({...settings,general:{...settings.general,annotationDensity:e.target.value}})}><option value="light">精簡 · 約 1～2 個</option><option value="standard">標準 · 約 2～4 個</option><option value="rich">豐富 · 約 4～8 個</option></select></div></section>
+    <section className="hh-card admin-panel"><PanelHeader eyebrow="GLOBAL DEFAULTS" title="全站解題預設" subtitle="這裡是所有題目固定套用的基礎開關與互動重點密度，不是老師從個別題目教給 AI 的知識。跨題教法請放在「教學規則庫」。"/><div className="teaching-rule-checks">{general.map(([key,label])=><label key={key}><input type="checkbox" checked={Boolean(settings.general[key])} onChange={e=>setSettings({...settings,general:{...settings.general,[key]:e.target.checked}})}/><span>{label}</span></label>)}</div><div className="teaching-annotation-density"><div><strong>互動式詳解密度</strong><span>控制新解題預設要標多少個真正有教學價值的數值、變數、單位或公式片段；教師校正仍可逐題覆寫。</span></div><select className="hh-select" value={settings.general.annotationDensity||"rich"} onChange={e=>setSettings({...settings,general:{...settings.general,annotationDensity:e.target.value}})}><option value="light">精簡 · 約 1～2 個</option><option value="standard">標準 · 約 2～4 個</option><option value="rich">豐富 · 約 4～8 個</option></select></div><div className="teaching-annotation-density"><div><strong>Science Diagram Engine</strong><span>自動判斷物理、地科與少數實驗題是否需要精確 SVG 圖解。關閉後所有新題都只輸出文字詳解。</span></div><select className="hh-select" value={settings.general.diagramMode||"auto"} onChange={e=>setSettings({...settings,general:{...settings.general,diagramMode:e.target.value}})}><option value="auto">自動 · 需要時才畫</option><option value="off">關閉 · 不產生圖解</option></select></div></section>
     <section className="hh-card admin-panel input-guard-panel"><PanelHeader eyebrow="INPUT GUARD" title="圖片有效性與阻擋規則" subtitle="先擋無效圖片，再做自然科判斷。被擋的圖片不扣題數，也不會進入正式 Primary／Verifier／Arbiter 解題。"/><label className="input-guard-master"><input type="checkbox" checked={Boolean(guard.enabled)} onChange={e=>setGuard({...guard,enabled:e.target.checked})}/><span><strong>啟用輸入阻擋</strong><small>建議保持開啟</small></span></label><div className="teaching-rule-checks input-guard-checks">{guardRules.map(([key,label])=><label key={key}><input type="checkbox" checked={Boolean(guard[key])} onChange={e=>setGuard({...guard,[key]:e.target.checked})}/><span>{label}</span></label>)}</div><label className="teaching-subject-editor"><span>老師自訂阻擋規則</span><small>每行一條。也可以在「全站題目」個別題目中按「加入阻擋規則」。</small><textarea className="hh-input" value={(guard.customRules||[]).join("\n")} onChange={e=>setGuard({...guard,customRules:e.target.value.split("\n").map((v:string)=>v.trim()).filter(Boolean)})} placeholder={'例如：圖片只有黑底沒有題目內容時直接阻擋\n例如：學生上傳與自然科題目無關的聊天截圖時直接阻擋'}/></label></section>
     <section className="hh-card admin-panel"><PanelHeader eyebrow="SUBJECT BASELINE" title="各科基礎指示" subtitle="這裡放每一題都要遵守的科目級底線；若是特定單元或題型的教法，請改放「教學規則庫」。"/><div className="teaching-subject-tabs">{subjects.map(([key,label])=><button key={key} type="button" className={activeSubject===key?"active":""} onClick={()=>setActiveSubject(key)}>{label}</button>)}</div><label className="teaching-subject-editor"><span>{activeSubjectLabel}基礎指示</span><textarea className="hh-input" value={settings.subjects[activeSubject]||""} onChange={e=>setSettings({...settings,subjects:{...settings.subjects,[activeSubject]:e.target.value}})}/></label><button type="button" className="hh-button-primary teaching-rules-save" onClick={()=>void save()} disabled={saving}>{saving?"儲存中…":"儲存全部規則"}</button></section>
   </div>;

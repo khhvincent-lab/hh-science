@@ -197,6 +197,96 @@ $\\frac{192}{162}$
 $\\htmlData{annotation=a1}{162}\\ \\mathrm{g/mol}$
 
 ━━━━━━━━━━━━━━━━━━
+【Science Diagram Engine】
+━━━━━━━━━━━━━━━━━━
+
+如果「一張簡單、精確的幾何／科學示意圖」能明顯降低理解門檻，可以輸出 diagram；否則 diagram 必須為 null。
+
+優先考慮：
+- 物理：受力、斜面、圓周運動、彈簧、滑輪、光學、簡單電路
+- 地科：地層／斷層、板塊、日地月、太陽入射角、大氣與海洋環流
+- 化學：只有簡單實驗裝置或粒子／流程幾何關係真的有幫助時才畫
+
+重要規則：
+1. 不為了好看而畫圖；純計算題若圖不增加理解，diagram=null。
+2. 圖只能呈現你已確認的物理／地科關係，不可新增題目沒有的假設。
+3. 使用 0～100 的座標系，左上角是 (0,0)，右下角是 (100,100)。
+4. primitives 最多 18 個，保持簡潔；標籤 text 最好 1～8 個字。
+5. 箭頭只用 arrow；一般幾何線用 line；虛線請 dashed=true。
+6. 不要把長篇公式塞進圖裡。圖是輔助詳解，不是取代詳解。
+7. confidence 只有你對圖的科學關係有把握時才給 80 以上；若低於 70，直接 diagram=null。
+8. 教師規則若明確要求某類題「應附圖」或指定圖中重點，優先遵循，但仍須符合題目事實。
+
+primitive 格式：
+- line / arrow：x1,y1,x2,y2
+- circle：cx,cy,r
+- rect：x,y,width,height
+- label：x,y,text
+- 每個 primitive 可選填 note：學生點擊該元素時顯示的一句簡短解釋
+- polyline：points:[{"x":10,"y":20},...]
+- arc：cx,cy,r,startAngle,endAngle
+- role 可用 primary / secondary / accent / muted
+
+diagram 範例：
+{
+  "type":"circular_motion",
+  "title":"圓周運動受力圖",
+  "caption":"半徑方向與重力方向的幾何關係",
+  "confidence":92,
+  "primitives":[
+    {"kind":"circle","cx":50,"cy":50,"r":30,"role":"secondary"},
+    {"kind":"label","x":49,"y":47,"text":"O","role":"muted"},
+    {"kind":"circle","cx":71,"cy":71,"r":3,"role":"accent"},
+    {"kind":"line","x1":50,"y1":50,"x2":71,"y2":71,"role":"primary"},
+    {"kind":"arrow","x1":71,"y1":71,"x2":71,"y2":91,"text":"mg","note":"重力方向鉛直向下，大小為 mg。","role":"accent"}
+  ]
+}
+
+
+━━━━━━━━━━━━━━━━━━
+【Chemical Structure Renderer】
+━━━━━━━━━━━━━━━━━━
+
+化學題若「畫出結構式」本身能幫助理解，請輸出 chemicalStructure；否則 chemicalStructure 必須為 null。
+
+適合使用：
+- 有機物骨架、官能基、異構物、鍵結關係
+- 簡單無機分子／離子的鍵結示意
+- 題目在比較結構、辨識官能基、判斷異構或反應位置時
+
+不要使用：
+- 單純需要化學式文字即可理解
+- 你無法確定原子連接方式或鍵級
+- 複雜立體化學、晶體結構、配位幾何若題目資訊不足
+
+重要規則：
+1. chemicalStructure 是「原子／鍵圖」，不是一般圖片生成。
+2. 只畫你能確定的結構；confidence 低於 75 時 chemicalStructure=null。
+3. atoms 使用 0～100 座標，最多 40 個原子。
+4. 碳骨架可將 showLabel=false；異原子 O/N/S/P/鹵素通常 showLabel=true。
+5. bond order 只能是 1、2、3 或 "aromatic"。
+6. 不可自行補出題目沒有的取代基、電荷或立體方向。
+7. 原子可加 note，讓學生點擊時看到官能基或反應位置說明。
+
+格式：
+{
+  "kind":"organic",
+  "title":"乙醇結構式",
+  "formula":"C2H6O",
+  "caption":"羥基是此分子的主要官能基",
+  "confidence":95,
+  "atoms":[
+    {"id":"c1","label":"C","x":28,"y":50,"showLabel":false},
+    {"id":"c2","label":"C","x":50,"y":50,"showLabel":false},
+    {"id":"o1","label":"O","x":72,"y":50,"showLabel":true,"hydrogens":1,"note":"此處為羥基。"}
+  ],
+  "bonds":[
+    {"from":"c1","to":"c2","order":1},
+    {"from":"c2","to":"o1","order":1}
+  ]
+}
+
+━━━━━━━━━━━━━━━━━━
 【選項分析】
 ━━━━━━━━━━━━━━━━━━
 
@@ -228,7 +318,9 @@ $\\htmlData{annotation=a1}{162}\\ \\mathrm{g/mol}$
       "source": "這個數字如何得到",
       "usage": "為什麼這裡要使用它"
     }
-  ]
+  ],
+  "diagram": null,
+  "chemicalStructure": null
 }
 `.trim();
 }
@@ -237,10 +329,14 @@ $\\htmlData{annotation=a1}{162}\\ \\mathrm{g/mol}$
 export function buildVerifierPrompt({
   primaryAnswer,
   primaryExplanation,
+  primaryDiagram,
+  primaryChemicalStructure,
   teachingContext,
 }: {
   primaryAnswer: string;
   primaryExplanation: string;
+  primaryDiagram?: unknown;
+  primaryChemicalStructure?: unknown;
   teachingContext?: string;
 }) {
 
@@ -266,6 +362,18 @@ ${primaryAnswer}
 
 Primary 觀念解析：
 ${primaryExplanation}
+
+Primary 圖解規格（若為 null 代表沒有畫圖）：
+${primaryDiagram ? JSON.stringify(primaryDiagram) : "null"}
+
+Primary 化學結構式（若為 null 代表沒有結構圖）：
+${primaryChemicalStructure ? JSON.stringify(primaryChemicalStructure) : "null"}
+
+若有圖解或化學結構式，請額外檢查：
+- 圖解：箭頭方向、相對位置、標籤、幾何關係是否與題目及詳解一致。
+- 結構式：原子連接、單／雙／三鍵、芳香鍵、官能基、電荷是否與題目一致。
+- 圖解或結構式若有會誤導學生的重大科學錯誤，視同 major_error。
+- 只是美觀或比例不完美，不算 major_error。
 
 ${teachingContext || ""}
 
@@ -322,6 +430,10 @@ ${teachingContext || ""}
 請重新檢查所有題目圖片、圖表、公式、單位、計算與選項，
 最後產生完整的學生版解答。
 
+如果精確簡圖能明顯幫助理解，也請依 Primary 相同的 Science Diagram Engine 規則輸出 diagram；
+使用 0～100 座標、最多 18 個 primitives，只有把握足夠時才畫，否則 diagram=null。
+化學題若結構式能明顯幫助理解，也依 Primary 相同的 Chemical Structure Renderer 規則輸出 chemicalStructure；不需要或不確定時 chemicalStructure=null。
+
 即使你的獨立結論仍與學生提供的標準答案不同，也要維持你認為正確的答案；
 系統會把這題標記為潛在爭議，不要強行改成標準答案。
 
@@ -331,7 +443,9 @@ ${teachingContext || ""}
   "answer": "答案",
   "explanation": "精簡觀念解析",
   "options": "(A) 對：……\\n(B) 錯：……",
-  "annotations": []
+  "annotations": [],
+  "diagram": null,
+  "chemicalStructure": null
 }
 `.trim();
 }

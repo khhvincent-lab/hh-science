@@ -39,6 +39,8 @@ import {
 
 import type {
   Annotation,
+  ChemicalStructure,
+  ScienceDiagram,
   ScienceGateResult,
   SolveResult,
   SolverResponse,
@@ -161,6 +163,113 @@ export type RouterResult = {
 };
 
 
+
+function clampDiagramNumber(value: unknown) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return undefined;
+  return Math.max(0, Math.min(100, n));
+}
+
+function normalizeScienceDiagram(value: any): ScienceDiagram | null {
+  if (!value || typeof value !== "object") return null;
+
+  const allowedTypes = new Set([
+    "force", "incline", "circular_motion", "spring", "pulley", "optics", "circuit",
+    "earth_layers", "fault", "plate_boundary", "sun_angle", "earth_moon_sun",
+    "atmosphere", "ocean_circulation", "chemistry_apparatus", "generic",
+  ]);
+  const type = String(value.type || "generic");
+  const rawConfidence = Number(value.confidence ?? 0);
+  const confidence = Number.isFinite(rawConfidence) ? Math.max(0, Math.min(100, rawConfidence)) : 0;
+  if (!allowedTypes.has(type) || confidence < 55 || !Array.isArray(value.primitives)) return null;
+
+  const allowedKinds = new Set(["line", "arrow", "circle", "rect", "label", "polyline", "arc"]);
+  const allowedRoles = new Set(["primary", "secondary", "accent", "muted"]);
+
+  const primitives = value.primitives.slice(0, 24).flatMap((item: any) => {
+    if (!item || typeof item !== "object") return [];
+    const kind = String(item.kind || "");
+    if (!allowedKinds.has(kind)) return [];
+    const primitive: any = { kind };
+    for (const key of ["x1","y1","x2","y2","x","y","cx","cy","r","width","height"] as const) {
+      const n = clampDiagramNumber(item[key]);
+      if (n !== undefined) primitive[key] = n;
+    }
+    if (Array.isArray(item.points)) {
+      primitive.points = item.points.slice(0, 16).map((point: any) => ({
+        x: clampDiagramNumber(point?.x) ?? 0,
+        y: clampDiagramNumber(point?.y) ?? 0,
+      }));
+    }
+    const startAngle = Number(item.startAngle);
+    const endAngle = Number(item.endAngle);
+    if (Number.isFinite(startAngle)) primitive.startAngle = Math.max(-360, Math.min(360, startAngle));
+    if (Number.isFinite(endAngle)) primitive.endAngle = Math.max(-360, Math.min(360, endAngle));
+    if (item.text != null) primitive.text = String(item.text).slice(0, 48);
+    if (item.note != null) primitive.note = String(item.note).slice(0, 180);
+    const role = String(item.role || "primary");
+    primitive.role = allowedRoles.has(role) ? role : "primary";
+    primitive.dashed = Boolean(item.dashed);
+    return [primitive];
+  });
+
+  if (primitives.length < 2) return null;
+
+  return {
+    type: type as ScienceDiagram["type"],
+    title: String(value.title || "圖解").slice(0, 36),
+    caption: String(value.caption || "").slice(0, 160),
+    confidence,
+    primitives,
+  };
+}
+
+function normalizeChemicalStructure(value: any): ChemicalStructure | null {
+  if (!value || typeof value !== "object") return null;
+  const allowedKinds = new Set(["organic", "inorganic", "ionic", "skeletal", "lewis"]);
+  const kind = String(value.kind || "organic");
+  const rawConfidence = Number(value.confidence ?? 0);
+  const confidence = Number.isFinite(rawConfidence) ? Math.max(0, Math.min(100, rawConfidence)) : 0;
+  if (!allowedKinds.has(kind) || confidence < 60 || !Array.isArray(value.atoms) || !Array.isArray(value.bonds)) return null;
+
+  const atoms = value.atoms.slice(0, 40).flatMap((item: any, index: number) => {
+    if (!item || typeof item !== "object") return [];
+    const id = String(item.id || `a${index + 1}`).slice(0, 24);
+    const label = String(item.label || "C").slice(0, 8);
+    const x = clampDiagramNumber(item.x);
+    const y = clampDiagramNumber(item.y);
+    if (x === undefined || y === undefined) return [];
+    const atom: any = { id, label, x, y };
+    if (item.charge != null) atom.charge = String(item.charge).slice(0, 8);
+    const hydrogens = Number(item.hydrogens);
+    if (Number.isFinite(hydrogens) && hydrogens >= 0 && hydrogens <= 4) atom.hydrogens = Math.floor(hydrogens);
+    atom.showLabel = Boolean(item.showLabel);
+    if (item.note != null) atom.note = String(item.note).slice(0, 180);
+    return [atom];
+  });
+  const ids = new Set(atoms.map((a: any) => a.id));
+  const bonds = value.bonds.slice(0, 48).flatMap((item: any) => {
+    if (!item || typeof item !== "object") return [];
+    const from = String(item.from || "");
+    const to = String(item.to || "");
+    if (!ids.has(from) || !ids.has(to) || from === to) return [];
+    const rawOrder = item.order;
+    const order = rawOrder === "aromatic" ? "aromatic" : Number(rawOrder);
+    if (![1, 2, 3, "aromatic"].includes(order as any)) return [];
+    return [{ from, to, order }];
+  });
+  if (atoms.length < 2 || bonds.length < 1) return null;
+  return {
+    kind: kind as ChemicalStructure["kind"],
+    title: String(value.title || "化學結構式").slice(0, 48),
+    formula: String(value.formula || "").slice(0, 48),
+    caption: String(value.caption || "").slice(0, 180),
+    confidence,
+    atoms,
+    bonds,
+  };
+}
+
 function normalizeSolveResult(
   value:
     any
@@ -244,6 +353,16 @@ function normalizeSolveResult(
       ).trim(),
 
     annotations,
+
+    diagram:
+      normalizeScienceDiagram(
+        value?.diagram
+      ),
+
+    chemicalStructure:
+      normalizeChemicalStructure(
+        value?.chemicalStructure
+      ),
   };
 }
 
@@ -1028,6 +1147,10 @@ export async function runAIRouter(
             primary.answer,
           primaryExplanation:
             primary.explanation,
+          primaryDiagram:
+            primary.diagram,
+          primaryChemicalStructure:
+            primary.chemicalStructure,
           teachingContext,
         }),
       images:

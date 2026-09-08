@@ -191,6 +191,8 @@ export async function GET(
         explanation,
         options,
         annotations,
+        diagram,
+        chemical_structure,
         image_paths,
         favorite,
         created_at,
@@ -391,6 +393,15 @@ export async function GET(
               )
                 ? row.annotations
                 : [],
+
+            diagram:
+              row.diagram && typeof row.diagram === "object"
+                ? row.diagram
+                : null,
+            chemicalStructure:
+              row.chemical_structure && typeof row.chemical_structure === "object"
+                ? row.chemical_structure
+                : null,
 
             imagePaths:
               await signImages(
