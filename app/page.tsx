@@ -5,6 +5,9 @@ import { Cropper } from "react-cropper";
 import katex from "katex";
 import { toPng } from "html-to-image";
 import ThemeToggle from "@/components/theme-toggle";
+import ScienceDiagramView from "@/components/science-diagram";
+import ChemicalStructureView from "@/components/chemical-structure";
+import type { ChemicalStructure, ScienceDiagram } from "@/lib/ai/types";
 import "cropperjs/dist/cropper.css";
 import "katex/dist/katex.min.css";
 
@@ -57,6 +60,8 @@ type SolveData = {
   explanation: string;
   options: string;
   annotations: Annotation[];
+  diagram: ScienceDiagram | null;
+  chemicalStructure: ChemicalStructure | null;
   historyId?: string | null;
 };
 
@@ -64,6 +69,7 @@ type FollowupMessage = {
   id?: string;
   question: string;
   answer: string;
+  diagram?: ScienceDiagram | null;
   createdAt?: string;
 };
 
@@ -155,6 +161,8 @@ type SolveHistoryItem = {
   explanation: string;
   options: string;
   annotations: Annotation[];
+  diagram: ScienceDiagram | null;
+  chemicalStructure: ChemicalStructure | null;
   imagePaths: HistoryImage[];
   favorite: boolean;
   createdAt: string;
@@ -192,8 +200,10 @@ function subjectsForStudent(student: StudentSession | null) {
 }
 
 function normalizeScienceMarkup(text: string) {
-  return text
+  return String(text || "")
     .replace(/\\n/g, "\n")
+    .replace(/\\([A-Za-z])/g, "\\$1")
+    .replace(/\\([()\[\]{}])/g, "\\$1")
     .replace(/\\\[/g, "$$")
     .replace(/\\\]/g, "$$")
     .replace(/\\\(/g, "$")
@@ -201,6 +211,25 @@ function normalizeScienceMarkup(text: string) {
     .replace(/\*\*/g, "")
     .replace(/^---+$/gm, "")
     .trim();
+}
+
+function escapeHtml(text: string) {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function looksLikeMathExpression(text: string) {
+  const value = stripExportAnnotationCommands(normalizeScienceMarkup(text || "")).trim();
+  if (!value) return false;
+  if (/\\[A-Za-z]+/.test(value)) return true;
+  if (/[{}_^]/.test(value)) return true;
+  if (/^[A-Za-z][A-Za-z0-9]*(?:_[A-Za-z0-9{}()+-]+|\^[A-Za-z0-9{}()+-]+)+$/.test(value)) return true;
+  if (/^[A-Za-z0-9\s=+\-*/().,:;]+$/.test(value) && /[=^_]/.test(value)) return true;
+  return false;
 }
 
 function displayClassName(name: string) {
@@ -349,6 +378,17 @@ function ScienceText({
                     />
                   );
                 }
+                if (looksLikeMathExpression(piece.trim())) {
+                  return (
+                    <span
+                      key={pieceIndex}
+                      className="student-inline-formula"
+                      dangerouslySetInnerHTML={{
+                        __html: renderKatex(stripExportAnnotationCommands(piece.trim()), false),
+                      }}
+                    />
+                  );
+                }
                 return <span key={pieceIndex}>{piece}</span>;
               })}
             </p>
@@ -367,7 +407,12 @@ function renderAnnotationDisplay(display: string) {
   } else if (formula.startsWith("$") && formula.endsWith("$")) {
     formula = formula.slice(1, -1).trim();
   }
-  return renderKatex(stripExportAnnotationCommands(formula), false);
+  formula = stripExportAnnotationCommands(formula).trim();
+  if (!formula) return "";
+  if (looksLikeMathExpression(formula)) {
+    return renderKatex(formula, false);
+  }
+  return escapeHtml(formula);
 }
 
 function ModalScienceText({ text }: { text: string }) {
@@ -398,6 +443,11 @@ function ModalScienceText({ text }: { text: string }) {
                   <span
                     key={pieceIndex}
                     dangerouslySetInnerHTML={{ __html: renderKatex(piece.slice(1, -1), false) }}
+                  />
+                ) : looksLikeMathExpression(piece.trim()) ? (
+                  <span
+                    key={pieceIndex}
+                    dangerouslySetInnerHTML={{ __html: renderKatex(stripExportAnnotationCommands(piece.trim()), false) }}
                   />
                 ) : (
                   <span key={pieceIndex}>{piece}</span>
@@ -694,6 +744,7 @@ export default function Home() {
   const [preparedShareFile, setPreparedShareFile] = useState<File | null>(null);
   const [exportQuestionImage, setExportQuestionImage] = useState("");
   const resultRef = useRef<HTMLElement | null>(null);
+  const uploadPanelRef = useRef<HTMLElement | null>(null);
   const exportCardRef = useRef<HTMLDivElement | null>(null);
   const exportQuestionImageRef = useRef<HTMLImageElement | null>(null);
 
@@ -1553,9 +1604,24 @@ export default function Home() {
     img.src = editingImage;
   }
 
+  function restoreUploadViewportAfterCrop(beforeBottom: number | null, beforeScrollY: number) {
+    if (beforeBottom === null) return;
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        const afterBottom = uploadPanelRef.current?.getBoundingClientRect().bottom;
+        if (typeof afterBottom !== "number") return;
+        const removedHeight = Math.max(0, beforeBottom - afterBottom);
+        if (removedHeight < 2) return;
+        window.scrollTo({ top: Math.max(0, beforeScrollY - removedHeight), behavior: "auto" });
+      });
+    });
+  }
+
   function finishCurrentImageEdit() {
     if (!editingImage) return;
 
+    const uploadPanelBottomBefore = uploadPanelRef.current?.getBoundingClientRect().bottom ?? null;
+    const scrollYBefore = window.scrollY;
     let finalImage = editingImage;
     const cropper = cropperRef.current?.cropper;
 
@@ -1583,6 +1649,7 @@ export default function Home() {
       setEditingImage("");
       setIsCropping(false);
       setQuestionError("");
+      restoreUploadViewportAfterCrop(uploadPanelBottomBefore, scrollYBefore);
       return;
     }
 
@@ -1602,6 +1669,7 @@ export default function Home() {
     setEditingImage("");
     setIsCropping(false);
     setQuestionError("");
+    restoreUploadViewportAfterCrop(uploadPanelBottomBefore, scrollYBefore);
   }
 
   function cancelImageEdit() {
@@ -1689,6 +1757,8 @@ export default function Home() {
         explanation: data.explanation || "",
         options: data.options || "",
         annotations: Array.isArray(data.annotations) ? data.annotations : [],
+        diagram: data.diagram && typeof data.diagram === "object" ? data.diagram : null,
+        chemicalStructure: data.chemicalStructure && typeof data.chemicalStructure === "object" ? data.chemicalStructure : null,
         historyId: data.historyId || null,
       });
 
@@ -1754,6 +1824,7 @@ export default function Home() {
           id: data.followup?.id,
           question,
           answer: data.followup?.answer || "",
+          diagram: data.followup?.diagram && typeof data.followup.diagram === "object" ? data.followup.diagram : null,
           createdAt: data.followup?.createdAt,
         },
       ]);
@@ -2488,7 +2559,7 @@ export default function Home() {
         {!student?.mustChangePin && activeView === "solve" && (
           <>
         <div className="student-workspace">
-          <section data-tour="upload-panel" className={`hh-card student-panel student-panel-upload ${!student ? "student-panel-disabled" : ""}`}>
+          <section ref={uploadPanelRef} data-tour="upload-panel" className={`hh-card student-panel student-panel-upload ${!student ? "student-panel-disabled" : ""}`}>
             <StepHeader
               number="1"
               title="上傳題目圖片"
@@ -2616,11 +2687,19 @@ export default function Home() {
                     responsive
                     autoCropArea={0.92}
                     background={false}
+                    guides
+                    center
+                    movable
+                    cropBoxMovable
+                    cropBoxResizable
+                    toggleDragModeOnDblclick={false}
+                    minCropBoxWidth={48}
+                    minCropBoxHeight={48}
                   />
                 </div>
 
                 <div className="student-editor-tip">
-                  拖曳圖片調整位置，拉動裁切框決定 AI 實際讀取的範圍。
+                  拖曳圖片調整位置；四個角與上下左右邊線都可以拉動，決定 AI 實際讀取的範圍。
                 </div>
 
                 <div className="student-two-actions">
@@ -2748,6 +2827,8 @@ export default function Home() {
                 </div>
                 <div className="student-result-content">
                   <ScienceText text={solveData.explanation} annotations={solveData.annotations} onAnnotationClick={setSelectedAnnotation} />
+                  <ScienceDiagramView diagram={solveData.diagram} />
+                  <ChemicalStructureView structure={solveData.chemicalStructure} />
                 </div>
               </article>
 
@@ -2798,6 +2879,7 @@ export default function Home() {
                         <div className="student-followup-answer">
                           <span>AI</span>
                           <ScienceText text={item.answer} />
+                          {item.diagram ? <ScienceDiagramView diagram={item.diagram} compact /> : null}
                         </div>
                       </article>
                     ))}
@@ -3065,6 +3147,8 @@ export default function Home() {
                       annotations={selectedHistory.annotations}
                       onAnnotationClick={setSelectedAnnotation}
                     />
+                    <ScienceDiagramView diagram={selectedHistory.diagram} />
+                    <ChemicalStructureView structure={selectedHistory.chemicalStructure} />
                   </section>
 
                   {selectedHistory.options && (
@@ -3854,7 +3938,23 @@ export default function Home() {
         .student-question-image { display: block; max-width: 100%; max-height: 470px; margin: 0 auto; border-radius: 12px; }
         .student-image-actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 9px; margin-top: 10px; }
         .student-file-replace { min-height: 44px; display: grid; place-items: center; border-radius: 12px; background: var(--student-gold-soft); color: var(--student-gold); border: 1px solid color-mix(in srgb, var(--student-gold) 22%, var(--border)); font-size: 13px; font-weight: 750; cursor: pointer; }
-        .student-crop-frame { overflow: hidden; border-radius: 14px; border: 1px solid var(--border); }
+        .student-crop-frame { overflow: hidden; border-radius: 14px; border: 1px solid var(--border); touch-action: none; }
+        .student-crop-frame .cropper-container, .student-crop-frame .cropper-canvas, .student-crop-frame .cropper-drag-box, .student-crop-frame .cropper-crop-box, .student-crop-frame .cropper-face { touch-action: none !important; }
+        .student-crop-frame .cropper-point { width: 18px !important; height: 18px !important; opacity: .95 !important; border-radius: 50%; }
+        .student-crop-frame .cropper-point.point-nw { left: -9px !important; top: -9px !important; }
+        .student-crop-frame .cropper-point.point-ne { right: -9px !important; top: -9px !important; }
+        .student-crop-frame .cropper-point.point-sw { left: -9px !important; bottom: -9px !important; }
+        .student-crop-frame .cropper-point.point-se { right: -9px !important; bottom: -9px !important; }
+        .student-crop-frame .cropper-point.point-n { top: -9px !important; margin-left: -9px !important; }
+        .student-crop-frame .cropper-point.point-s { bottom: -9px !important; margin-left: -9px !important; }
+        .student-crop-frame .cropper-point.point-w { left: -9px !important; margin-top: -9px !important; }
+        .student-crop-frame .cropper-point.point-e { right: -9px !important; margin-top: -9px !important; }
+        .student-crop-frame .cropper-line.line-n, .student-crop-frame .cropper-line.line-s { height: 14px !important; }
+        .student-crop-frame .cropper-line.line-e, .student-crop-frame .cropper-line.line-w { width: 14px !important; }
+        .student-crop-frame .cropper-line.line-n { top: -7px !important; }
+        .student-crop-frame .cropper-line.line-s { bottom: -7px !important; }
+        .student-crop-frame .cropper-line.line-e { right: -7px !important; }
+        .student-crop-frame .cropper-line.line-w { left: -7px !important; }
         .student-two-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 11px; }
         .student-note-field { margin-top: 10px; }
         .student-note-textarea {

@@ -77,6 +77,11 @@ export type ScienceDiagram = {
     | "atmosphere"
     | "ocean_circulation"
     | "chemistry_apparatus"
+    | "motion_graph"
+    | "coordinate_graph"
+    | "wave"
+    | "vector"
+    | "phase_diagram"
     | "generic";
   title: string;
   caption: string;

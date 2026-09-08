@@ -177,7 +177,7 @@ export async function GET(request: NextRequest) {
     const chunk = historyIds.slice(start, start + 100);
     const { data: followupRows, error: followupError } = await supabaseAdmin
       .from("solve_followups")
-      .select("id,solve_history_id,question,answer,provider,model,created_at")
+      .select("id,solve_history_id,question,answer,diagram,provider,model,created_at")
       .in("solve_history_id", chunk)
       .order("created_at", { ascending: true });
     if (followupError) {
@@ -192,6 +192,7 @@ export async function GET(request: NextRequest) {
         id: (followup as any).id,
         question: (followup as any).question || "",
         answer: (followup as any).answer || "",
+        diagram: (followup as any).diagram && typeof (followup as any).diagram === "object" ? (followup as any).diagram : null,
         provider: (followup as any).provider || null,
         model: (followup as any).model || null,
         createdAt: (followup as any).created_at,

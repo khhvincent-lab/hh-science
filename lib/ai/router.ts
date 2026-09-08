@@ -176,7 +176,8 @@ function normalizeScienceDiagram(value: any): ScienceDiagram | null {
   const allowedTypes = new Set([
     "force", "incline", "circular_motion", "spring", "pulley", "optics", "circuit",
     "earth_layers", "fault", "plate_boundary", "sun_angle", "earth_moon_sun",
-    "atmosphere", "ocean_circulation", "chemistry_apparatus", "generic",
+    "atmosphere", "ocean_circulation", "chemistry_apparatus",
+    "motion_graph", "coordinate_graph", "wave", "vector", "phase_diagram", "generic",
   ]);
   const type = String(value.type || "generic");
   const rawConfidence = Number(value.confidence ?? 0);
