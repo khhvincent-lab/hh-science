@@ -1,61 +1,16 @@
-import {
-  NextRequest,
-  NextResponse,
-} from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import { ADMIN_SCOPE_COOKIE } from "@/lib/admin-session";
+import { requireAdminSession } from "@/lib/admin-access";
+import { supabaseAdmin } from "@/lib/supabase-admin";
 
-import {
-  ADMIN_SESSION_COOKIE,
-  verifyAdminSessionToken,
-} from "@/lib/admin-session";
-
-
-export async function GET(
-  request: NextRequest
-) {
-
-  const token =
-    request.cookies.get(
-      ADMIN_SESSION_COOKIE
-    )?.value;
-
-
-  if (!token) {
-    return NextResponse.json({
-      authenticated:
-        false,
-    });
+export async function GET(request: NextRequest) {
+  const session = await requireAdminSession(request);
+  if (!session) return NextResponse.json({ authenticated:false }, { status:401 });
+  let scopeTeacher: any = null;
+  const scopeId = request.cookies.get(ADMIN_SCOPE_COOKIE)?.value;
+  if (scopeId && session.role !== "teacher") {
+    const { data } = await supabaseAdmin.from("admin_users").select("id,display_name,username").eq("id",scopeId).maybeSingle();
+    scopeTeacher = data ?? null;
   }
-
-
-  const session =
-    verifyAdminSessionToken(
-      token
-    );
-
-
-  if (!session) {
-
-    const response =
-      NextResponse.json({
-        authenticated:
-          false,
-      });
-
-
-    response.cookies.delete(
-      ADMIN_SESSION_COOKIE
-    );
-
-
-    return response;
-  }
-
-
-  return NextResponse.json({
-    authenticated:
-      true,
-
-    role:
-      "admin",
-  });
+  return NextResponse.json({ authenticated:true, user:{ id:session.userId, username:session.username, displayName:session.displayName, role:session.role }, scopeTeacher });
 }

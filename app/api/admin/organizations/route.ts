@@ -1,11 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
-import { verifyAdminSessionToken } from "@/lib/admin-session";
+import { getAccessibleClassIds, isSuperAdmin, requireAdminSession } from "@/lib/admin-access";
 
-async function requireAdmin(request: NextRequest) {
-  const token = request.cookies.get("hh_science_admin_session")?.value;
-  return token ? verifyAdminSessionToken(token) : null;
-}
 const clean = (v: unknown) => typeof v === "string" ? v.trim() : "";
 const ALL_SUBJECTS = ["physics","chemistry","biology","earth"];
 function cleanSubjects(value: unknown) {
@@ -14,7 +10,7 @@ function cleanSubjects(value: unknown) {
 }
 
 export async function GET(request: NextRequest) {
-  if (!(await requireAdmin(request))) return NextResponse.json({error:"未登入管理員。"},{status:401});
+  const session = await requireAdminSession(request); if (!session) return NextResponse.json({error:"未登入管理員。"},{status:401});
   const [{data:regions,error:re},{data:institutions,error:ie},{data:classes,error:ce},{data:students,error:se}] = await Promise.all([
     supabaseAdmin.from("regions").select("id,name,active,sort_order").order("sort_order").order("name"),
     supabaseAdmin.from("institutions").select("id,region_id,name,active,sort_order").order("sort_order").order("name"),
@@ -22,11 +18,21 @@ export async function GET(request: NextRequest) {
     supabaseAdmin.from("students").select("id,region_id,institution_id,class_id"),
   ]);
   const error=re||ie||ce||se; if(error) return NextResponse.json({error:`讀取組織資料失敗：${error.message}`},{status:500});
-  return NextResponse.json({regions:regions??[],institutions:institutions??[],classes:classes??[],students:students??[]});
+  const forceAll = request.nextUrl.searchParams.get("all") === "1" && isSuperAdmin(session);
+  const allowedClassIds = forceAll ? null : await getAccessibleClassIds(request, session);
+  if (allowedClassIds === null) return NextResponse.json({regions:regions??[],institutions:institutions??[],classes:classes??[],students:students??[]});
+  const scopedClasses=(classes??[]).filter((row:any)=>allowedClassIds.includes(String(row.id)));
+  const institutionIds=new Set(scopedClasses.map((row:any)=>String(row.institution_id)));
+  const scopedInstitutions=(institutions??[]).filter((row:any)=>institutionIds.has(String(row.id)));
+  const regionIds=new Set(scopedInstitutions.map((row:any)=>String(row.region_id)));
+  const scopedRegions=(regions??[]).filter((row:any)=>regionIds.has(String(row.id)));
+  const scopedStudents=(students??[]).filter((row:any)=>row.class_id&&allowedClassIds.includes(String(row.class_id)));
+  return NextResponse.json({regions:scopedRegions,institutions:scopedInstitutions,classes:scopedClasses,students:scopedStudents});
 }
 
 export async function POST(request: NextRequest) {
-  if (!(await requireAdmin(request))) return NextResponse.json({error:"未登入管理員。"},{status:401});
+  const session = await requireAdminSession(request); if (!session) return NextResponse.json({error:"未登入管理員。"},{status:401});
+  if (!isSuperAdmin(session)) return NextResponse.json({error:"只有總管理員可新增組織或班級。"},{status:403});
   const body=await request.json().catch(()=>null); if(!body) return NextResponse.json({error:"資料格式錯誤。"},{status:400});
   const type=clean(body.type), name=clean(body.name); if(!name||name.length>50) return NextResponse.json({error:"名稱不可空白且最多 50 字。"},{status:400});
   if(type==="region") {
@@ -50,7 +56,8 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PATCH(request: NextRequest) {
-  if (!(await requireAdmin(request))) return NextResponse.json({error:"未登入管理員。"},{status:401});
+  const session = await requireAdminSession(request); if (!session) return NextResponse.json({error:"未登入管理員。"},{status:401});
+  if (!isSuperAdmin(session)) return NextResponse.json({error:"只有總管理員可修改班級設定。"},{status:403});
   const body=await request.json().catch(()=>null); if(!body) return NextResponse.json({error:"資料格式錯誤。"},{status:400});
   const action=clean(body.action);
   if(action==="update_class_subjects") {
@@ -102,7 +109,8 @@ export async function PATCH(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
-  if (!(await requireAdmin(request))) return NextResponse.json({error:"未登入管理員。"},{status:401});
+  const session = await requireAdminSession(request); if (!session) return NextResponse.json({error:"未登入管理員。"},{status:401});
+  if (!isSuperAdmin(session)) return NextResponse.json({error:"只有總管理員可刪除組織或班級。"},{status:403});
   const body=await request.json().catch(()=>null); const type=clean(body?.type), id=clean(body?.id); if(!id) return NextResponse.json({error:"缺少 ID。"},{status:400});
   if(type==="class") {
     const {count}=await supabaseAdmin.from("students").select("id",{count:"exact",head:true}).eq("class_id",id);

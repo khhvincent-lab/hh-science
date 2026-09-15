@@ -1,13 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
-import { verifyAdminSessionToken } from "@/lib/admin-session";
+import { getAccessibleClassIds, requireAdminSession } from "@/lib/admin-access";
 
 const USD_TO_TWD_RATE = 32.5;
-
-async function requireAdmin(request: NextRequest) {
-  const token = request.cookies.get("hh_science_admin_session")?.value;
-  return token ? verifyAdminSessionToken(token) : null;
-}
 
 function taipeiDateParts() {
   const parts = new Intl.DateTimeFormat("en-CA", {
@@ -20,7 +15,9 @@ function taipeiDateParts() {
 }
 
 export async function GET(request: NextRequest) {
-  if (!(await requireAdmin(request))) return NextResponse.json({ error: "未登入管理員。" }, { status: 401 });
+  const session = await requireAdminSession(request);
+  if (!session) return NextResponse.json({ error: "未登入管理員。" }, { status: 401 });
+  const allowedClassIds = await getAccessibleClassIds(request, session);
 
   const { today, monthStart } = taipeiDateParts();
   const [{ data: classes, error: classError }, { data: students, error: studentError }] = await Promise.all([
@@ -29,7 +26,8 @@ export async function GET(request: NextRequest) {
   ]);
   if (classError || studentError) return NextResponse.json({ error: classError?.message || studentError?.message || "讀取班級統計失敗。" }, { status: 500 });
 
-  const studentRows = students ?? [];
+  const scopedClasses = allowedClassIds === null ? (classes ?? []) : (classes ?? []).filter((row:any) => allowedClassIds.includes(String(row.id)));
+  const studentRows = allowedClassIds === null ? (students ?? []) : (students ?? []).filter((row:any) => row.class_id && allowedClassIds.includes(String(row.class_id)));
   const ids = studentRows.map((s) => s.id as string);
   const [{ data: todayUsage }, { data: monthHistory }, { data: monthApi }] = await Promise.all([
     supabaseAdmin.from("daily_usage").select("student_id,count").eq("usage_date", today),
@@ -46,7 +44,7 @@ export async function GET(request: NextRequest) {
 
   const todayKey = today;
   const currentYear = Number(today.slice(0, 4));
-  const rows = (classes ?? []).map((klass: any) => {
+  const rows = scopedClasses.map((klass: any) => {
     const members = studentRows.filter((student: any) => student.class_id === klass.id);
     const institution = Array.isArray(klass.institutions) ? klass.institutions[0] : klass.institutions;
     const region = institution ? (Array.isArray(institution.regions) ? institution.regions[0] : institution.regions) : null;

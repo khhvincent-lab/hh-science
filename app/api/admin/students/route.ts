@@ -7,9 +7,7 @@ import {
   supabaseAdmin,
 } from "@/lib/supabase-admin";
 
-import {
-  verifyAdminSessionToken,
-} from "@/lib/admin-session";
+import { assertClassAccess, getAccessibleClassIds, requireAdminSession } from "@/lib/admin-access";
 
 import {
   getAISolverSettings,
@@ -65,37 +63,12 @@ function getTaiwanDateString() {
 }
 
 
-async function requireAdmin(
-  request:
-    NextRequest
-) {
-
-  const token =
-    request.cookies.get(
-      "hh_science_admin_session"
-    )?.value;
-
-  if (
-    !token
-  ) {
-    return null;
-  }
-
-  return verifyAdminSessionToken(
-    token
-  );
-}
-
-
 export async function GET(
   request:
     NextRequest
 ) {
 
-  const admin =
-    await requireAdmin(
-      request
-    );
+  const admin = await requireAdminSession(request);
 
   if (
     !admin
@@ -141,6 +114,9 @@ export async function GET(
         }
       );
 
+
+  const allowedClassIds = await getAccessibleClassIds(request, admin);
+  const scopedStudents = allowedClassIds === null ? (students ?? []) : (students ?? []).filter((row:any) => row.class_id && allowedClassIds.includes(String(row.class_id)));
 
   if (
     studentError
@@ -218,8 +194,7 @@ export async function GET(
 
   const rows =
     (
-      students ??
-      []
+      scopedStudents
     ).map(
       (student) => ({
         ...student,
@@ -291,10 +266,7 @@ export async function POST(
     NextRequest
 ) {
 
-  const admin =
-    await requireAdmin(
-      request
-    );
+  const admin = await requireAdminSession(request);
 
   if (
     !admin
@@ -350,6 +322,8 @@ export async function POST(
     if (!regionId || !institutionId || !classId) {
       return NextResponse.json({ error: "請完整選擇地區、合作單位與班級。" }, { status: 400 });
     }
+
+    if (!(await assertClassAccess(request, admin, classId))) return NextResponse.json({ error: "你沒有此班級的管理權限。" }, { status: 403 });
 
     const { data: classRow, error: classError } = await supabaseAdmin
       .from("classes")
@@ -555,10 +529,7 @@ export async function PATCH(
     NextRequest
 ) {
 
-  const admin =
-    await requireAdmin(
-      request
-    );
+  const admin = await requireAdminSession(request);
 
   if (
     !admin
@@ -618,6 +589,11 @@ export async function PATCH(
   const id =
     body.id
       ?.trim();
+
+  if (id) {
+    const { data: targetStudent } = await supabaseAdmin.from("students").select("id,class_id").eq("id", id).maybeSingle();
+    if (!targetStudent || !(await assertClassAccess(request, admin, targetStudent.class_id))) return NextResponse.json({ error: "你沒有此學生的管理權限。" }, { status: 403 });
+  }
 
   if (
     !id
@@ -999,7 +975,7 @@ export async function PATCH(
 }
 
 export async function DELETE(request: NextRequest) {
-  const admin = await requireAdmin(request);
+  const admin = await requireAdminSession(request);
   if (!admin) {
     return NextResponse.json({ error: "未登入管理員。" }, { status: 401 });
   }
@@ -1016,12 +992,15 @@ export async function DELETE(request: NextRequest) {
 
   const { data: student, error: studentReadError } = await supabaseAdmin
     .from("students")
-    .select("id,name")
+    .select("id,name,class_id")
     .eq("id", id)
     .maybeSingle();
 
   if (studentReadError || !student) {
     return NextResponse.json({ error: "找不到學生資料。" }, { status: 404 });
+  }
+  if (!(await assertClassAccess(request, admin, (student as any).class_id))) {
+    return NextResponse.json({ error: "你沒有此學生的管理權限。" }, { status: 403 });
   }
 
   const { data: histories } = await supabaseAdmin

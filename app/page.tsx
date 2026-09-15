@@ -696,6 +696,7 @@ function isRunningStandalone() {
 }
 
 export default function Home() {
+  const [brand, setBrand] = useState({ name: "解題實驗室", englishName: "H.H. Science Lab", adminName: "教師管理中心" });
   const [campus, setCampus] = useState<Campus | "">("");
   const [regionId, setRegionId] = useState("");
   const [institutionId, setInstitutionId] = useState("");
@@ -748,6 +749,13 @@ export default function Home() {
   const [historyFavoritesOnly, setHistoryFavoritesOnly] = useState(false);
   const [selectedHistory, setSelectedHistory] = useState<SolveHistoryItem | null>(null);
   const [historyFavoriteBusyId, setHistoryFavoriteBusyId] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch("/api/brand", { cache: "no-store" })
+      .then((response) => response.ok ? response.json() : null)
+      .then((data) => { if (data?.brand) setBrand(data.brand); })
+      .catch(() => {});
+  }, []);
 
   const image = images[0] || "";
 
@@ -2212,8 +2220,8 @@ export default function Home() {
     return (
       <main className="hh-page student-loading-page">
         <div className="student-loading-card">
-          <div className="hh-eyebrow">H.H. SCIENCE LAB</div>
-          <div className="hh-display student-loading-title">解題實驗室</div>
+          <div className="hh-eyebrow">{brand.englishName}</div>
+          <div className="hh-display student-loading-title">{brand.name}</div>
           <div className="student-muted">正在確認登入狀態…</div>
         </div>
       </main>
@@ -2234,8 +2242,8 @@ export default function Home() {
               setMenuOpen(false);
             }}
           >
-            <span className="student-app-brand-en">H.H. Science Lab</span>
-            <span className="student-app-brand-zh">解題實驗室</span>
+            <span className="student-app-brand-en">{brand.englishName}</span>
+            <span className="student-app-brand-zh">{brand.name}</span>
           </button>
 
           <div className="student-app-header-actions">
@@ -2333,8 +2341,8 @@ export default function Home() {
         </header>
 
         <section className="student-brand-intro">
-          <div className="hh-eyebrow">H.H. SCIENCE LAB</div>
-          <h1 className="hh-display">自然科解題實驗室</h1>
+          <div className="hh-eyebrow">{brand.englishName}</div>
+          <h1 className="hh-display">{brand.name}</h1>
           <p>拆解步驟，訂正錯誤，清晰脈絡，梳理思路</p>
         </section>
 
@@ -3285,8 +3293,8 @@ export default function Home() {
         )}
 
         <footer className="student-footer">
-          <div className="hh-eyebrow">H.H. SCIENCE LAB</div>
-          <div>自然科解題實驗室 v1.3.4</div>
+          <div className="hh-eyebrow">{brand.englishName}</div>
+          <div>{brand.name} v1.4.0</div>
         </footer>
       </div>
 
@@ -3303,7 +3311,7 @@ export default function Home() {
             }}
           >
             <div style={{ borderBottom: "2px solid #dce0da", paddingBottom: "18px", marginBottom: "24px" }}>
-              <div style={{ fontFamily: '"Source Han Serif TC", "Noto Serif TC", "Songti TC", "PMingLiU", serif', fontSize: "32px", fontWeight: 700, color: "#30463b" }}>H.H. Science Lab 解題實驗室</div>
+              <div style={{ fontFamily: '"Source Han Serif TC", "Noto Serif TC", "Songti TC", "PMingLiU", serif', fontSize: "32px", fontWeight: 700, color: "#30463b" }}>{brand.englishName} {brand.name}</div>
               <div style={{ marginTop: "6px", fontSize: "14px", color: "#747c77" }}>拆解步驟，訂正錯誤，清晰脈絡，梳理思路</div>
               {student && <div style={{ marginTop: "10px", fontSize: "13px", color: "#747c77" }}>{student.campus} ｜ {student.name}</div>}
             </div>
@@ -3344,7 +3352,7 @@ export default function Home() {
               </div>
             )}
 
-            <div style={{ marginTop: "24px", paddingTop: "14px", borderTop: "1px solid #dde1db", textAlign: "center", fontSize: "12px", color: "#959c97" }}>H.H. Science Lab 解題實驗室</div>
+            <div style={{ marginTop: "24px", paddingTop: "14px", borderTop: "1px solid #dde1db", textAlign: "center", fontSize: "12px", color: "#959c97" }}>{brand.englishName} {brand.name}</div>
           </div>
         </div>
       )}

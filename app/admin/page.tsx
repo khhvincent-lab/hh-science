@@ -5,6 +5,7 @@ import katex from "katex";
 import ThemeToggle from "@/components/theme-toggle";
 import ScienceDiagramView from "@/components/science-diagram";
 import ChemicalStructureView from "@/components/chemical-structure";
+import AdminPlatformSettings from "@/components/admin-platform-settings";
 import type { ChemicalStructure, ScienceDiagram } from "@/lib/ai/types";
 import { TeachingOverviewSection, TeachingExamplesSection, TeachingRuleLibrarySection, TeachingCoachSection, TeachingTrainingSection } from "@/components/admin/teaching-engine-v2";
 import "katex/dist/katex.min.css";
@@ -39,7 +40,7 @@ async function adminTeachingFilesToDataUrls(files: FileList | null) {
   })));
 }
 
-type AdminSection = "dashboard" | "siteQuestions" | "usage" | "classes" | "students" | "ai" | "pin" | "analytics" | "cost" | "teachingOverview" | "teachingQuestions" | "teachingExamples" | "teachingRuleLibrary" | "teachingCoach" | "teachingTraining" | "teachingSettings" | "teachingQueue" | "teachingRules";
+type AdminSection = "dashboard" | "siteQuestions" | "usage" | "classes" | "students" | "ai" | "pin" | "analytics" | "cost" | "platform" | "teachingOverview" | "teachingQuestions" | "teachingExamples" | "teachingRuleLibrary" | "teachingCoach" | "teachingTraining" | "teachingSettings" | "teachingQueue" | "teachingRules";
 
 type DashboardData = {
   today: {
@@ -474,7 +475,12 @@ function formatAdminOptions(text: string) {
 export default function AdminPage() {
   const [adminReady, setAdminReady] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [username, setUsername] = useState("admin");
   const [password, setPassword] = useState("");
+  const [adminUser, setAdminUser] = useState<{id:string; username:string; displayName:string; role:string} | null>(null);
+  const [scopeTeacher, setScopeTeacher] = useState<{id:string; display_name?:string; displayName?:string; username:string} | null>(null);
+  const [teacherOptions, setTeacherOptions] = useState<{id:string; display_name:string; username:string; role:string; active:boolean}[]>([]);
+  const [brand, setBrand] = useState({name:"解題實驗室", englishName:"H.H. Science Lab", adminName:"教師管理中心"});
   const [loginError, setLoginError] = useState("");
   const [loginLoading, setLoginLoading] = useState(false);
 
@@ -666,6 +672,32 @@ export default function AdminPage() {
     }
   }, []);
 
+  const loadAdminIdentity = useCallback(async () => {
+    try {
+      const [brandResponse, teacherResponse] = await Promise.all([
+        fetch("/api/brand", { cache: "no-store" }),
+        fetch("/api/admin/teachers", { cache: "no-store" }),
+      ]);
+      if (brandResponse.ok) {
+        const data = await brandResponse.json();
+        if (data.brand) setBrand(data.brand);
+      }
+      if (teacherResponse.ok) {
+        const data = await teacherResponse.json();
+        setTeacherOptions(Array.isArray(data.teachers) ? data.teachers.filter((item:any) => item.role === "teacher" && item.active) : []);
+      }
+    } catch {}
+  }, []);
+
+  async function changeTeacherScope(teacherId: string) {
+    const response = await fetch("/api/admin/scope", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ teacherId }) });
+    const data = await response.json();
+    if (!response.ok) { setDashboardError(data.error || "切換教師範圍失敗。"); return; }
+    setScopeTeacher(teacherId ? teacherOptions.find((item:any) => item.id === teacherId) ?? null : null);
+    setStudentsLoaded(false);
+    await loadAllAdminData();
+  }
+
   const loadAllAdminData = useCallback(async () => {
     await Promise.all([
       loadDashboard(),
@@ -679,6 +711,10 @@ export default function AdminPage() {
   ]);
 
   useEffect(() => {
+    fetch("/api/brand", { cache: "no-store" }).then((r)=>r.ok?r.json():null).then((data)=>{ if(data?.brand) setBrand(data.brand); }).catch(()=>{});
+  }, []);
+
+  useEffect(() => {
     async function checkSession() {
       try {
         const response = await fetch("/api/admin/session", { cache: "no-store" });
@@ -686,6 +722,8 @@ export default function AdminPage() {
 
         if (response.ok && data.authenticated) {
           setIsLoggedIn(true);
+          setAdminUser(data.user ?? null);
+          setScopeTeacher(data.scopeTeacher ?? null);
         }
       } catch {
       } finally {
@@ -699,7 +737,8 @@ export default function AdminPage() {
   useEffect(() => {
     if (!isLoggedIn) return;
     void loadAllAdminData();
-  }, [isLoggedIn, loadAllAdminData]);
+    void loadAdminIdentity();
+  }, [isLoggedIn, loadAllAdminData, loadAdminIdentity]);
 
   useEffect(() => {
     if (isLoggedIn && (activeSection === "students" || activeSection === "classes") && !studentsLoaded) {
@@ -720,13 +759,14 @@ export default function AdminPage() {
       const response = await fetch("/api/admin/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password }),
+        body: JSON.stringify({ username, password }),
       });
       const data = await response.json();
 
       if (!response.ok) throw new Error(data.error || "登入失敗。");
 
       setPassword("");
+      setAdminUser(data.user ?? null);
       setIsLoggedIn(true);
     } catch (error) {
       setLoginError(error instanceof Error ? error.message : "登入失敗。");
@@ -1056,22 +1096,26 @@ export default function AdminPage() {
       <main className="admin-login-page">
         <section className="admin-login-card">
           <div className="admin-login-brand">
-            <div className="hh-eyebrow">H.H. SCIENCE LAB · ADMIN</div>
-            <h1 className="hh-display admin-login-title">教師管理中心</h1>
-            <p>管理 AI 解題、學生帳號密碼、學生名單與使用成本。</p>
+            <div className="admin-login-mark">A</div>
+            <div className="hh-eyebrow">{brand.englishName || "H.H. SCIENCE LAB"} · ADMIN</div>
+            <h1 className="hh-display admin-login-title">{brand.adminName || "教師管理中心"}</h1>
+            <p>教師專屬管理後台 · 班級、學生、AI 教學與使用數據集中管理</p>
           </div>
 
           <label className="admin-field">
-            <span>管理員密碼</span>
+            <span>帳號</span>
+            <input className="hh-input" autoComplete="username" value={username} onChange={(event)=>setUsername(event.target.value)} placeholder="輸入教師帳號" />
+          </label>
+          <label className="admin-field">
+            <span>密碼</span>
             <input
               className="hh-input"
               type="password"
+              autoComplete="current-password"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") void handleLogin();
-              }}
-              placeholder="輸入管理員密碼"
+              onKeyDown={(event) => { if (event.key === "Enter") void handleLogin(); }}
+              placeholder="輸入登入密碼"
             />
           </label>
 
@@ -1101,8 +1145,8 @@ export default function AdminPage() {
             setMobileMenuOpen(false);
           }}
         >
-          <span className="hh-display">教師管理中心</span>
-          <small>H.H. SCIENCE LAB</small>
+          <span className="hh-display">{brand.adminName || "教師管理中心"}</span>
+          <small>{brand.englishName || "H.H. SCIENCE LAB"}</small>
         </button>
 
         <div className="admin-mobile-header-actions">
@@ -1134,14 +1178,16 @@ export default function AdminPage() {
 
       <aside className={`admin-sidebar ${mobileMenuOpen ? "mobile-open" : ""}`}>
         <div className="admin-sidebar-brand">
-          <div className="hh-eyebrow">H.H. SCIENCE LAB</div>
-          <div className="hh-display admin-sidebar-title">教師管理中心</div>
+          <div className="hh-eyebrow">{brand.englishName || "H.H. SCIENCE LAB"}</div>
+          <div className="hh-display admin-sidebar-title">{brand.adminName || "教師管理中心"}</div>
           <div className="admin-sidebar-subtitle">Academic Control Center</div>
         </div>
 
         <nav className="admin-nav admin-nav-v13">
           <NavButton active={activeSection === "dashboard"} icon="01" label="管理總覽" onClick={() => { setActiveSection("dashboard"); setMobileMenuOpen(false); }} />
-          <NavButton active={activeSection === "siteQuestions"} icon="02" label="全站題目" onClick={() => { setActiveSection("siteQuestions"); setMobileMenuOpen(false); }} />
+          {(adminUser?.role === "super_admin" || adminUser?.role === "platform_admin") && (
+            <NavButton active={activeSection === "siteQuestions"} icon="02" label="全站題目" onClick={() => { setActiveSection("siteQuestions"); setMobileMenuOpen(false); }} />
+          )}
 
           <AdminNavGroup
             icon="03"
@@ -1156,6 +1202,7 @@ export default function AdminPage() {
             ]}
           />
 
+          {(adminUser?.role === "super_admin" || adminUser?.role === "platform_admin") && (<>
           <AdminNavGroup
             icon="04"
             label="AI模型中心"
@@ -1185,6 +1232,10 @@ export default function AdminPage() {
               { label: "全站預設", active: activeSection === "teachingSettings", onClick: () => { setActiveSection("teachingSettings"); setMobileMenuOpen(false); } },
             ]}
           />
+          </>)}
+          {(adminUser?.role === "super_admin" || adminUser?.role === "platform_admin") && (
+            <NavButton active={activeSection === "platform"} icon="06" label="系統與教師" onClick={() => { setActiveSection("platform"); setMobileMenuOpen(false); }} />
+          )}
         </nav>
 
         <div className="admin-sidebar-footer">
@@ -1206,7 +1257,11 @@ export default function AdminPage() {
           <div>
             <div className="hh-eyebrow">{sectionEyebrow(activeSection)}</div>
             <h1 className="hh-display admin-page-title">{sectionTitle(activeSection)}</h1>
+            {adminUser?.role === "teacher" && <div className="admin-role-note">{adminUser.displayName} · 教師帳號</div>}
           </div>
+          {(adminUser?.role === "super_admin" || adminUser?.role === "platform_admin") && (
+            <label className="admin-teacher-scope"><span>檢視範圍</span><select value={scopeTeacher?.id || ""} onChange={(event)=>void changeTeacherScope(event.target.value)}><option value="">全部老師 / 全部班級</option>{teacherOptions.map((teacher)=><option key={teacher.id} value={teacher.id}>{teacher.display_name}</option>)}</select></label>
+          )}
 
           <div className="admin-topbar-actions">
             <button
@@ -1386,6 +1441,10 @@ export default function AdminPage() {
 
           {activeSection === "teachingSettings" && (
             <TeachingRulesSection />
+          )}
+
+          {activeSection === "platform" && (
+            <AdminPlatformSettings onBrandChanged={() => void loadAdminIdentity()} />
           )}
 
           {activeSection === "analytics" && (
@@ -4794,6 +4853,7 @@ function sectionTitle(section: AdminSection) {
   if (section === "ai") return "AI模型設定";
   if (section === "analytics") return "AI數據分析";
   if (section === "cost") return "成本分析";
+  if (section === "platform") return "系統與教師";
   if (section === "teachingOverview") return "教學引擎總覽";
   if (section === "teachingQuestions") return "教師校正";
   if (section === "teachingExamples") return "解題範例庫";
@@ -4821,6 +4881,21 @@ const adminStyles = `
   }
 
   .admin-center,
+  .admin-login-mark { width: 58px; height: 58px; border-radius: 18px; display:grid; place-items:center; margin: 0 auto 18px; background: var(--hh-ink, #30463b); color:white; font: 700 24px/1 system-ui; box-shadow: 0 12px 30px rgba(20,35,29,.18); }
+  .admin-teacher-scope { display:flex; align-items:center; gap:10px; font-size:12px; color:var(--hh-muted,#66716b); }
+  .admin-teacher-scope select { min-width:190px; border:1px solid rgba(80,96,87,.22); border-radius:12px; padding:9px 12px; background:var(--hh-surface,#fff); color:inherit; }
+  .admin-role-note { margin-top:6px; font-size:12px; opacity:.7; }
+  .admin-platform-stack { display:grid; gap:18px; }
+  .admin-settings-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; }
+  .teacher-class-picker { margin-top:18px; }
+  .teacher-class-grid { display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; }
+  .teacher-class-chip { display:inline-flex; align-items:center; gap:6px; border:1px solid rgba(80,96,87,.18); border-radius:999px; padding:7px 10px; background:rgba(255,255,255,.55); font-size:12px; }
+  .teacher-account-list { margin-top:20px; display:grid; gap:10px; }
+  .teacher-account-row { display:grid; grid-template-columns:minmax(140px,.7fr) 2fr auto; gap:14px; align-items:center; padding:14px; border:1px solid rgba(80,96,87,.16); border-radius:16px; }
+  .teacher-account-row small { display:block; margin-top:4px; opacity:.65; }
+  .teacher-class-grid.compact { margin-top:0; }
+  @media(max-width:760px){ .admin-settings-grid{grid-template-columns:1fr}.teacher-account-row{grid-template-columns:1fr}.admin-teacher-scope{width:100%;justify-content:space-between}.admin-teacher-scope select{min-width:0;max-width:62vw} }
+
   .admin-login-page {
     min-height: 100vh;
     display: grid;

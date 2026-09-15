@@ -7,10 +7,7 @@ import {
   supabaseAdmin,
 } from "@/lib/supabase-admin";
 
-import {
-  ADMIN_SESSION_COOKIE,
-  verifyAdminSessionToken,
-} from "@/lib/admin-session";
+import { requireAdminSession, getAccessibleStudentIds } from "@/lib/admin-access";
 
 import {
   getAISettings,
@@ -19,30 +16,6 @@ import {
 import {
   getAIModel,
 } from "@/lib/ai-models";
-
-
-/* =========================================================
-   Admin check
-========================================================= */
-
-function isAdmin(
-  request: NextRequest
-) {
-  const token =
-    request.cookies.get(
-      ADMIN_SESSION_COOKIE
-    )?.value;
-
-  if (!token) {
-    return false;
-  }
-
-  return Boolean(
-    verifyAdminSessionToken(
-      token
-    )
-  );
-}
 
 
 /* =========================================================
@@ -283,11 +256,8 @@ export async function GET(
 ) {
   try {
 
-    if (
-      !isAdmin(
-        request
-      )
-    ) {
+    const session = await requireAdminSession(request);
+    if (!session) {
       return NextResponse.json(
         {
           error:
@@ -403,6 +373,15 @@ export async function GET(
       );
     }
 
+    const accessibleStudentIds = await getAccessibleStudentIds(request, session);
+    const allowedSet = accessibleStudentIds === null ? null : new Set(accessibleStudentIds);
+    const allowStudent = (id: unknown) => allowedSet === null || (typeof id === "string" && allowedSet.has(id));
+    todayRows.splice(0, todayRows.length, ...todayRows.filter((row:any) => allowStudent(row.student_id)));
+    monthRows.splice(0, monthRows.length, ...monthRows.filter((row:any) => allowStudent(row.student_id)));
+    todayHistoryResult.data = (todayHistoryResult.data || []).filter((row:any) => allowStudent(row.student_id));
+    monthHistoryResult.data = (monthHistoryResult.data || []).filter((row:any) => allowStudent(row.student_id));
+    dailyUsageResult.data = (dailyUsageResult.data || []).filter((row:any) => allowStudent(row.student_id));
+    studentsResult.data = (studentsResult.data || []).filter((row:any) => allowStudent(row.id));
 
     const todaySuccessful =
       todayRows.filter(
