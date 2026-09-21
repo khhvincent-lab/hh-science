@@ -6,7 +6,7 @@ export const metadata: Metadata = {
   applicationName: "Science Admin",
   manifest: "/admin/manifest.webmanifest",
   appleWebApp: { capable: true, title: "Science Admin", statusBarStyle: "black-translucent" },
-  icons: { apple: "/admin-icon-192.png" },
+  icons: { icon: "/admin-icon-192.png?v=150", apple: "/admin-icon-192.png?v=150" },
 };
 
 export default function AdminLayout({ children }: Readonly<{ children: React.ReactNode }>) {

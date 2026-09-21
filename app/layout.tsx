@@ -7,7 +7,8 @@ export const metadata: Metadata = {
     default: "H.H. Science Lab 解題實驗室",
     template: "%s | H.H. Science Lab",
   },
-  description: "自然科解題實驗室 v1",
+  description: "自然科解題實驗室 v1.5.0",
+  icons: { icon: "/icon.png?v=150", apple: "/apple-icon.png?v=150", shortcut: "/favicon.ico?v=150" },
   applicationName: "H.H. Science Lab",
   appleWebApp: {
     capable: true,

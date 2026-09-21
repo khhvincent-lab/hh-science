@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
   const session = await requireAdminSession(request); if (!session) return NextResponse.json({error:"未登入管理員。"},{status:401});
   const [{data:regions,error:re},{data:institutions,error:ie},{data:classes,error:ce},{data:students,error:se}] = await Promise.all([
     supabaseAdmin.from("regions").select("id,name,active,sort_order").order("sort_order").order("name"),
-    supabaseAdmin.from("institutions").select("id,region_id,name,active,sort_order").order("sort_order").order("name"),
+    supabaseAdmin.from("institutions").select("id,region_id,name,brand_title,active,sort_order").order("sort_order").order("name"),
     supabaseAdmin.from("classes").select("id,institution_id,name,active,sort_order,academic_year,allowed_subjects").order("academic_year",{ascending:false}).order("sort_order").order("name"),
     supabaseAdmin.from("students").select("id,region_id,institution_id,class_id"),
   ]);
@@ -60,6 +60,16 @@ export async function PATCH(request: NextRequest) {
   if (!isSuperAdmin(session)) return NextResponse.json({error:"只有總管理員可修改班級設定。"},{status:403});
   const body=await request.json().catch(()=>null); if(!body) return NextResponse.json({error:"資料格式錯誤。"},{status:400});
   const action=clean(body.action);
+  if(action==="update_institution_title") {
+    const institutionId=clean(body.institutionId);
+    const brandTitle=clean(body.brandTitle);
+    if(!institutionId) return NextResponse.json({error:"缺少補習班 ID。"},{status:400});
+    if(brandTitle.length>80) return NextResponse.json({error:"顯示標題不可超過 80 字。"},{status:400});
+    const {data,error}=await supabaseAdmin.from("institutions")
+      .update({brand_title:brandTitle || null}).eq("id",institutionId)
+      .select("id,name,brand_title").single();
+    return error?NextResponse.json({error:error.message},{status:500}):NextResponse.json({success:true,item:data});
+  }
   if(action==="update_class_subjects") {
     const classId=clean(body.classId);
     const allowedSubjects=cleanSubjects(body.allowedSubjects);

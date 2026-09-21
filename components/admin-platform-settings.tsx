@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+type InstitutionRow = {id:string; name:string; brand_title?:string|null};
 type ClassRow = { id:string; name:string; academic_year?:number; institution_id?:string; institutions?:{name?:string}|null };
 type Teacher = { id:string; username:string; display_name:string; role:string; active:boolean; classIds:string[]; last_login_at?:string|null };
 type Brand = { name:string; english_name:string; admin_name:string; primary_color:string };
@@ -9,6 +10,7 @@ type Brand = { name:string; english_name:string; admin_name:string; primary_colo
 export default function AdminPlatformSettings({ onBrandChanged }: { onBrandChanged?:()=>void }) {
   const [teachers,setTeachers]=useState<Teacher[]>([]);
   const [classes,setClasses]=useState<ClassRow[]>([]);
+  const [institutions,setInstitutions]=useState<InstitutionRow[]>([]);
   const [brand,setBrand]=useState<Brand>({name:"解題實驗室",english_name:"H.H. Science Lab",admin_name:"教師管理中心",primary_color:"#30463B"});
   const [username,setUsername]=useState(""); const [displayName,setDisplayName]=useState(""); const [password,setPassword]=useState("");
   const [classIds,setClassIds]=useState<string[]>([]); const [message,setMessage]=useState(""); const [error,setError]=useState("");
@@ -18,7 +20,7 @@ export default function AdminPlatformSettings({ onBrandChanged }: { onBrandChang
     const [td,od,bd]=await Promise.all([tr.json(),or.json(),br.json()]);
     if(!tr.ok) throw new Error(td.error||"讀取教師帳號失敗。");
     if(!or.ok) throw new Error(od.error||"讀取班級失敗。");
-    setTeachers(td.teachers||[]); setClasses(od.classes||[]); if(bd.brand)setBrand(bd.brand);
+    setTeachers(td.teachers||[]); setClasses(od.classes||[]); setInstitutions(od.institutions||[]); if(bd.brand)setBrand(bd.brand);
   },[]);
   useEffect(()=>{void load().catch(e=>setError(e instanceof Error?e.message:"讀取設定失敗。"));},[load]);
   const teacherRows=useMemo(()=>teachers.filter(t=>t.role==="teacher"),[teachers]);
@@ -28,6 +30,14 @@ export default function AdminPlatformSettings({ onBrandChanged }: { onBrandChang
   }
   async function updateTeacher(id:string,patch:any){
     setError("");setMessage(""); const r=await fetch("/api/admin/teachers",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({id,...patch})});const d=await r.json();if(!r.ok){setError(d.error||"更新教師失敗。");return;}setMessage("教師權限已更新。");await load();
+  }
+  async function saveInstitutionTitle(id:string,title:string){
+    setBusy(true);setError("");setMessage("");
+    try {
+      const r=await fetch("/api/admin/organizations",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"update_institution_title",institutionId:id,brandTitle:title})});
+      const d=await r.json();if(!r.ok)throw new Error(d.error||"儲存失敗。");
+      setMessage("補習班顯示標題已更新，學生下次進入時生效。");await load();
+    }catch(e){setError(e instanceof Error?e.message:"儲存失敗。");}finally{setBusy(false);}
   }
   async function saveBrand(){
     setBusy(true);setError("");setMessage("");try{const r=await fetch("/api/admin/brand",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({name:brand.name,englishName:brand.english_name,adminName:brand.admin_name,primaryColor:brand.primary_color})});const d=await r.json();if(!r.ok)throw new Error(d.error||"儲存品牌失敗。");setMessage("品牌設定已更新；網址不會改變。已安裝的 PWA 名稱/圖示可能需重新加入主畫面才會更新。");onBrandChanged?.();await load();}catch(e){setError(e instanceof Error?e.message:"儲存品牌失敗。");}finally{setBusy(false);}
@@ -44,6 +54,10 @@ export default function AdminPlatformSettings({ onBrandChanged }: { onBrandChang
       </div><div className="admin-actions"><button className="hh-button-primary" type="button" onClick={()=>void saveBrand()} disabled={busy}>儲存品牌設定</button></div>
     </section>
     <section className="hh-card admin-panel">
+      <div className="admin-panel-heading"><div><div className="hh-eyebrow">INSTITUTION BRANDING</div><h2 className="hh-display">各補習班顯示標題</h2><p>每個補習班可使用獨立名稱。留白時沿用上方全站品牌；不會改變網址或其他補習班資料。</p></div></div>
+      <div className="teacher-account-list">{institutions.map(institution=><InstitutionTitleEditor key={institution.id} institution={institution} disabled={busy} onSave={saveInstitutionTitle}/>)}</div>
+    </section>
+    <section className="hh-card admin-panel">
       <div className="admin-panel-heading"><div><div className="hh-eyebrow">TEACHER ACCOUNTS</div><h2 className="hh-display">教師帳號與班級權限</h2><p>每位老師使用自己的帳號；老師只看得到被授權的班級。總管理員可查看全部。</p></div></div>
       <div className="admin-settings-grid">
         <label className="admin-field"><span>登入帳號</span><input className="hh-input" value={username} onChange={e=>setUsername(e.target.value)} placeholder="例如 wang.chem"/></label>
@@ -55,4 +69,10 @@ export default function AdminPlatformSettings({ onBrandChanged }: { onBrandChang
       <div className="teacher-account-list">{teacherRows.map(t=><div key={t.id} className="teacher-account-row"><div><strong>{t.display_name}</strong><small>@{t.username} · {t.active?"啟用":"停用"}</small></div><div className="teacher-class-grid compact">{classes.map(c=><label key={c.id} className="teacher-class-chip"><input type="checkbox" checked={(t.classIds||[]).includes(c.id)} onChange={e=>{const next=e.target.checked?[...(t.classIds||[]),c.id]:(t.classIds||[]).filter(x=>x!==c.id);void updateTeacher(t.id,{classIds:next});}}/><span>{c.name}</span></label>)}</div><button type="button" className="admin-ghost-button" onClick={()=>void updateTeacher(t.id,{active:!t.active})}>{t.active?"停用":"啟用"}</button></div>)}</div>
     </section>
   </div>;
+}
+
+function InstitutionTitleEditor({institution,disabled,onSave}:{institution:InstitutionRow;disabled:boolean;onSave:(id:string,title:string)=>Promise<void>}) {
+  const [title,setTitle]=useState(institution.brand_title||"");
+  useEffect(()=>{setTitle(institution.brand_title||"");},[institution.brand_title]);
+  return <div className="teacher-account-row"><div><strong>{institution.name}</strong><small>學生端標題</small></div><input className="hh-input" aria-label={`${institution.name} 顯示標題`} value={title} maxLength={80} placeholder="留白 = 全站品牌" onChange={e=>setTitle(e.target.value)}/><button type="button" className="hh-button-secondary" disabled={disabled || title===(institution.brand_title||"")} onClick={()=>void onSave(institution.id,title)}>儲存</button></div>;
 }

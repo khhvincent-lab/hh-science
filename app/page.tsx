@@ -750,12 +750,16 @@ export default function Home() {
   const [selectedHistory, setSelectedHistory] = useState<SolveHistoryItem | null>(null);
   const [historyFavoriteBusyId, setHistoryFavoriteBusyId] = useState<string | null>(null);
 
+  // Prefer the selected institution title; clearing the selection restores the site-wide name.
   useEffect(() => {
-    fetch("/api/brand", { cache: "no-store" })
+    let cancelled = false;
+    const url = institutionId ? `/api/brand?institutionId=${encodeURIComponent(institutionId)}` : "/api/brand";
+    fetch(url, { cache: "no-store" })
       .then((response) => response.ok ? response.json() : null)
-      .then((data) => { if (data?.brand) setBrand(data.brand); })
+      .then((data) => { if (!cancelled && data?.brand) setBrand(data.brand); })
       .catch(() => {});
-  }, []);
+    return () => { cancelled = true; };
+  }, [institutionId]);
 
   const image = images[0] || "";
 
@@ -3294,7 +3298,7 @@ export default function Home() {
 
         <footer className="student-footer">
           <div className="hh-eyebrow">{brand.englishName}</div>
-          <div>{brand.name} v1.4.0</div>
+          <div>{brand.name} v1.5.0</div>
         </footer>
       </div>
 
