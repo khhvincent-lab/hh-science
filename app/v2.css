@@ -809,3 +809,37 @@ html[data-theme] .student-page .student-modal-card {
 @media (prefers-reduced-motion:reduce) {
   html[data-theme] .student-page .student-subject-option {transition:none!important}
 }
+
+
+/* v2.0.5 — theme-adaptive brand logo. Five approved images, fixed official
+   PWA icon. CSS switches instantly with html[data-theme], no reload or flash. */
+html .adaptive-brand-logo {
+  display:inline-block!important;
+  position:relative;
+  box-sizing:border-box;
+  width:var(--adaptive-logo-size,37px)!important;
+  height:var(--adaptive-logo-size,37px)!important;
+  min-width:var(--adaptive-logo-size,37px);
+  flex:0 0 var(--adaptive-logo-size,37px)!important;
+  aspect-ratio:1;
+  overflow:hidden;
+  border-radius:24%;
+  background-color:#0d284b;
+  background-image:url("/brand/midnight.webp");
+  background-position:center;
+  background-repeat:no-repeat;
+  background-size:cover;
+  box-shadow:0 4px 14px rgba(0,0,0,.16);
+  transition:box-shadow .2s ease;
+}
+html[data-theme="midnight"] .adaptive-brand-logo {background-color:#0d284b;background-image:url("/brand/midnight.webp")}
+html[data-theme="nordic"] .adaptive-brand-logo {background-color:#e8ebd9;background-image:url("/brand/nordic.webp")}
+html[data-theme="aurora"] .adaptive-brand-logo {background-color:#1e7ce4;background-image:url("/brand/aurora.webp")}
+html[data-theme="gold"] .adaptive-brand-logo {background-color:#222326;background-image:url("/brand/gold.webp")}
+html[data-theme="obsidian"] .adaptive-brand-logo {background-color:#292f38;background-image:url("/brand/obsidian.webp")}
+html[data-theme] .admin-login-brand .admin-login-mark .adaptive-brand-logo {
+  margin:0 auto;
+}
+@media (prefers-reduced-motion:reduce) {
+  html .adaptive-brand-logo {transition:none}
+}
