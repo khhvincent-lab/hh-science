@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 
 export const metadata: Metadata = {
   title: "教師管理中心",
-  description: "H.H. Science Lab 教師與管理員後台",
+  description: "解題實驗室 2.0 · 教師與管理員後台",
   applicationName: "解題實驗室",
   manifest: "/admin/manifest.webmanifest",
   appleWebApp: { capable: true, title: "解題實驗室", statusBarStyle: "black-translucent" },

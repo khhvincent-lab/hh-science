@@ -27,18 +27,16 @@ export async function getAccessibleClassIds(request: NextRequest, session: Admin
   if (isSuperAdmin(session) && !request.cookies.get(ADMIN_SCOPE_COOKIE)?.value) return null;
   const viewerId = session.role === "super_admin" ? (await getEffectiveTeacherId(request, session)) : session.userId;
   if (!viewerId) return [];
-  if (session.role === "platform_admin" || session.role === "institution_admin") {
-    const { data: grants, error: ge } = await supabaseAdmin.from("admin_user_institutions").select("institution_id").eq("admin_user_id", viewerId);
-    if (ge) throw new Error(`讀取補習班授權失敗：${ge.message}`);
-    const ids = (grants ?? []).map((g: any) => String(g.institution_id));
-    if (!ids.length) return [];
-    const { data: classes, error: ce } = await supabaseAdmin.from("classes").select("id").in("institution_id", ids);
-    if (ce) throw new Error(`讀取班級權限失敗：${ce.message}`);
-    return (classes ?? []).map((row: any) => String(row.id));
-  }
-  const { data, error } = await supabaseAdmin.from("admin_user_classes").select("class_id").eq("admin_user_id", viewerId);
-  if (error) throw new Error(`讀取教師班級權限失敗：${error.message}`);
-  return (data ?? []).map((row: any) => String(row.class_id));
+  // v2.0：四種角色一致依補習班授權，自動涵蓋後續新增班級。
+  const { data: grants, error: ge } = await supabaseAdmin.from("admin_user_institutions")
+    .select("institution_id").eq("admin_user_id", viewerId);
+  if (ge) throw new Error(`讀取補習班授權失敗：${ge.message}`);
+  const ids = (grants ?? []).map((g: any) => String(g.institution_id));
+  if (!ids.length) return [];
+  const { data: classes, error: ce } = await supabaseAdmin.from("classes")
+    .select("id").in("institution_id", ids);
+  if (ce) throw new Error(`讀取班級權限失敗：${ce.message}`);
+  return (classes ?? []).map((row: any) => String(row.id));
 }
 
 export async function assertClassAccess(request: NextRequest, session: AdminSessionPayload, classId: string | null | undefined) {

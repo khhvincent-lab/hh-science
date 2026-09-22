@@ -481,7 +481,7 @@ export default function AdminPage() {
   const [adminUser, setAdminUser] = useState<{id:string; username:string; displayName:string; role:string} | null>(null);
   const [scopeTeacher, setScopeTeacher] = useState<{id:string; display_name?:string; displayName?:string; username:string} | null>(null);
   const [teacherOptions, setTeacherOptions] = useState<{id:string; display_name:string; username:string; role:string; active:boolean}[]>([]);
-  const [brand, setBrand] = useState({name:"解題實驗室", englishName:"H.H. Science Lab", adminName:"教師管理中心"});
+  const [brand, setBrand] = useState({name:"解題實驗室", englishName:"L.H. Science Lab", adminName:"教師管理中心"});
   const [loginError, setLoginError] = useState("");
   const [loginLoading, setLoginLoading] = useState(false);
 
@@ -1097,13 +1097,13 @@ export default function AdminPage() {
       <main className="admin-login-page">
         <section className="admin-login-card">
           <div className="admin-login-brand">
-            <div className="admin-login-mark">A</div>
-            <div className="hh-eyebrow">{brand.englishName || "H.H. SCIENCE LAB"} · ADMIN</div>
-            <h1 className="hh-display admin-login-title">{brand.adminName || "教師管理中心"}</h1>
-            <p>教師專屬管理後台 · 班級、學生、AI 教學與使用數據集中管理</p>
+            <div className="admin-login-mark"><img src="/icon-192.png" alt="解題實驗室圖示" width="48" height="48" /></div>
+            <div className="hh-eyebrow">L.H. SCIENCE LAB · ADMINISTRATION</div>
+            <h1 className="hh-display admin-login-title">{brand.adminName || "教學管理中心"}</h1>
+            <p>讓每一次解題成為理解的開始。<br/>班務、教師與 AI 教學數據，在這裡清晰呈現。</p><div className="v2-login-theme"><span>選擇介面風格</span><ThemeToggle /></div>
           </div>
 
-          <label className="admin-field">
+          <div className="v2-admin-login-fields"><div className="v2-login-form-heading"><span className="hh-eyebrow">TEACHER PORTAL</span><h2>歡迎回來</h2><p>登入你的管理帳號</p></div><label className="admin-field">
             <span>帳號</span>
             <input className="hh-input" autoComplete="username" value={username} onChange={(event)=>setUsername(event.target.value)} placeholder="輸入管理員或教師帳號" />
           </label>
@@ -1128,8 +1128,8 @@ export default function AdminPage() {
             disabled={loginLoading}
             onClick={() => void handleLogin()}
           >
-            {loginLoading ? "登入中…" : "登入管理中心"}
-          </button>
+            {loginLoading ? "登入中…" : "登入管理中心 →"}
+          </button></div>
         </section>
       </main>
     );
@@ -1179,7 +1179,8 @@ export default function AdminPage() {
 
       <aside className={`admin-sidebar ${mobileMenuOpen ? "mobile-open" : ""}`}>
         <div className="admin-sidebar-brand">
-          <div className="hh-eyebrow">{brand.englishName || "H.H. SCIENCE LAB"}</div>
+          <img className="v2-admin-brand-icon" src="/icon-192.png" alt="" width="43" height="43" />
+          <div className="hh-eyebrow">{brand.englishName || "L.H. SCIENCE LAB"}</div>
           <div className="hh-display admin-sidebar-title">{brand.adminName || "教師管理中心"}</div>
           <div className="admin-sidebar-subtitle">Academic Control Center</div>
         </div>

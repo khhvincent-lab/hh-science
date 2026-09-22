@@ -696,7 +696,7 @@ function isRunningStandalone() {
 }
 
 export default function Home() {
-  const [brand, setBrand] = useState({ name: "解題實驗室", englishName: "H.H. Science Lab", adminName: "教師管理中心" });
+  const [brand, setBrand] = useState({ name: "解題實驗室", englishName: "L.H. Science Lab", adminName: "教師管理中心" });
   const [campus, setCampus] = useState<Campus | "">("");
   const [regionId, setRegionId] = useState("");
   const [institutionId, setInstitutionId] = useState("");
@@ -728,7 +728,7 @@ export default function Home() {
   const cropperRef = useRef<any>(null);
 
   const [menuOpen, setMenuOpen] = useState(false);
-  const [activeView, setActiveView] = useState<"solve" | "history">("solve");
+  const [activeView, setActiveView] = useState<"solve" | "result" | "history">("solve");
   const [tutorialOpen, setTutorialOpen] = useState(false);
   const [tutorialStep, setTutorialStep] = useState(0);
   const [tutorialPhase, setTutorialPhase] = useState<TutorialPhase>("setup");
@@ -1737,6 +1737,7 @@ export default function Home() {
     setQuestionNote("");
     setQuestionError("");
     setSolveData(null);
+    setActiveView("solve");
     setSelectedAnnotation(null);
     setFollowupQuestion("");
     setFollowups([]);
@@ -1758,6 +1759,8 @@ export default function Home() {
     if (!images.length) return setQuestionError("請先上傳題目圖片。");
     if (!subject) return setQuestionError("請先選擇科目。");
 
+    setActiveView("result");
+    window.scrollTo({ top: 0, behavior: "smooth" });
     setIsSolving(true);
     setPreparedShareFile(null);
     setExportQuestionImage("");
@@ -1765,7 +1768,6 @@ export default function Home() {
     setFollowupQuestion("");
     setFollowups([]);
     setFollowupError("");
-    setTimeout(() => resultRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
 
     try {
       const imageQuality = (await Promise.all(images.map((item) => analyzeImageQuality(item))))
@@ -2233,7 +2235,7 @@ export default function Home() {
   }
 
   return (
-    <main className={`hh-page student-page ${tutorialOpen && tutorialPhase !== "setup" ? "student-tour-results-active" : ""}`}>
+    <main data-view={activeView} className={`hh-page student-page ${tutorialOpen && tutorialPhase !== "setup" ? "student-tour-results-active" : ""}`}>
       <div className="student-top-glow" />
 
       <div className="student-container">
@@ -2246,8 +2248,8 @@ export default function Home() {
               setMenuOpen(false);
             }}
           >
-            <span className="student-app-brand-en">{brand.englishName}</span>
-            <span className="student-app-brand-zh">{brand.name}</span>
+            <img className="v2-student-brand-icon" src="/icon-192.png" alt="" width="37" height="37" />
+            <span className="v2-student-brand-copy"><span className="student-app-brand-en">{brand.englishName}</span><span className="student-app-brand-zh">{brand.name}</span></span>
           </button>
 
           <div className="student-app-header-actions">
@@ -2344,11 +2346,11 @@ export default function Home() {
           )}
         </header>
 
-        <section className="student-brand-intro">
+        {!student && <section className="student-brand-intro">
           <div className="hh-eyebrow">{brand.englishName}</div>
           <h1 className="hh-display">{brand.name}</h1>
           <p>拆解步驟，訂正錯誤，清晰脈絡，梳理思路</p>
-        </section>
+        </section>}
 
         {student ? (
           <section className="student-welcome-card">
@@ -2372,7 +2374,12 @@ export default function Home() {
                 <span className="hh-number">{usage.remaining}</span>
                 <span>題</span>
               </div>
+              <div className="v2-quota-summary" aria-label={`今日剩餘 ${usage.remaining} 題，共 ${usage.limit} 題`}>
+                <small>今日解題額度　{usage.remaining} / {usage.limit}</small>
+                <div className="v2-quota-track"><span style={{width:`${usage.limit>0?Math.max(0,Math.min(100,usage.remaining/usage.limit*100)):0}%`}} /></div>
+              </div>
             </div>
+            {!student.mustChangePin && <button type="button" className="v2-history-shortcut" onClick={() => setActiveView("history")}>學習紀錄 <span aria-hidden="true">↗</span></button>}
           </section>
         ) : (
           <section className="hh-card student-login-card">
@@ -2593,9 +2600,9 @@ export default function Home() {
           </section>
         )}
 
-        {!student?.mustChangePin && activeView === "solve" && (
+        {!student?.mustChangePin && (activeView === "solve" || activeView === "result") && (
           <>
-        <div className="student-workspace">
+        {activeView === "solve" && <div className="student-workspace">
           <section ref={uploadPanelRef} data-tour="upload-panel" className={`hh-card student-panel student-panel-upload ${!student ? "student-panel-disabled" : ""}`}>
             <StepHeader
               number="1"
@@ -2822,11 +2829,17 @@ export default function Home() {
               <button type="button" onClick={clearQuestion} className="hh-button-secondary">清除目前題目</button>
             </div>
           </section>
-        </div>
+        </div>}
 
-        <section ref={resultRef} className={`hh-card student-panel student-result-panel ${!student ? "student-panel-disabled" : ""}`}>
-          <StepHeader number="3" title="觀念解析與選項分析" description="答案 → 觀念解析 → 選項判斷" tone="terra" />
+        {activeView === "result" && <div className="v2-result-navigation">
+          <button type="button" className="v2-return-button" onClick={() => {setActiveView("solve");window.scrollTo({top:0,behavior:"smooth"});}}>← 返回解題首頁</button>
+          <div><span className="hh-eyebrow">SOLVE RESULTS</span><h2 className="hh-display">解題結果</h2></div>
+          <span className="v2-result-status">{isSolving ? "分析中" : solveData ? "已完成" : "請重新嘗試"}</span>
+        </div>}
+        {activeView === "result" && <section ref={resultRef} className={`hh-card student-panel student-result-panel ${!student ? "student-panel-disabled" : ""}`}>
+          <StepHeader number="3" title="解題解析" description="答案 → 核心觀念 → 逐步詳解 → 選項分析 → 追問" tone="terra" />
 
+          {questionError && !isSolving && <div className="student-alert student-alert-danger">{questionError}</div>}
           {!solveData && !isSolving && (
             <div className="student-result-empty">
               <div className="student-empty-symbol">∴</div>
@@ -2976,7 +2989,7 @@ export default function Home() {
               )}
             </div>
           )}
-        </section>
+        </section>}
 
           </>
         )}
@@ -3296,9 +3309,15 @@ export default function Home() {
           </section>
         )}
 
+        {student && !student.mustChangePin && <nav className="v2-student-bottom-nav" aria-label="學生頁面導覽">
+          <button type="button" aria-current={activeView==="solve"?"page":undefined} onClick={()=>{setActiveView("solve");window.scrollTo({top:0,behavior:"smooth"});}}><span aria-hidden="true">⌂</span>首頁</button>
+          <button type="button" aria-current={activeView==="result"?"page":undefined} disabled={!solveData&&!isSolving} onClick={()=>{setActiveView("result");window.scrollTo({top:0,behavior:"smooth"});}}><span aria-hidden="true">✧</span>解析</button>
+          <button type="button" aria-current={activeView==="history"?"page":undefined} onClick={()=>{setActiveView("history");window.scrollTo({top:0,behavior:"smooth"});}}><span aria-hidden="true">▤</span>紀錄</button>
+          <button type="button" onClick={()=>{setMenuOpen(true);window.scrollTo({top:0,behavior:"smooth"});}}><span aria-hidden="true">☰</span>選單</button>
+        </nav>}
         <footer className="student-footer">
           <div className="hh-eyebrow">{brand.englishName}</div>
-          <div>{brand.name} v1.5.0</div>
+          <div>{brand.name} v2.0</div>
         </footer>
       </div>
 

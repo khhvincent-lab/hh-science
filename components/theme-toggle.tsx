@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
-type Theme = "white" | "oatmeal" | "sage" | "ocean" | "graphite" | "burgundy";
+type Theme = "midnight" | "nordic" | "aurora" | "gold" | "obsidian";
 
 type ThemeOption = {
   id: Theme;
@@ -10,47 +10,40 @@ type ThemeOption = {
 };
 
 const THEMES: ThemeOption[] = [
-  { id: "white", label: "清霧白" },
-  { id: "oatmeal", label: "燕麥米" },
-  { id: "sage", label: "森林綠" },
-  { id: "ocean", label: "奢華藍" },
-  { id: "graphite", label: "石墨灰" },
-  { id: "burgundy", label: "深邃紅" },
+  { id: "midnight", label: "靜謐深藍" },
+  { id: "nordic", label: "森語晨光" },
+  { id: "aurora", label: "極光藍境" },
+  { id: "gold", label: "墨夜流金" },
+  { id: "obsidian", label: "玄霧石墨" },
 ];
 
 function normalizeTheme(value: string | null): Theme | null {
-  if (value === "light") return "white";
-  if (value === "dark") return "sage";
-
-  if (
-    value === "white" ||
-    value === "oatmeal" ||
-    value === "sage" ||
-    value === "ocean" ||
-    value === "graphite" ||
-    value === "burgundy"
-  ) {
-    return value;
-  }
-
-  return null;
+  if (!value) return null;
+  const legacy: Record<string, Theme> = {
+    white: "nordic", oatmeal: "nordic", sage: "midnight",
+    ocean: "midnight", graphite: "obsidian", burgundy: "gold",
+    light: "nordic", dark: "midnight",
+  };
+  if (legacy[value]) return legacy[value];
+  return THEMES.find((item) => item.id === value)?.id ?? null;
 }
 
 function applyTheme(theme: Theme) {
   document.documentElement.setAttribute("data-theme", theme);
   localStorage.setItem("hh-science-theme", theme);
+  const colors: Record<Theme, string> = {midnight:"#0e1726",nordic:"#e9eee7",aurora:"#dcecff",gold:"#17181b",obsidian:"#15181c"};
+  document.querySelector('meta[name="theme-color"]')?.setAttribute("content",colors[theme]);
 }
 
 export default function ThemeToggle() {
-  const [theme, setTheme] = useState<Theme>("white");
+  const [theme, setTheme] = useState<Theme>("midnight");
   const [ready, setReady] = useState(false);
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const saved = normalizeTheme(localStorage.getItem("hh-science-theme"));
-    const systemDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-    const initial: Theme = saved ?? (systemDark ? "sage" : "white");
+    const initial: Theme = saved ?? "midnight";
 
     setTheme(initial);
     applyTheme(initial);
@@ -107,7 +100,7 @@ export default function ThemeToggle() {
 
       {ready && open && (
         <div className="hh-theme-menu" role="menu" aria-label="介面主題">
-          <div className="hh-theme-menu-title">選擇主題</div>
+          <div className="hh-theme-menu-title">解題實驗室 2.0 · 外觀主題</div>
 
           {THEMES.map((item) => (
             <button
