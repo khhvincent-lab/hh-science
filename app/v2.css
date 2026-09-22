@@ -702,3 +702,110 @@ html[data-theme] .student-page .student-modal-card {
   html[data-theme] .student-page.student-compact-ready .student-welcome-title {font-size:18px!important}
   html[data-theme] .student-page.student-compact-ready .student-subject-option {font-size:12px}
 }
+
+
+/* v2.0.4 mobile refinements: real selectors from the student components.
+   Search controls never escape the viewport; preserve iOS bottom safe area. */
+@media (max-width:740px) {
+  html[data-theme] .student-page .student-history-filters {
+    min-width:0;max-width:100%;padding:12px!important;
+    border-radius:17px!important;
+  }
+  html[data-theme] .student-page .student-history-search {margin-bottom:8px!important}
+  html[data-theme] .student-page .student-history-search label {min-width:0}
+  html[data-theme] .student-page .student-history-search .hh-input {
+    display:block;box-sizing:border-box;width:100%;max-width:100%;
+    min-width:0;min-height:43px;height:43px;
+    padding:8px 12px!important;font-size:16px;
+  }
+  html[data-theme] .student-page .student-history-quick-actions {
+    display:grid!important;grid-template-columns:minmax(0,1fr) auto;
+    gap:8px!important;align-items:stretch;
+  }
+  html[data-theme] .student-page .student-history-quick-actions .hh-button-primary,
+  html[data-theme] .student-page .student-history-advanced-toggle {
+    box-sizing:border-box;min-height:41px;height:41px;
+    padding:6px 12px!important;font-size:13px!important;
+    border-radius:11px!important;white-space:nowrap;
+  }
+  html[data-theme] .student-page .student-history-advanced {
+    min-width:0;max-width:100%;margin-top:10px!important;padding-top:11px!important;
+  }
+  /* Single tidy rows avoid Safari date inputs overflowing two narrow columns. */
+  html[data-theme] .student-page .student-history-filter-grid {
+    display:grid!important;grid-template-columns:minmax(0,1fr)!important;gap:8px!important;
+    min-width:0;max-width:100%;
+  }
+  html[data-theme] .student-page .student-history-filter-grid label {
+    display:grid!important;grid-template-columns:76px minmax(0,1fr);
+    min-width:0;max-width:100%;gap:9px;align-items:center;
+  }
+  html[data-theme] .student-page .student-history-filter-grid label>span {
+    min-width:0;font-size:12px;line-height:1.3;
+  }
+  html[data-theme] .student-page .student-history-filter-grid .hh-input {
+    box-sizing:border-box;display:block;min-width:0!important;width:100%!important;
+    max-width:100%;min-height:42px;height:42px;
+    padding:6px 10px!important;font-size:14px!important;border-radius:11px!important;
+  }
+  html[data-theme] .student-page .student-history-favorite-filter button {
+    box-sizing:border-box;justify-self:start;min-height:39px;
+    padding:5px 13px;border-radius:11px;font-size:13px;
+  }
+  html[data-theme] .student-page .student-history-filter-actions {
+    display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:8px!important;margin-top:11px!important;
+  }
+  html[data-theme] .student-page .student-history-filter-actions button {
+    min-width:0;min-height:42px;padding:7px 8px!important;font-size:13px!important;
+  }
+
+  /* Four modest-height subject chips, each with its own quiet selection glow. */
+  html[data-theme] .student-page.student-compact-ready .student-subject-picker {
+    grid-template-columns:repeat(4,minmax(0,1fr))!important;gap:7px!important;
+  }
+  html[data-theme] .student-page.student-compact-ready .student-subject-option {
+    min-height:40px!important;height:40px!important;
+    padding:6px 3px!important;font-size:13px!important;line-height:1.1!important;
+    border-radius:11px!important;
+    transition:box-shadow .18s ease,border-color .18s ease,transform .18s ease!important;
+  }
+  html[data-theme] .student-page .student-subject-physics.student-subject-option-selected {
+    box-shadow:0 0 0 1px rgba(81,190,144,.72),0 0 13px rgba(81,190,144,.27),inset 0 1px 0 rgba(255,255,255,.16)!important;
+  }
+  html[data-theme] .student-page .student-subject-chemistry.student-subject-option-selected {
+    box-shadow:0 0 0 1px rgba(98,166,255,.72),0 0 13px rgba(98,166,255,.28),inset 0 1px 0 rgba(255,255,255,.16)!important;
+  }
+  html[data-theme] .student-page .student-subject-biology.student-subject-option-selected {
+    box-shadow:0 0 0 1px rgba(222,182,81,.75),0 0 13px rgba(222,182,81,.27),inset 0 1px 0 rgba(255,255,255,.16)!important;
+  }
+  html[data-theme] .student-page .student-subject-earth.student-subject-option-selected {
+    box-shadow:0 0 0 1px rgba(218,126,141,.75),0 0 13px rgba(218,126,141,.28),inset 0 1px 0 rgba(255,255,255,.16)!important;
+  }
+  /* Actual bottom tab class is v2-student-bottom-nav, NOT student-bottom-nav. */
+  html[data-theme] .student-page .v2-student-bottom-nav {
+    box-sizing:border-box;bottom:0!important;left:8px!important;right:8px!important;
+    width:auto!important;min-height:0!important;height:auto!important;
+    padding:4px 6px max(5px,env(safe-area-inset-bottom))!important;
+    border:1px solid color-mix(in srgb,var(--v204-rim) 28%,var(--border))!important;
+    border-bottom:0!important;border-radius:17px 17px 0 0!important;
+    background:color-mix(in srgb,var(--surface) 94%,transparent)!important;
+    box-shadow:0 -7px 24px rgba(0,0,0,.12),0 1px 0 var(--v204-sheen) inset!important;
+    grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:5px!important;
+  }
+  html[data-theme] .student-page .v2-student-bottom-nav button {
+    box-sizing:border-box;min-height:40px!important;height:40px!important;
+    gap:1px!important;padding:3px 4px!important;
+    border-radius:12px!important;font-size:11px!important;
+  }
+  html[data-theme] .student-page .v2-student-bottom-nav button span {
+    font-size:18px!important;line-height:1!important;
+  }
+  html[data-theme] .student-page .student-container,
+  html[data-theme] .student-page.student-compact-ready .student-container {
+    padding-bottom:calc(64px + env(safe-area-inset-bottom))!important;
+  }
+}
+@media (prefers-reduced-motion:reduce) {
+  html[data-theme] .student-page .student-subject-option {transition:none!important}
+}
