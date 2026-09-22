@@ -4,6 +4,7 @@ import AdminPasswordChange from "@/components/admin-password-change";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import katex from "katex";
 import ThemeToggle from "@/components/theme-toggle";
+import AdaptiveBrandLogo from "@/components/adaptive-brand-logo";
 import ScienceDiagramView from "@/components/science-diagram";
 import ChemicalStructureView from "@/components/chemical-structure";
 import AdminPlatformSettings from "@/components/admin-platform-settings";
@@ -1097,7 +1098,7 @@ export default function AdminPage() {
       <main className="admin-login-page">
         <section className="admin-login-card">
           <div className="admin-login-brand">
-            <div className="admin-login-mark"><img src="/icon-192.png" alt="解題實驗室圖示" width="48" height="48" /></div>
+            <div className="admin-login-mark"><AdaptiveBrandLogo size={48} label="解題實驗室圖示" /></div>
             <div className="hh-eyebrow">L.H. SCIENCE LAB · ADMINISTRATION</div>
             <h1 className="hh-display admin-login-title">{brand.adminName || "教學管理中心"}</h1>
             <p>讓每一次解題成為理解的開始。<br/>班務、教師與 AI 教學數據，在這裡清晰呈現。</p><div className="v2-login-theme"><span>選擇介面風格</span><ThemeToggle /></div>
@@ -1179,7 +1180,7 @@ export default function AdminPage() {
 
       <aside className={`admin-sidebar ${mobileMenuOpen ? "mobile-open" : ""}`}>
         <div className="admin-sidebar-brand">
-          <img className="v2-admin-brand-icon" src="/icon-192.png" alt="" width="43" height="43" />
+          <AdaptiveBrandLogo className="v2-admin-brand-icon" size={43} />
           <div className="hh-eyebrow">{brand.englishName || "L.H. SCIENCE LAB"}</div>
           <div className="hh-display admin-sidebar-title">{brand.adminName || "教師管理中心"}</div>
           <div className="admin-sidebar-subtitle">Academic Control Center</div>
