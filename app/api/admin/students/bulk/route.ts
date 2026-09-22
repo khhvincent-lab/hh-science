@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { inflateRawSync } from "node:zlib";
 
 import { supabaseAdmin } from "@/lib/supabase-admin";
-import { verifyAdminSessionToken } from "@/lib/admin-session";
+import { assertClassAccess, requireAdminSession } from "@/lib/admin-access";
 import { getStudentAuthSettings, hashStudentPin } from "@/lib/student-auth";
 
 export const runtime = "nodejs";
@@ -16,11 +16,6 @@ type ParsedNames = {
   invalid: InvalidRow[];
 };
 
-async function requireAdmin(request: NextRequest) {
-  const token = request.cookies.get("hh_science_admin_session")?.value;
-  if (!token) return null;
-  return verifyAdminSessionToken(token);
-}
 
 function normalizeName(value: string) {
   return value.replace(/^\uFEFF/, "").replace(/\s+/g, " ").trim();
@@ -240,7 +235,7 @@ async function resolveOrganization(regionId: string, institutionId: string, clas
 }
 
 export async function POST(request: NextRequest) {
-  const admin = await requireAdmin(request);
+  const admin = await requireAdminSession(request);
   if (!admin) return NextResponse.json({ error: "未登入管理員。" }, { status: 401 });
 
   try {
@@ -254,6 +249,7 @@ export async function POST(request: NextRequest) {
     if (!(file instanceof File)) return NextResponse.json({ error: "請選擇要匯入的 CSV 或 Excel 檔案。" }, { status: 400 });
     if (file.size > 5 * 1024 * 1024) return NextResponse.json({ error: "名單檔案請控制在 5 MB 以內。" }, { status: 400 });
 
+    if (!(await assertClassAccess(request, admin, classId))) return NextResponse.json({error:"你沒有此班級的匯入權限。"},{status:403});
     const organization = await resolveOrganization(regionId, institutionId, classId);
     const bytes = Buffer.from(await file.arrayBuffer());
     const lowerName = file.name.toLowerCase();

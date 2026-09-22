@@ -2,8 +2,8 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "H.H. Science Lab 解題實驗室",
-    short_name: "H.H. Science Lab",
+    name: "解題實驗室",
+    short_name: "解題實驗室",
     description: "自然科解題實驗室 v1",
     start_url: "/",
     display: "standalone",

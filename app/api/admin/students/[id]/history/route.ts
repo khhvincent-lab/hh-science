@@ -7,9 +7,7 @@ import {
   supabaseAdmin,
 } from "@/lib/supabase-admin";
 
-import {
-  verifyAdminSessionToken,
-} from "@/lib/admin-session";
+import { requireAdminSession, assertClassAccess } from "@/lib/admin-access";
 
 
 function startOfTaiwanDate(value: string) {
@@ -60,16 +58,6 @@ async function signImages(
   return signed;
 }
 
-async function requireAdmin(request: NextRequest) {
-  const token =
-    request.cookies.get(
-      "hh_science_admin_session",
-    )?.value;
-
-  if (!token) return null;
-
-  return verifyAdminSessionToken(token);
-}
 
 export async function GET(
   request: NextRequest,
@@ -80,7 +68,7 @@ export async function GET(
   },
 ) {
   const admin =
-    await requireAdmin(request);
+    await requireAdminSession(request);
 
   if (!admin) {
     return NextResponse.json(
@@ -99,7 +87,7 @@ export async function GET(
     await supabaseAdmin
       .from("students")
       .select(
-        "id,campus,name,active,must_change_pin,last_login_at",
+        "id,class_id,campus,name,active,must_change_pin,last_login_at",
       )
       .eq("id", studentId)
       .maybeSingle();
@@ -113,6 +101,8 @@ export async function GET(
       { status: 500 },
     );
   }
+
+  if (student && !(await assertClassAccess(request, admin, (student as any).class_id))) return NextResponse.json({error:"沒有這位學生的讀取權限。"},{status:403});
 
   if (!student) {
     return NextResponse.json(

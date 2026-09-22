@@ -761,6 +761,8 @@ export async function PATCH(
       .eq("id", classId)
       .maybeSingle();
 
+    if (!(await assertClassAccess(request, admin, classId))) return NextResponse.json({error:"沒有目標班級的管理權限。"},{status:403});
+
     if (classError || !classRow || classRow.institution_id !== institutionId) {
       return NextResponse.json(
         { error: "班級與合作單位不一致，請重新選擇。" },

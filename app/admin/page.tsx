@@ -1,4 +1,5 @@
 "use client";
+import AdminPasswordChange from "@/components/admin-password-change";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import katex from "katex";
@@ -1104,7 +1105,7 @@ export default function AdminPage() {
 
           <label className="admin-field">
             <span>帳號</span>
-            <input className="hh-input" autoComplete="username" value={username} onChange={(event)=>setUsername(event.target.value)} placeholder="輸入教師帳號" />
+            <input className="hh-input" autoComplete="username" value={username} onChange={(event)=>setUsername(event.target.value)} placeholder="輸入管理員或教師帳號" />
           </label>
           <label className="admin-field">
             <span>密碼</span>
@@ -1185,7 +1186,7 @@ export default function AdminPage() {
 
         <nav className="admin-nav admin-nav-v13">
           <NavButton active={activeSection === "dashboard"} icon="01" label="管理總覽" onClick={() => { setActiveSection("dashboard"); setMobileMenuOpen(false); }} />
-          {(adminUser?.role === "super_admin" || adminUser?.role === "platform_admin") && (
+          {adminUser?.role === "super_admin" && (
             <NavButton active={activeSection === "siteQuestions"} icon="02" label="全站題目" onClick={() => { setActiveSection("siteQuestions"); setMobileMenuOpen(false); }} />
           )}
 
@@ -1202,7 +1203,7 @@ export default function AdminPage() {
             ]}
           />
 
-          {(adminUser?.role === "super_admin" || adminUser?.role === "platform_admin") && (<>
+          {adminUser?.role === "super_admin" && (<>
           <AdminNavGroup
             icon="04"
             label="AI模型中心"
@@ -1233,7 +1234,7 @@ export default function AdminPage() {
             ]}
           />
           </>)}
-          {(adminUser?.role === "super_admin" || adminUser?.role === "platform_admin") && (
+          {(adminUser?.role === "super_admin" || adminUser?.role === "platform_admin" || adminUser?.role === "institution_admin") && (
             <NavButton active={activeSection === "platform"} icon="06" label="系統與教師" onClick={() => { setActiveSection("platform"); setMobileMenuOpen(false); }} />
           )}
         </nav>
@@ -1246,6 +1247,7 @@ export default function AdminPage() {
           <a className="admin-sidebar-link" href="/">
             ← 返回學生端
           </a>
+          <AdminPasswordChange/>
           <button type="button" className="admin-sidebar-link" onClick={handleLogout}>
             登出管理中心
           </button>
@@ -1257,9 +1259,9 @@ export default function AdminPage() {
           <div>
             <div className="hh-eyebrow">{sectionEyebrow(activeSection)}</div>
             <h1 className="hh-display admin-page-title">{sectionTitle(activeSection)}</h1>
-            {adminUser?.role === "teacher" && <div className="admin-role-note">{adminUser.displayName} · 教師帳號</div>}
+            {adminUser&&<div className="admin-role-note">{adminUser.displayName} · {{super_admin:"總管理員",platform_admin:"跨補習班管理員",institution_admin:"補習班管理員",teacher:"教師"}[adminUser.role]||"管理員"}</div>}
           </div>
-          {(adminUser?.role === "super_admin" || adminUser?.role === "platform_admin") && (
+          {adminUser?.role === "super_admin" && (
             <label className="admin-teacher-scope"><span>檢視範圍</span><select value={scopeTeacher?.id || ""} onChange={(event)=>void changeTeacherScope(event.target.value)}><option value="">全部老師 / 全部班級</option>{teacherOptions.map((teacher)=><option key={teacher.id} value={teacher.id}>{teacher.display_name}</option>)}</select></label>
           )}
 
@@ -1444,7 +1446,7 @@ export default function AdminPage() {
           )}
 
           {activeSection === "platform" && (
-            <AdminPlatformSettings onBrandChanged={() => void loadAdminIdentity()} />
+            <AdminPlatformSettings actor={adminUser} onBrandChanged={() => void loadAdminIdentity()} />
           )}
 
           {activeSection === "analytics" && (

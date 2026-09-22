@@ -3,8 +3,8 @@ import type { MetadataRoute } from "next";
 export default function manifest(): MetadataRoute.Manifest {
   return {
     id: "/admin",
-    name: "H.H. Science Lab Admin 教師管理中心",
-    short_name: "Science Admin",
+    name: "解題實驗室",
+    short_name: "解題實驗室",
     description: "教師與管理員後台",
     start_url: "/admin",
     scope: "/admin",

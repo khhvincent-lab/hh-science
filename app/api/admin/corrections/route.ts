@@ -1,18 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
-import { verifyAdminSessionToken } from "@/lib/admin-session";
+import { requireAdminSession, getAccessibleStudentIds, assertClassAccess } from "@/lib/admin-access";
 
-async function requireAdmin(request: NextRequest) {
-  const token = request.cookies.get("hh_science_admin_session")?.value;
-  return token ? verifyAdminSessionToken(token) : null;
-}
 
 export async function GET(request: NextRequest) {
-  if (!(await requireAdmin(request))) return NextResponse.json({ error: "未登入管理員。" }, { status: 401 });
-  const { data, error } = await supabaseAdmin
+  const session=await requireAdminSession(request);
+  if(!session)return NextResponse.json({error:"未登入管理員。"},{status:401});
+  const ids=await getAccessibleStudentIds(request,session);
+  if(ids!==null&&!ids.length)return NextResponse.json({items:[]});
+  let query=supabaseAdmin
     .from("teacher_correction_queue")
     .select("id,status,issue_type,teacher_note,corrected_answer,corrected_explanation,created_at,student_id,solve_history_id,students(name),solve_history(subject,answer,explanation,image_paths)")
     .order("created_at", { ascending: false });
+  if(ids!==null)query=query.in("student_id",ids);
+  const {data,error}=await query;
   if (error) return NextResponse.json({ error: `讀取待修正題庫失敗：${error.message}` }, { status: 500 });
 
   const items = await Promise.all((data ?? []).map(async (row: any) => {
@@ -44,11 +45,16 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  if (!(await requireAdmin(request))) return NextResponse.json({ error: "未登入管理員。" }, { status: 401 });
+  const session=await requireAdminSession(request);
+  if(!session)return NextResponse.json({error:"未登入管理員。"},{status:401});
   const body = await request.json().catch(() => ({}));
   const solveHistoryId = String(body.solveHistoryId || "").trim();
   const studentId = String(body.studentId || "").trim();
   if (!solveHistoryId || !studentId) return NextResponse.json({ error: "缺少解題紀錄資料。" }, { status: 400 });
+  const {data:student}=await supabaseAdmin.from("students").select("id,class_id").eq("id",studentId).maybeSingle();
+  if(!student||!(await assertClassAccess(request,session,student.class_id)))return NextResponse.json({error:"無法操作這位學生。"},{status:403});
+  const {data:history}=await supabaseAdmin.from("solve_history").select("id").eq("id",solveHistoryId).eq("student_id",studentId).maybeSingle();
+  if(!history)return NextResponse.json({error:"題目與學生不符。"},{status:400});
   const { data, error } = await supabaseAdmin.from("teacher_correction_queue").upsert({
     solve_history_id: solveHistoryId, student_id: studentId, status: "pending", issue_type: "better_method", updated_at: new Date().toISOString(),
   }, { onConflict: "solve_history_id" }).select("id").single();
@@ -57,10 +63,15 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PATCH(request: NextRequest) {
-  if (!(await requireAdmin(request))) return NextResponse.json({ error: "未登入管理員。" }, { status: 401 });
+  const session=await requireAdminSession(request);
+  if(!session)return NextResponse.json({error:"未登入管理員。"},{status:401});
   const body = await request.json().catch(() => ({}));
   const id = String(body.id || "").trim();
   if (!id) return NextResponse.json({ error: "缺少修正項目 ID。" }, { status: 400 });
+  const {data:item}=await supabaseAdmin.from("teacher_correction_queue").select("student_id").eq("id",id).maybeSingle();
+  if(!item)return NextResponse.json({error:"找不到修正項目。"},{status:404});
+  const {data:student}=await supabaseAdmin.from("students").select("class_id").eq("id",item.student_id).maybeSingle();
+  if(!student||!(await assertClassAccess(request,session,student.class_id)))return NextResponse.json({error:"無法操作這位學生的題目。"},{status:403});
   const updates: Record<string, any> = { updated_at: new Date().toISOString() };
   if (typeof body.status === "string") updates.status = body.status;
   if (typeof body.issueType === "string") updates.issue_type = body.issueType;

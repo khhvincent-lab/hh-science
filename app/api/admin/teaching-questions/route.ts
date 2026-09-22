@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyAdminSessionToken } from "@/lib/admin-session";
+import { requireAdminSession, getAccessibleStudentIds } from "@/lib/admin-access";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
 const SOLVE_COST_ROLES = ["science_gate", "primary", "verifier", "arbiter"] as const;
@@ -13,10 +13,6 @@ type UsageCostRow = {
   estimated_cost_usd: number | string | null;
 };
 
-async function requireAdmin(request: NextRequest) {
-  const token = request.cookies.get("hh_science_admin_session")?.value;
-  return token ? verifyAdminSessionToken(token) : null;
-}
 
 function sanitizeImages(value: unknown) {
   if (!Array.isArray(value)) return [];
@@ -99,9 +95,10 @@ async function fetchQuestionCosts(historyIds: string[]) {
 }
 
 export async function GET(request: NextRequest) {
-  if (!(await requireAdmin(request))) {
-    return NextResponse.json({ error: "未登入管理員。" }, { status: 401 });
-  }
+  const session = await requireAdminSession(request);
+  if (!session) return NextResponse.json({ error: "未登入管理員。" }, { status: 401 });
+  const accessible = await getAccessibleStudentIds(request, session);
+  if (accessible !== null && !accessible.length) return NextResponse.json({ items: [] });
 
   const params = request.nextUrl.searchParams;
   const subject = params.get("subject") || "";
@@ -126,6 +123,7 @@ export async function GET(request: NextRequest) {
     .order("created_at", { ascending: false })
     .limit(300);
 
+  if (accessible !== null) query = query.in("student_id", accessible);
   if (range === "today") query = query.gte("created_at", `${today}T00:00:00+08:00`);
   if (subject) query = query.eq("subject", subject);
 

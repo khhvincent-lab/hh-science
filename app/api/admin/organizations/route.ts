@@ -23,6 +23,11 @@ export async function GET(request: NextRequest) {
   if (allowedClassIds === null) return NextResponse.json({regions:regions??[],institutions:institutions??[],classes:classes??[],students:students??[]});
   const scopedClasses=(classes??[]).filter((row:any)=>allowedClassIds.includes(String(row.id)));
   const institutionIds=new Set(scopedClasses.map((row:any)=>String(row.institution_id)));
+  if(session.role==="platform_admin"||session.role==="institution_admin"){
+    const {data:grants,error:grantError}=await supabaseAdmin.from("admin_user_institutions").select("institution_id").eq("admin_user_id",session.userId);
+    if(grantError)return NextResponse.json({error:grantError.message},{status:500});
+    for(const grant of grants??[])institutionIds.add(String(grant.institution_id));
+  }
   const scopedInstitutions=(institutions??[]).filter((row:any)=>institutionIds.has(String(row.id)));
   const regionIds=new Set(scopedInstitutions.map((row:any)=>String(row.region_id)));
   const scopedRegions=(regions??[]).filter((row:any)=>regionIds.has(String(row.id)));
@@ -32,20 +37,24 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   const session = await requireAdminSession(request); if (!session) return NextResponse.json({error:"未登入管理員。"},{status:401});
-  if (!isSuperAdmin(session)) return NextResponse.json({error:"只有總管理員可新增組織或班級。"},{status:403});
+  if (session.role === "teacher") return NextResponse.json({error:"教師不能新增班級。"},{status:403});
   const body=await request.json().catch(()=>null); if(!body) return NextResponse.json({error:"資料格式錯誤。"},{status:400});
   const type=clean(body.type), name=clean(body.name); if(!name||name.length>50) return NextResponse.json({error:"名稱不可空白且最多 50 字。"},{status:400});
   if(type==="region") {
+    if (!isSuperAdmin(session)) return NextResponse.json({error:"僅總管理員可以新增地區。"},{status:403});
     const {data,error}=await supabaseAdmin.from("regions").insert({name}).select().single();
     return error?NextResponse.json({error:error.code==="23505"?"這個地區已存在。":error.message},{status:error.code==="23505"?409:500}):NextResponse.json({item:data});
   }
   if(type==="institution") {
+    if (!isSuperAdmin(session)) return NextResponse.json({error:"僅總管理員可以新增補習班。"},{status:403});
     const regionId=clean(body.regionId); if(!regionId) return NextResponse.json({error:"缺少地區。"},{status:400});
     const {data,error}=await supabaseAdmin.from("institutions").insert({region_id:regionId,name}).select().single();
     return error?NextResponse.json({error:error.code==="23505"?"此地區已有同名合作單位。":error.message},{status:error.code==="23505"?409:500}):NextResponse.json({item:data});
   }
   if(type==="class") {
     const institutionId=clean(body.institutionId); if(!institutionId) return NextResponse.json({error:"缺少合作單位。"},{status:400});
+    const allowed=await getAccessibleClassIds(request,session);
+    if(allowed!==null){const {data:grants}=await supabaseAdmin.from("admin_user_institutions").select("institution_id").eq("admin_user_id",session.userId);if(!(grants??[]).some((g:any)=>g.institution_id===institutionId))return NextResponse.json({error:"沒有此補習班的新增權限。"},{status:403});}
     const academicYearRaw=Number(body.academicYear);
     const academicYear=Number.isInteger(academicYearRaw)&&academicYearRaw>=2020&&academicYearRaw<=2100?academicYearRaw:new Date().getFullYear();
     const allowedSubjects=cleanSubjects(body.allowedSubjects);
@@ -57,10 +66,11 @@ export async function POST(request: NextRequest) {
 
 export async function PATCH(request: NextRequest) {
   const session = await requireAdminSession(request); if (!session) return NextResponse.json({error:"未登入管理員。"},{status:401});
-  if (!isSuperAdmin(session)) return NextResponse.json({error:"只有總管理員可修改班級設定。"},{status:403});
+  if (session.role === "teacher") return NextResponse.json({error:"教師不可調整班級設定。"},{status:403});
   const body=await request.json().catch(()=>null); if(!body) return NextResponse.json({error:"資料格式錯誤。"},{status:400});
   const action=clean(body.action);
   if(action==="update_institution_title") {
+    if(!isSuperAdmin(session))return NextResponse.json({error:"只有總管理員可以變更補習班品牌。"},{status:403});
     const institutionId=clean(body.institutionId);
     const brandTitle=clean(body.brandTitle);
     if(!institutionId) return NextResponse.json({error:"缺少補習班 ID。"},{status:400});
@@ -74,6 +84,7 @@ export async function PATCH(request: NextRequest) {
     const classId=clean(body.classId);
     const allowedSubjects=cleanSubjects(body.allowedSubjects);
     if(!classId) return NextResponse.json({error:"缺少班級。"},{status:400});
+    const scoped=await getAccessibleClassIds(request,session);if(scoped!==null&&!scoped.includes(classId))return NextResponse.json({error:"沒有此班級的管理權限。"},{status:403});
     if(!allowedSubjects.length) return NextResponse.json({error:"至少要開放 1 個科目。"},{status:400});
     const {data,error}=await supabaseAdmin.from("classes").update({allowed_subjects:allowedSubjects}).eq("id",classId).select("id,name,allowed_subjects").single();
     return error?NextResponse.json({error:error.message},{status:500}):NextResponse.json({success:true,item:data});
@@ -81,6 +92,7 @@ export async function PATCH(request: NextRequest) {
   if(action!=="promote_class") return NextResponse.json({error:"未知操作。"},{status:400});
   const sourceClassId=clean(body.sourceClassId), targetClassId=clean(body.targetClassId);
   if(!sourceClassId||!targetClassId||sourceClassId===targetClassId) return NextResponse.json({error:"請選擇不同的來源班級與目標班級。"},{status:400});
+  const scoped=await getAccessibleClassIds(request,session);if(scoped!==null&&(!scoped.includes(sourceClassId)||!scoped.includes(targetClassId)))return NextResponse.json({error:"沒有來源或目標班級權限。"},{status:403});
 
   const [{data:sourceClass,error:sourceError},{data:targetClass,error:targetError}] = await Promise.all([
     supabaseAdmin.from("classes").select("id,name,institution_id,academic_year").eq("id",sourceClassId).maybeSingle(),
@@ -120,19 +132,22 @@ export async function PATCH(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   const session = await requireAdminSession(request); if (!session) return NextResponse.json({error:"未登入管理員。"},{status:401});
-  if (!isSuperAdmin(session)) return NextResponse.json({error:"只有總管理員可刪除組織或班級。"},{status:403});
+  if (session.role === "teacher") return NextResponse.json({error:"教師不可刪除組織或班級。"},{status:403});
   const body=await request.json().catch(()=>null); const type=clean(body?.type), id=clean(body?.id); if(!id) return NextResponse.json({error:"缺少 ID。"},{status:400});
   if(type==="class") {
+    const scoped=await getAccessibleClassIds(request,session);if(scoped!==null&&!scoped.includes(id))return NextResponse.json({error:"沒有此班級權限。"},{status:403});
     const {count}=await supabaseAdmin.from("students").select("id",{count:"exact",head:true}).eq("class_id",id);
     if((count??0)>0) return NextResponse.json({error:`此班級仍有 ${count} 位學生，請先移動學生。`},{status:409});
     const {error}=await supabaseAdmin.from("classes").delete().eq("id",id); return error?NextResponse.json({error:error.message},{status:500}):NextResponse.json({success:true});
   }
   if(type==="institution") {
+    if(!isSuperAdmin(session))return NextResponse.json({error:"只有總管理員可刪除補習班。"},{status:403});
     const [{count:cc},{count:sc}]=await Promise.all([supabaseAdmin.from("classes").select("id",{count:"exact",head:true}).eq("institution_id",id),supabaseAdmin.from("students").select("id",{count:"exact",head:true}).eq("institution_id",id)]);
     if((cc??0)>0||(sc??0)>0) return NextResponse.json({error:`此合作單位仍有 ${cc??0} 個班級、${sc??0} 位學生，無法刪除。`},{status:409});
     const {error}=await supabaseAdmin.from("institutions").delete().eq("id",id); return error?NextResponse.json({error:error.message},{status:500}):NextResponse.json({success:true});
   }
   if(type==="region") {
+    if(!isSuperAdmin(session))return NextResponse.json({error:"只有總管理員可刪除地區。"},{status:403});
     const [{count:ic},{count:sc}]=await Promise.all([supabaseAdmin.from("institutions").select("id",{count:"exact",head:true}).eq("region_id",id),supabaseAdmin.from("students").select("id",{count:"exact",head:true}).eq("region_id",id)]);
     if((ic??0)>0||(sc??0)>0) return NextResponse.json({error:`此地區仍有 ${ic??0} 個合作單位、${sc??0} 位學生，無法刪除。`},{status:409});
     const {error}=await supabaseAdmin.from("regions").delete().eq("id",id); return error?NextResponse.json({error:error.message},{status:500}):NextResponse.json({success:true});

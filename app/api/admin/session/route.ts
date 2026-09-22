@@ -8,7 +8,7 @@ export async function GET(request: NextRequest) {
   if (!session) return NextResponse.json({ authenticated:false }, { status:401 });
   let scopeTeacher: any = null;
   const scopeId = request.cookies.get(ADMIN_SCOPE_COOKIE)?.value;
-  if (scopeId && session.role !== "teacher") {
+  if (scopeId && session.role === "super_admin") {
     const { data } = await supabaseAdmin.from("admin_users").select("id,display_name,username").eq("id",scopeId).maybeSingle();
     scopeTeacher = data ?? null;
   }
