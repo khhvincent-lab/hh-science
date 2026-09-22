@@ -100,7 +100,7 @@ export default function ThemeToggle() {
 
       {ready && open && (
         <div className="hh-theme-menu" role="menu" aria-label="介面主題">
-          <div className="hh-theme-menu-title">解題實驗室 2.0 · 外觀主題</div>
+          <div className="hh-theme-menu-title">解題實驗室 2.0.5 · 外觀主題</div>
 
           {THEMES.map((item) => (
             <button
