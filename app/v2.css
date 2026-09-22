@@ -375,3 +375,98 @@ html[data-theme] .admin-sidebar-brand .v2-admin-brand-icon{margin-bottom:12px}
   html[data-theme] .student-page.student-compact-ready .student-add-more-images small { display: none; }
   html[data-theme] .student-page.student-compact-ready .student-add-more-action { padding: 3px 6px; font-size: 9px; }
 }
+
+/* v2.0.3 — mobile-first question workspace, independent crop editor and compact history. */
+html[data-theme] .student-history-advanced[hidden] { display:none!important; }
+html[data-theme] .student-history-quick-actions { display:grid;grid-template-columns:minmax(0,1fr) auto;gap:9px;align-items:center; }
+html[data-theme] .student-history-quick-actions .hh-button-primary { min-height:42px; }
+html[data-theme] .student-history-advanced-toggle { min-height:42px;padding:8px 12px;border:1px solid var(--border);border-radius:12px;background:var(--surface-soft);color:var(--text);font-weight:750;cursor:pointer; }
+html[data-theme] .student-history-advanced { padding-top:14px;margin-top:14px;border-top:1px solid var(--border); }
+html[data-theme] .student-history-filters { padding:14px!important; }
+html[data-theme] .student-history-search { margin-bottom:9px; }
+html[data-theme] .student-history-filters .student-history-search input { min-height:43px; }
+
+/* Display all *real* AI-generated annotations as discoverable buttons even
+   when the model supplied an annotation but omitted its inline math marker. */
+html[data-theme] .student-annotation-index { border-top:1px solid var(--border);padding:13px 0 2px;margin-top:16px; }
+html[data-theme] .student-annotation-index-title { font-size:12px;font-weight:800;color:var(--text-secondary);margin-bottom:10px; }
+html[data-theme] .student-annotation-index-list { display:flex;gap:7px;flex-wrap:wrap; }
+html[data-theme] .student-annotation-index-button { display:inline-flex;align-items:center;gap:6px;max-width:100%;min-height:34px;padding:6px 10px;background:var(--action-soft);border:1px solid color-mix(in srgb,var(--action) 45%,var(--border));border-radius:10px;color:var(--text);font-size:12px;line-height:1.35;font-weight:700;cursor:pointer;overflow-wrap:anywhere; }
+html[data-theme] .student-annotation-index-button span { background:var(--action);color:var(--action-text);width:20px;height:20px;display:inline-grid;place-items:center;border-radius:6px;font-size:11px;flex-shrink:0; }
+html[data-theme] .student-inline-formula [data-annotation],html[data-theme] .student-display-formula [data-annotation] { background:var(--action-soft)!important;color:var(--text)!important;outline:1px solid color-mix(in srgb,var(--action) 50%,transparent);outline-offset:1px;cursor:pointer; }
+html[data-theme] .student-inline-formula [data-annotation] *,html[data-theme] .student-display-formula [data-annotation] * { color:inherit!important; }
+html[data-theme] .student-annotation-index-button:focus-visible,html[data-theme] .student-history-advanced-toggle:focus-visible { outline:2px solid var(--action);outline-offset:3px; }
+
+/* Annotation explanations are intentionally light pastel cards across ALL
+   five website themes. Force dark readable text including nested KaTeX spans. */
+html[data-theme] .student-modal-card .student-modal-info-green { background:#dceee6!important;border-color:#9ec7b1!important; }
+html[data-theme] .student-modal-card .student-modal-info-gold { background:#fff0c9!important;border-color:#dbc489!important; }
+html[data-theme] .student-modal-card .student-modal-info-red { background:#fce9e4!important;border-color:#e0aea4!important; }
+html[data-theme] .student-modal-card .student-modal-info,
+html[data-theme] .student-modal-card .student-modal-info *,
+html[data-theme] .student-modal-card .student-modal-info .katex,
+html[data-theme] .student-modal-card .student-modal-info .katex * { color:#1b2831!important;-webkit-text-fill-color:#1b2831!important;text-shadow:none!important; }
+html[data-theme] .student-modal-card .student-modal-info-label { color:#17252d!important;font-weight:850; }
+html[data-theme] .student-modal-card .student-modal-info { font-size:14px;line-height:1.65; }
+
+@media (max-width:740px) {
+  /* Keep the essential question controls on the first screen. A short phone,
+     multiple images, virtual keyboard and guided tour can still scroll. */
+  html[data-theme] .student-page.student-compact-ready .student-container { width:calc(100% - 22px);padding-top:8px;padding-bottom:calc(78px + env(safe-area-inset-bottom)); }
+  html[data-theme] .student-page.student-compact-ready .student-app-header { margin-bottom:9px!important;min-height:51px;padding:7px 10px!important; }
+  html[data-theme] .student-page.student-compact-ready .student-welcome-card { min-height:51px!important;max-height:64px;padding:7px 10px!important;margin-bottom:9px!important;gap:8px; }
+  html[data-theme] .student-page.student-compact-ready .student-avatar { width:32px;height:32px;flex-basis:32px;font-size:13px; }
+  html[data-theme] .student-page.student-compact-ready .student-welcome-title { font-size:15px!important; }
+  html[data-theme] .student-page.student-compact-ready .student-welcome-main .student-muted { max-width:calc(100vw - 193px);font-size:10px; }
+  html[data-theme] .student-page.student-compact-ready .student-welcome-actions { gap:4px; }
+  html[data-theme] .student-page.student-compact-ready .student-usage-pill { min-width:75px;min-height:31px;padding:4px 7px;font-size:10px; }
+  html[data-theme] .student-page.student-compact-ready .student-welcome-card .v2-quota-summary { display:block!important;width:auto!important;min-width:95px; }
+  html[data-theme] .student-page.student-compact-ready .student-welcome-card .v2-quota-summary small { font-size:10px;white-space:nowrap; }
+  html[data-theme] .student-page.student-compact-ready .student-welcome-card .student-usage-pill { display:none!important; }
+  html[data-theme] .student-page.student-compact-ready .student-workspace { display:grid;gap:9px; }
+  html[data-theme] .student-page.student-compact-ready .student-panel { padding:12px!important;margin:0!important;border-radius:16px!important; }
+  html[data-theme] .student-page.student-compact-ready .student-step-header { margin-bottom:8px!important; }
+  html[data-theme] .student-page.student-compact-ready .student-upload-zone { min-height:68px!important;padding:9px!important; }
+  html[data-theme] .student-page.student-compact-ready .student-upload-short-note { font-size:10px; }
+  html[data-theme] .student-page.student-compact-ready .student-add-more-images { margin-top:7px; }
+  html[data-theme] .student-page.student-compact-ready .student-note-field { margin-top:7px; }
+  html[data-theme] .student-page.student-compact-ready .student-solve-actions { margin-top:9px; }
+  html[data-theme] .student-page.student-compact-ready .student-history-shortcut { display:none; }
+  html[data-theme] .student-history-shell { padding-top:0!important;margin-top:0!important; }
+  html[data-theme] .student-history-header { display:grid!important;grid-template-columns:minmax(0,1fr) auto!important;gap:8px!important;align-items:center!important;margin:0 0 10px!important; }
+  html[data-theme] .student-history-header .hh-eyebrow,html[data-theme] .student-history-header p { display:none!important; }
+  html[data-theme] .student-history-header h2 { margin:0!important;font-size:clamp(19px,5.5vw,24px)!important;line-height:1.3!important; }
+  html[data-theme] .student-history-header > .hh-button-primary { min-height:37px!important;padding:7px 10px!important;font-size:11px!important;white-space:nowrap; }
+  html[data-theme] .student-history-filters { margin-bottom:12px!important;padding:11px!important; }
+  html[data-theme] .student-history-filters label > span { font-size:11px; }
+  html[data-theme] .student-history-search { margin-bottom:8px; }
+  html[data-theme] .student-history-filter-grid { display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px; }
+  html[data-theme] .student-history-filter-grid .hh-input { min-width:0;width:100%; }
+  html[data-theme] .student-history-filter-actions { display:grid;grid-template-columns:1fr 1fr;gap:8px; }
+  html[data-theme] .student-history-result-count { margin:7px 0!important;font-size:12px; }
+  html[data-theme] .student-history-item-main { grid-template-columns:72px minmax(0,1fr);gap:9px;padding:3px; }
+  html[data-theme] .student-history-thumb,html[data-theme] .student-history-thumb img { min-height:67px;height:67px; }
+  html[data-theme] .student-history-item { padding:7px; }
+}
+
+/* Cropping is a fullscreen editing workspace rather than an inline block
+   below the huge upload panel. It opens at the visible viewport immediately. */
+@media (max-width:740px) {
+  html[data-theme] .student-page .student-image-editor {
+    position:fixed!important;inset:0!important;z-index:100!important;
+    box-sizing:border-box;width:100vw!important;max-width:none!important;
+    min-height:0!important;height:100dvh!important;
+    margin:0!important;padding:calc(env(safe-area-inset-top) + 16px) 14px calc(env(safe-area-inset-bottom) + 16px)!important;
+    background:var(--bg)!important;color:var(--text)!important;
+    overflow-y:auto!important;overscroll-behavior:contain;
+    display:flex!important;flex-direction:column;gap:10px;
+  }
+  html[data-theme] .student-page .student-image-editor-head { display:flex;gap:8px;align-items:center;justify-content:space-between;margin:0!important;flex-shrink:0; }
+  html[data-theme] .student-page .student-image-editor-head .hh-eyebrow { display:none; }
+  html[data-theme] .student-page .student-image-editor-head h3 { font-size:18px!important;margin:0!important; }
+  html[data-theme] .student-page .student-crop-frame { width:100%!important;max-height:52dvh!important;flex:1 0 auto;min-height:150px; }
+  html[data-theme] .student-page .student-crop-frame .cropper-container { max-height:52dvh!important; }
+  html[data-theme] .student-page .student-editor-tip { margin:0!important;font-size:11px;line-height:1.5; }
+  html[data-theme] .student-page .student-image-editor .student-two-actions { display:grid!important;grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important;gap:9px!important;margin-top:auto!important;padding:8px 0 0;flex-shrink:0; }
+  html[data-theme] .student-page .student-image-editor .student-two-actions button { min-height:43px; }
+}

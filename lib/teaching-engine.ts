@@ -315,10 +315,10 @@ export async function buildTeachingContext(subject: string, input: TeachingRetri
   ].filter(Boolean);
 
   const densityText = settings.general.annotationDensity === "rich"
-    ? "互動式詳解偏豐富：若內容足夠，優先標出 6～10 個真正有學習價值的數值、變數、單位、公式片段、化學式或關鍵常數。"
+    ? "互動式詳解偏豐富：若內容足夠，優先標出 8～12 個真正有學習價值的數值、變數、單位、公式片段、化學式或關鍵常數。"
     : settings.general.annotationDensity === "light"
       ? "互動式詳解精簡：只標 2～4 個最關鍵的數值、變數或公式片段。"
-      : "互動式詳解標準：通常標 4～6 個最有學習價值的數值、變數、單位或公式片段。";
+      : "互動式詳解標準：通常標 6～9 個最有學習價值的數值、變數、單位或公式片段。";
 
   const diagramText = settings.general.diagramMode === "off"
     ? "Science Diagram Engine：關閉。本題 diagram 必須為 null。"

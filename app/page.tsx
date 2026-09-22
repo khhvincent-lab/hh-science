@@ -746,6 +746,7 @@ export default function Home() {
   const [historyFrom, setHistoryFrom] = useState("");
   const [historyTo, setHistoryTo] = useState("");
   const [historyKeyword, setHistoryKeyword] = useState("");
+  const [historyAdvancedOpen, setHistoryAdvancedOpen] = useState(false);
   const [historyFavoritesOnly, setHistoryFavoritesOnly] = useState(false);
   const [selectedHistory, setSelectedHistory] = useState<SolveHistoryItem | null>(null);
   const [historyFavoriteBusyId, setHistoryFavoriteBusyId] = useState<string | null>(null);
@@ -1641,17 +1642,10 @@ export default function Home() {
     img.src = editingImage;
   }
 
-  function restoreUploadViewportAfterCrop(beforeBottom: number | null, beforeScrollY: number) {
-    if (beforeBottom === null) return;
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        const afterBottom = uploadPanelRef.current?.getBoundingClientRect().bottom;
-        if (typeof afterBottom !== "number") return;
-        const removedHeight = Math.max(0, beforeBottom - afterBottom);
-        if (removedHeight < 2) return;
-        window.scrollTo({ top: Math.max(0, beforeScrollY - removedHeight), behavior: "auto" });
-      });
-    });
+  // v2.0.3: cropper lives in a fixed mobile workspace; closing it must not
+  // subtract its former inline height from the page's scroll position.
+  function restoreUploadViewportAfterCrop(_beforeBottom: number | null, _beforeScrollY: number) {
+    // Keep the upload / thumbnail section in its current viewport position.
   }
 
   function finishCurrentImageEdit() {
@@ -2235,7 +2229,7 @@ export default function Home() {
   }
 
   return (
-    <main data-view={activeView} className={`hh-page student-page ${tutorialOpen && tutorialPhase !== "setup" ? "student-tour-results-active" : ""} ${student && !student.mustChangePin && activeView === "solve" && !isCropping && !tutorialOpen ? "student-compact-ready" : ""}`}>
+    <main data-view={activeView} className={`hh-page student-page ${tutorialOpen && tutorialPhase !== "setup" ? "student-tour-results-active" : ""} ${student && !student.mustChangePin && activeView === "solve" && !tutorialOpen ? "student-compact-ready" : ""}`}>
       <div className="student-top-glow" />
 
       <div className="student-container">
@@ -2353,7 +2347,7 @@ export default function Home() {
         </section>}
 
         {student ? (
-          <section className="student-welcome-card">
+          activeView === "solve" || student.mustChangePin ? <section className="student-welcome-card">
             <div className="student-welcome-main">
               <div className="student-avatar">{student.name.slice(0, 1)}</div>
               <div>
@@ -2379,8 +2373,8 @@ export default function Home() {
                 <div className="v2-quota-track"><span style={{width:`${usage.limit>0?Math.max(0,Math.min(100,usage.remaining/usage.limit*100)):0}%`}} /></div>
               </div>
             </div>
-            {!student.mustChangePin && <button type="button" className="v2-history-shortcut" onClick={() => setActiveView("history")}>學習紀錄 <span aria-hidden="true">↗</span></button>}
-          </section>
+            
+          </section> : null
         ) : (
           <section className="hh-card student-login-card">
             <div className="student-login-intro">
@@ -2697,7 +2691,7 @@ export default function Home() {
             )}
 
             {isCropping && editingImage && (
-              <div className="student-image-editor" data-tour="image-editor">
+              <div className="student-image-editor" data-tour="image-editor" role="dialog" aria-modal="true" aria-label="題目圖片編輯">
                 <div className="student-image-editor-head">
                   <div>
                     <div className="hh-eyebrow">
@@ -2725,7 +2719,7 @@ export default function Home() {
                     key={editingImage.slice(-40)}
                     ref={cropperRef}
                     src={editingImage}
-                    style={{ height: 420, width: "100%" }}
+                    style={{ height: "min(52dvh, 420px)", width: "100%" }}
                     viewMode={1}
                     dragMode="move"
                     responsive
@@ -2877,6 +2871,16 @@ export default function Home() {
                 </div>
                 <div className="student-result-content">
                   <ScienceText text={solveData.explanation} annotations={solveData.annotations} onAnnotationClick={setSelectedAnnotation} />
+                  {solveData.annotations.length > 0 && (
+                    <div className="student-annotation-index" aria-label="可點擊的詳解重點">
+                      <div className="student-annotation-index-title">點選理解重點 · {solveData.annotations.length} 個</div>
+                      <div className="student-annotation-index-list">{solveData.annotations.map((annotation, index) => (
+                        <button key={`${annotation.id}-${index}`} type="button" onClick={() => setSelectedAnnotation(annotation)} className="student-annotation-index-button">
+                          <span>{index + 1}</span>{annotation.label || annotation.display || `重點 ${index + 1}`}
+                        </button>
+                      ))}</div>
+                    </div>
+                  )}
                   <ScienceDiagramView diagram={solveData.diagram} />
                   <ChemicalStructureView structure={solveData.chemicalStructure} />
                 </div>
@@ -3012,7 +3016,7 @@ export default function Home() {
               </button>
             </div>
 
-            <div className="hh-card student-history-filters">
+            {!selectedHistory && <div className="hh-card student-history-filters">
               <div className="student-history-search">
                 <label>
                   <span>關鍵字搜尋</span>
@@ -3031,6 +3035,11 @@ export default function Home() {
                 </label>
               </div>
 
+              <div className="student-history-quick-actions">
+                <button type="button" className="hh-button-primary" disabled={historyLoading} onClick={() => void loadHistory()}>{historyLoading ? "搜尋中…" : "搜尋"}</button>
+                <button type="button" className="student-history-advanced-toggle" aria-expanded={historyAdvancedOpen} aria-controls="student-history-advanced" onClick={() => setHistoryAdvancedOpen((current) => !current)}>{historyAdvancedOpen ? "收起篩選 ↑" : "進階篩選 ↓"}</button>
+              </div>
+              <div id="student-history-advanced" hidden={!historyAdvancedOpen} className="student-history-advanced">
               <div className="student-history-filter-grid">
                 <label>
                   <span>科目</span>
@@ -3102,7 +3111,8 @@ export default function Home() {
                   清除條件
                 </button>
               </div>
-            </div>
+              </div>
+            </div>}
 
             {historyError && (
               <div className="student-alert student-alert-danger">
@@ -3199,6 +3209,16 @@ export default function Home() {
                       annotations={selectedHistory.annotations}
                       onAnnotationClick={setSelectedAnnotation}
                     />
+                    {selectedHistory.annotations.length > 0 && (
+                      <div className="student-annotation-index" aria-label="可點擊的解題紀錄重點">
+                        <div className="student-annotation-index-title">點選理解重點 · {selectedHistory.annotations.length} 個</div>
+                        <div className="student-annotation-index-list">{selectedHistory.annotations.map((annotation, index) => (
+                          <button key={`${annotation.id}-${index}`} type="button" onClick={() => setSelectedAnnotation(annotation)} className="student-annotation-index-button">
+                            <span>{index + 1}</span>{annotation.label || annotation.display || `重點 ${index + 1}`}
+                          </button>
+                        ))}</div>
+                      </div>
+                    )}
                     <ScienceDiagramView diagram={selectedHistory.diagram} />
                     <ChemicalStructureView structure={selectedHistory.chemicalStructure} />
                   </section>
