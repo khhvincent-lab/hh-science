@@ -1,4 +1,4 @@
-const CACHE_VERSION = "hh-science-v2.0.4";
+const CACHE_VERSION = "hh-science-v2.0.5";
 
 self.addEventListener("install", () => {
   self.skipWaiting();
