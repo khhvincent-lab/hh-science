@@ -176,7 +176,7 @@ const subjectPermissions: Record<Campus, SubjectOption[]> = {
     { value: "physics", label: "物理" },
     { value: "chemistry", label: "化學" },
     { value: "biology", label: "生物" },
-    { value: "earth", label: "地球科學" },
+    { value: "earth", label: "地科" },
   ],
   嘉義班: [{ value: "chemistry", label: "化學" }],
   員林班: [{ value: "chemistry", label: "化學" }],
@@ -186,7 +186,7 @@ const allSubjectOptions: SubjectOption[] = [
   { value: "physics", label: "物理" },
   { value: "chemistry", label: "化學" },
   { value: "biology", label: "生物" },
-  { value: "earth", label: "地球科學" },
+  { value: "earth", label: "地科" },
 ];
 
 function subjectsForStudent(student: StudentSession | null) {
@@ -564,7 +564,7 @@ const firstUseTutorialSteps: FirstUseTutorialStep[] = [
   {
     eyebrow: "準備題目 · 2/5",
     title: "再選擇題目科目",
-    description: "選擇物理、化學、生物或地球科學，系統會依科目調整解題方式。",
+    description: "選擇物理、化學、生物或地科，系統會依科目調整解題方式。",
     previewLabel: "科目",
     previewValue: "選擇科目",
     tips: ["確認科目後再繼續"],
@@ -619,9 +619,9 @@ const firstUseTutorialSteps: FirstUseTutorialStep[] = [
   },
   {
     eyebrow: "看懂解析 · 1/6",
-    title: "先讀觀念解析與解題脈絡",
+    title: "先讀觀念詳解與解題脈絡",
     description: "這裡會整理關鍵觀念、公式與解題步驟，先理解再看答案。",
-    previewLabel: "觀念解析",
+    previewLabel: "觀念詳解",
     previewValue: "詳解與解題步驟",
     tips: ["先理解為什麼，再記答案", "公式與重要數值會保留在解題流程中"],
   },
@@ -635,9 +635,9 @@ const firstUseTutorialSteps: FirstUseTutorialStep[] = [
   },
   {
     eyebrow: "看懂解析 · 3/6",
-    title: "選擇題再看選項分析",
+    title: "選擇題再看選項解析",
     description: "選擇題可逐項查看為什麼正確或錯誤。",
-    previewLabel: "選項分析",
+    previewLabel: "選項解析",
     previewValue: "A / B / C / D",
     tips: ["特別適合訂正選擇題", "非選擇題沒有這區時會自動略過"],
   },
@@ -1375,7 +1375,7 @@ export default function Home() {
     if (value === "physics") return "物理";
     if (value === "chemistry") return "化學";
     if (value === "biology") return "生物";
-    if (value === "earth") return "地球科學";
+    if (value === "earth") return "地科";
     return "自然科";
   }
 
@@ -2144,7 +2144,7 @@ export default function Home() {
         ) {
           await navigator.share({
             title: "H.H. Science Lab 題目解析",
-            text: "觀念解析與選項分析",
+            text: "觀念詳解與選項解析",
             files: [preparedShareFile],
           });
           return;
@@ -2357,7 +2357,7 @@ export default function Home() {
                   {student.campus}
                   {student.mustChangePin
                     ? " · 請先設定個人登入密碼"
-                    : ` · 今日剩餘 ${usage.remaining} 題`}
+                    : ""}
                 </div>
               </div>
             </div>
@@ -2831,7 +2831,7 @@ export default function Home() {
           <span className="v2-result-status">{isSolving ? "分析中" : solveData ? "已完成" : "請重新嘗試"}</span>
         </div>}
         {activeView === "result" && <section ref={resultRef} className={`hh-card student-panel student-result-panel ${!student ? "student-panel-disabled" : ""}`}>
-          <StepHeader number="3" title="解題解析" description="答案 → 核心觀念 → 逐步詳解 → 選項分析 → 追問" tone="terra" />
+          <StepHeader number="3" title="解題解析" description="答案 → 觀念詳解 → 選項解析 → 追問" tone="terra" />
 
           {questionError && !isSolving && <div className="student-alert student-alert-danger">{questionError}</div>}
           {!solveData && !isSolving && (
@@ -2866,21 +2866,11 @@ export default function Home() {
                   <div className="student-result-index student-result-index-gold">01</div>
                   <div>
                     <div className="hh-eyebrow">CONCEPT ANALYSIS</div>
-                    <h3 className="hh-display">觀念解析</h3>
+                    <h3 className="hh-display">觀念詳解</h3>
                   </div>
                 </div>
                 <div className="student-result-content">
                   <ScienceText text={solveData.explanation} annotations={solveData.annotations} onAnnotationClick={setSelectedAnnotation} />
-                  {solveData.annotations.length > 0 && (
-                    <div className="student-annotation-index" aria-label="可點擊的詳解重點">
-                      <div className="student-annotation-index-title">點選理解重點 · {solveData.annotations.length} 個</div>
-                      <div className="student-annotation-index-list">{solveData.annotations.map((annotation, index) => (
-                        <button key={`${annotation.id}-${index}`} type="button" onClick={() => setSelectedAnnotation(annotation)} className="student-annotation-index-button">
-                          <span>{index + 1}</span>{annotation.label || annotation.display || `重點 ${index + 1}`}
-                        </button>
-                      ))}</div>
-                    </div>
-                  )}
                   <ScienceDiagramView diagram={solveData.diagram} />
                   <ChemicalStructureView structure={solveData.chemicalStructure} />
                 </div>
@@ -2892,7 +2882,7 @@ export default function Home() {
                     <div className="student-result-index student-result-index-red">02</div>
                     <div>
                       <div className="hh-eyebrow">OPTION ANALYSIS</div>
-                      <h3 className="hh-display">選項分析</h3>
+                      <h3 className="hh-display">選項解析</h3>
                     </div>
                   </div>
                   <div className="student-result-content">
@@ -3004,7 +2994,7 @@ export default function Home() {
               <div>
                 <div className="hh-eyebrow">MY SOLVE HISTORY</div>
                 <h2 className="hh-display">我的解題紀錄</h2>
-                <p>搜尋過去題目、收藏重要題目，並重新查看完整觀念解析。</p>
+                <p>搜尋過去題目、收藏重要題目，並重新查看完整觀念詳解。</p>
               </div>
 
               <button
@@ -3052,7 +3042,7 @@ export default function Home() {
                     <option value="physics">物理</option>
                     <option value="chemistry">化學</option>
                     <option value="biology">生物</option>
-                    <option value="earth">地球科學</option>
+                    <option value="earth">地科</option>
                   </select>
                 </label>
 
@@ -3200,7 +3190,7 @@ export default function Home() {
                       <div className="student-result-section-number hh-number">01</div>
                       <div>
                         <div className="hh-eyebrow">CONCEPT ANALYSIS</div>
-                        <h3 className="hh-display">觀念解析</h3>
+                        <h3 className="hh-display">觀念詳解</h3>
                       </div>
                     </div>
 
@@ -3209,16 +3199,6 @@ export default function Home() {
                       annotations={selectedHistory.annotations}
                       onAnnotationClick={setSelectedAnnotation}
                     />
-                    {selectedHistory.annotations.length > 0 && (
-                      <div className="student-annotation-index" aria-label="可點擊的解題紀錄重點">
-                        <div className="student-annotation-index-title">點選理解重點 · {selectedHistory.annotations.length} 個</div>
-                        <div className="student-annotation-index-list">{selectedHistory.annotations.map((annotation, index) => (
-                          <button key={`${annotation.id}-${index}`} type="button" onClick={() => setSelectedAnnotation(annotation)} className="student-annotation-index-button">
-                            <span>{index + 1}</span>{annotation.label || annotation.display || `重點 ${index + 1}`}
-                          </button>
-                        ))}</div>
-                      </div>
-                    )}
                     <ScienceDiagramView diagram={selectedHistory.diagram} />
                     <ChemicalStructureView structure={selectedHistory.chemicalStructure} />
                   </section>
@@ -3229,7 +3209,7 @@ export default function Home() {
                         <div className="student-result-section-number hh-number">02</div>
                         <div>
                           <div className="hh-eyebrow">OPTION ANALYSIS</div>
-                          <h3 className="hh-display">選項分析</h3>
+                          <h3 className="hh-display">選項解析</h3>
                         </div>
                       </div>
 
@@ -3383,13 +3363,13 @@ export default function Home() {
             </div>
 
             <div style={{ background: "#fff", border: "1px solid #dde1db", borderRadius: "14px", padding: "18px", marginBottom: "14px" }}>
-              <div style={{ fontFamily: '"Source Han Serif TC", "Noto Serif TC", "Songti TC", "PMingLiU", serif', fontWeight: 700, fontSize: "18px", color: "#30463b", marginBottom: "8px" }}>觀念解析</div>
+              <div style={{ fontFamily: '"Source Han Serif TC", "Noto Serif TC", "Songti TC", "PMingLiU", serif', fontWeight: 700, fontSize: "18px", color: "#30463b", marginBottom: "8px" }}>觀念詳解</div>
               <ScienceText text={solveData.explanation} stripAnnotations />
             </div>
 
             {solveData.options && (
               <div style={{ background: "#fff", border: "1px solid #eadbd8", borderRadius: "14px", padding: "18px" }}>
-                <div style={{ fontFamily: '"Source Han Serif TC", "Noto Serif TC", "Songti TC", "PMingLiU", serif', fontWeight: 700, fontSize: "18px", color: "#8e5752", marginBottom: "8px" }}>選項分析</div>
+                <div style={{ fontFamily: '"Source Han Serif TC", "Noto Serif TC", "Songti TC", "PMingLiU", serif', fontWeight: 700, fontSize: "18px", color: "#8e5752", marginBottom: "8px" }}>選項解析</div>
                 <ScienceText text={solveData.options} stripAnnotations />
               </div>
             )}
