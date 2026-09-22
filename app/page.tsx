@@ -3316,7 +3316,7 @@ export default function Home() {
         </nav>}
         <footer className="student-footer">
           <div className="hh-eyebrow">{brand.englishName}</div>
-          <div>{brand.name} v2.0</div>
+          <div>{brand.name} v2.0.4</div>
         </footer>
       </div>
 
