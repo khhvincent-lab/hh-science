@@ -190,3 +190,188 @@ html[data-theme] .student-app-brand{display:flex!important;flex-direction:row!im
 html[data-theme] .v2-student-brand-icon,html[data-theme] .v2-admin-brand-icon{display:block;object-fit:cover;border-radius:11px;box-shadow:0 4px 14px #0003}
 html[data-theme] .v2-student-brand-copy{display:flex;flex-direction:column;min-width:0;gap:1px}
 html[data-theme] .admin-sidebar-brand .v2-admin-brand-icon{margin-bottom:12px}
+
+/* ── v2.0.1 · Mobile student usability (2026-09-22) ──────────────
+   Keep the brand bar in normal document flow, reserve the lower edge
+   for three primary destinations and compress only the empty solve form.
+   Uploaded-image lists, tutorials, results and history remain scrollable. */
+@media (max-width: 740px) {
+  html[data-theme] .student-page .student-container {
+    padding-top: max(8px, env(safe-area-inset-top));
+    padding-bottom: calc(76px + env(safe-area-inset-bottom));
+  }
+  html[data-theme] .student-page .student-app-header {
+    position: relative !important;
+    top: auto !important;
+    left: auto !important;
+    right: auto !important;
+    width: 100%;
+    min-height: 49px;
+    margin: 0 0 10px;
+    padding: 6px 9px !important;
+    border-radius: 15px;
+    z-index: 100;
+  }
+  html[data-theme] .student-page .student-app-brand { gap: 8px !important; min-width: 0; }
+  html[data-theme] .student-page .v2-student-brand-icon {
+    width: 33px; height: 33px; flex: 0 0 33px;
+  }
+  html[data-theme] .student-page .student-app-brand-zh {
+    font-size: 13px; line-height: 1.25; letter-spacing: .01em;
+    overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+  }
+  html[data-theme] .student-page .student-app-brand-en {
+    font-size: 9px; letter-spacing: .035em; line-height: 1.2;
+    overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+  }
+  html[data-theme] .student-page .student-menu-button { width: 36px; height: 36px; }
+  html[data-theme] .student-page .student-app-header-actions { flex: 0 0 auto; gap: 5px; }
+  html[data-theme] .student-page .v2-student-bottom-nav {
+    grid-template-columns: repeat(3,minmax(0,1fr));
+  }
+}
+@media (max-width: 740px) {
+  html[data-theme] .student-page.student-compact-ready .student-container {
+    padding-top: max(5px, env(safe-area-inset-top));
+    padding-bottom: calc(70px + env(safe-area-inset-bottom));
+  }
+  html[data-theme] .student-page.student-compact-ready .student-app-header { margin-bottom: 7px; }
+  html[data-theme] .student-page.student-compact-ready .student-welcome-card {
+    display: grid !important;
+    grid-template-columns: minmax(0,1fr) auto;
+    align-items: center; column-gap: 8px; row-gap: 5px;
+    min-height: 0; margin: 0 0 8px !important;
+    padding: 9px 11px !important; border-radius: 15px;
+  }
+  html[data-theme] .student-page.student-compact-ready .student-welcome-main { min-width: 0; gap: 8px; }
+  html[data-theme] .student-page.student-compact-ready .student-avatar {
+    width: 31px; height: 31px; flex: 0 0 31px;
+  }
+  html[data-theme] .student-page.student-compact-ready .student-welcome-title {
+    font-size: 15px; margin: 0 0 1px;
+  }
+  html[data-theme] .student-page.student-compact-ready .student-welcome-main .student-muted {
+    max-width: none; font-size: 10px;
+  }
+  html[data-theme] .student-page.student-compact-ready .student-welcome-actions {
+    width: auto !important; min-width: 95px;
+    display: block; margin: 0;
+  }
+  /* The same quota was previously shown twice: preserve the clear summary. */
+  html[data-theme] .student-page.student-compact-ready .student-usage-pill { display: none; }
+  html[data-theme] .student-page.student-compact-ready .v2-quota-summary {
+    width: 100%; min-width: 0;
+  }
+  html[data-theme] .student-page.student-compact-ready .v2-quota-summary small {
+    font-size: 10px; margin-bottom: 4px; white-space: nowrap;
+  }
+  /* History is already a primary destination in the bottom bar. */
+  html[data-theme] .student-page.student-compact-ready .v2-history-shortcut { display: none; }
+  html[data-theme] .student-page.student-compact-ready .student-workspace { display: grid; gap: 8px; }
+  html[data-theme] .student-page.student-compact-ready .student-panel {
+    padding: 10px 12px !important; margin: 0 !important;
+    border-radius: 16px !important;
+  }
+  html[data-theme] .student-page.student-compact-ready .student-step-header {
+    gap: 7px; margin-bottom: 7px;
+  }
+  html[data-theme] .student-page.student-compact-ready .student-step-number {
+    width: 23px; height: 23px; border-radius: 7px; font-size: 10px;
+  }
+  html[data-theme] .student-page.student-compact-ready .student-step-title {
+    font-size: 14px; line-height: 1.2;
+  }
+  html[data-theme] .student-page.student-compact-ready .student-step-description { display: none; }
+  html[data-theme] .student-page.student-compact-ready .student-upload-zone {
+    min-height: 68px !important; padding: 9px 10px !important;
+    border-radius: 12px !important;
+  }
+  html[data-theme] .student-page.student-compact-ready .student-upload-icon {
+    width: 28px; height: 28px; font-size: 17px;
+  }
+  html[data-theme] .student-page.student-compact-ready .student-upload-title { font-size: 13px; }
+  html[data-theme] .student-page.student-compact-ready .student-upload-short-note {
+    margin-top: 3px; font-size: 9px;
+  }
+  html[data-theme] .student-page.student-compact-ready .student-form-grid {
+    display: grid; grid-template-columns: 1fr; gap: 7px;
+  }
+  html[data-theme] .student-page.student-compact-ready .student-field { gap: 4px; }
+  html[data-theme] .student-page.student-compact-ready .student-field > span {
+    font-size: 11px; line-height: 1.25;
+  }
+  html[data-theme] .student-page.student-compact-ready .student-subject-picker {
+    grid-template-columns: repeat(4,minmax(0,1fr)); gap: 5px;
+  }
+  html[data-theme] .student-page.student-compact-ready .student-subject-option {
+    min-height: 37px; padding: 5px 3px !important;
+    font-size: 11px; border-radius: 10px !important;
+  }
+  html[data-theme] .student-page.student-compact-ready .student-subject-check { display: none; }
+  html[data-theme] .student-page.student-compact-ready .hh-input,
+  html[data-theme] .student-page.student-compact-ready .student-note-textarea {
+    height: 38px; min-height: 38px; font-size: 12px;
+    padding-top: 8px; padding-bottom: 8px;
+  }
+  html[data-theme] .student-page.student-compact-ready .student-note-field { margin-top: 7px; }
+  html[data-theme] .student-page.student-compact-ready .student-solve-actions {
+    display: grid; grid-template-columns: minmax(0,1fr) auto;
+    gap: 7px; margin-top: 8px;
+  }
+  html[data-theme] .student-page.student-compact-ready .student-solve-button {
+    min-height: 41px; font-size: 13px;
+  }
+  html[data-theme] .student-page.student-compact-ready .student-solve-actions .hh-button-secondary {
+    min-height: 41px; padding: 7px 9px; font-size: 10px;
+  }
+  html[data-theme] .student-page.student-compact-ready .student-footer { display: none; }
+}
+/* Small/short phones may need a little scrolling; never clip the submit
+   control, cropper, new-user PIN screens or error messages to force a fit. */
+
+/* Keep the uploaded question(s) as an accessible horizontal thumbnail strip,
+   instead of expanding every image into a full-height card on the solve home. */
+@media (max-width: 740px) {
+  html[data-theme] .student-page.student-compact-ready .student-image-list {
+    display: flex; flex-wrap: nowrap; gap: 7px;
+    overflow-x: auto; overscroll-behavior-x: contain;
+    scroll-snap-type: x proximity; max-width: 100%;
+    padding: 1px 1px 4px; scrollbar-width: thin;
+  }
+  html[data-theme] .student-page.student-compact-ready .student-image-card {
+    position: relative; display: grid;
+    grid-template-columns: 39px minmax(0,1fr); gap: 6px;
+    flex: 0 0 164px; min-width: 0;
+    padding: 5px; border-radius: 11px;
+    scroll-snap-align: start;
+  }
+  html[data-theme] .student-page.student-compact-ready .student-image-order {
+    position: absolute; top: 3px; left: 3px; z-index: 1;
+    width: 17px; height: 17px; border-radius: 5px;
+    font-size: 8px; background: var(--surface);
+  }
+  html[data-theme] .student-page.student-compact-ready .student-image-card-preview {
+    height: 44px; width: 39px; border-radius: 7px;
+  }
+  html[data-theme] .student-page.student-compact-ready .student-image-card-info { display: none; }
+  html[data-theme] .student-page.student-compact-ready .student-image-card-actions {
+    display: grid; grid-template-columns: 1fr; gap: 3px;
+    grid-column: auto; min-width: 0;
+  }
+  html[data-theme] .student-page.student-compact-ready .student-image-card-actions > *,
+  html[data-theme] .student-page.student-compact-ready .student-image-card-actions .hh-button-secondary {
+    min-height: 21px; padding: 0 5px; font-size: 9px;
+    grid-column: auto;
+  }
+  html[data-theme] .student-page.student-compact-ready .student-add-more-images {
+    min-height: 33px; margin-top: 5px; padding: 4px 8px;
+    grid-template-columns: 23px minmax(0,1fr) auto;
+    gap: 5px; border-radius: 9px;
+  }
+  html[data-theme] .student-page.student-compact-ready .student-add-more-plus {
+    width: 22px; height: 22px; font-size: 14px;
+  }
+  html[data-theme] .student-page.student-compact-ready .student-add-more-images strong { font-size: 10px; }
+  html[data-theme] .student-page.student-compact-ready .student-add-more-images small { display: none; }
+  html[data-theme] .student-page.student-compact-ready .student-add-more-action { padding: 3px 6px; font-size: 9px; }
+}

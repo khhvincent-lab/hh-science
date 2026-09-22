@@ -2235,7 +2235,7 @@ export default function Home() {
   }
 
   return (
-    <main data-view={activeView} className={`hh-page student-page ${tutorialOpen && tutorialPhase !== "setup" ? "student-tour-results-active" : ""}`}>
+    <main data-view={activeView} className={`hh-page student-page ${tutorialOpen && tutorialPhase !== "setup" ? "student-tour-results-active" : ""} ${student && !student.mustChangePin && activeView === "solve" && !isCropping && !tutorialOpen ? "student-compact-ready" : ""}`}>
       <div className="student-top-glow" />
 
       <div className="student-container">
@@ -2249,7 +2249,7 @@ export default function Home() {
             }}
           >
             <img className="v2-student-brand-icon" src="/icon-192.png" alt="" width="37" height="37" />
-            <span className="v2-student-brand-copy"><span className="student-app-brand-en">{brand.englishName}</span><span className="student-app-brand-zh">{brand.name}</span></span>
+            <span className="v2-student-brand-copy"><span className="student-app-brand-zh">{brand.name}</span><span className="student-app-brand-en">{brand.englishName}</span></span>
           </button>
 
           <div className="student-app-header-actions">
@@ -3313,7 +3313,6 @@ export default function Home() {
           <button type="button" aria-current={activeView==="solve"?"page":undefined} onClick={()=>{setActiveView("solve");window.scrollTo({top:0,behavior:"smooth"});}}><span aria-hidden="true">⌂</span>首頁</button>
           <button type="button" aria-current={activeView==="result"?"page":undefined} disabled={!solveData&&!isSolving} onClick={()=>{setActiveView("result");window.scrollTo({top:0,behavior:"smooth"});}}><span aria-hidden="true">✧</span>解析</button>
           <button type="button" aria-current={activeView==="history"?"page":undefined} onClick={()=>{setActiveView("history");window.scrollTo({top:0,behavior:"smooth"});}}><span aria-hidden="true">▤</span>紀錄</button>
-          <button type="button" onClick={()=>{setMenuOpen(true);window.scrollTo({top:0,behavior:"smooth"});}}><span aria-hidden="true">☰</span>選單</button>
         </nav>}
         <footer className="student-footer">
           <div className="hh-eyebrow">{brand.englishName}</div>

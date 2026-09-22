@@ -22,7 +22,12 @@ export async function GET(request:NextRequest){
   supabaseAdmin.from("admin_user_classes").select("admin_user_id,class_id"),
   supabaseAdmin.from("admin_user_institutions").select("admin_user_id,institution_id"),
  ]);
- if(ue||le||ge)return fail(ue?.message||le?.message||ge?.message||"讀取失敗",500);
+ if(ue||le||ge){
+  const issue=ue||le||ge;
+  const migrationHint=/deleted_at|admin_user_institutions|admin_user_classes|schema cache|does not exist/i.test(issue?.message||"")
+   ? "資料庫可能尚未完成 v2.0 升級 SQL；請確認已在網站對應的 Supabase 專案執行。" : "";
+  return fail(`${migrationHint}${issue?.message||"讀取失敗"}`,500);
+ }
  const mine=actor.role==="super_admin"?null:await institutionGrants(actor.userId);
  const output=(users??[]).filter((u:any)=>{
   if(!mine)return true;
@@ -34,23 +39,45 @@ export async function GET(request:NextRequest){
  return NextResponse.json({teachers:output});
 }
 export async function POST(request:NextRequest){
- const actor=await requireAdminSession(request);
- if(!actor)return fail("未登入。",401);
- if(!canManageAccounts(actor.role))return fail("權限不足。");
- const b=await request.json().catch(()=>null);
- const username=clean(b?.username).toLowerCase(), displayName=clean(b?.displayName), password=String(b?.password??"");
- const role=(b?.role||"teacher") as AdminRole, institutionIds=unique(b?.institutionIds);
- if(!roles.includes(role)||!canCreateRole(actor.role,role))return fail("不能建立此層級帳號。");
- if(!/^[a-z0-9._-]{3,40}$/.test(username)||!displayName||displayName.length>40||password.length<10||password.length>128)return fail("帳號需 3–40 字、姓名最多 40 字、密碼 10–128 碼。",400);
- if(role!=="super_admin"&&!institutionIds.length)return fail("請選擇至少一間補習班。",400);
- if(role==="institution_admin"&&institutionIds.length!==1)return fail("補習班管理員只能管理一間補習班。",400);
- if(!(await within(actor,institutionIds)))return fail("不可授權自己管理範圍以外的補習班。");
- const {data,error}=await supabaseAdmin.from("admin_users").insert({username,display_name:displayName,password_hash:await bcrypt.hash(password,12),role,active:true}).select("id,username,display_name,role,active").single();
- if(error)return fail(error.code==="23505"?"帳號已存在。":error.message,error.code==="23505"?409:500);
- const {error:ge}=institutionIds.length?await supabaseAdmin.from("admin_user_institutions").insert(institutionIds.map(id=>({admin_user_id:data.id,institution_id:id}))):{error:null};
- const ce=null; // v2.0 不再建立班級層級的教師授權。
- if(ge||ce){await supabaseAdmin.from("admin_users").delete().eq("id",data.id);return fail(`授權失敗，已回復帳號建立：${(ge||ce)?.message}`,500);}
- return NextResponse.json({teacher:{...data,institutionIds,classIds:[]}});
+ try{
+  const actor=await requireAdminSession(request);
+  if(!actor)return fail("登入已失效，請重新登入管理後台。",401);
+  if(!canManageAccounts(actor.role))return fail("目前帳號沒有新增教師的權限。",403);
+  const b=await request.json().catch(()=>null);
+  const username=clean(b?.username).toLowerCase(), displayName=clean(b?.displayName), password=String(b?.password??"");
+  const role=(b?.role||"teacher") as AdminRole, institutionIds=unique(b?.institutionIds);
+  if(!roles.includes(role)||!canCreateRole(actor.role,role))return fail("不能建立此層級帳號。",403);
+  if(!/^[a-z0-9._-]{3,40}$/.test(username))return fail("登入帳號須為 3–40 碼英文小寫、數字、點、底線或連字號。",400);
+  if(!displayName||displayName.length>40)return fail("請填寫教師姓名，最多 40 字。",400);
+  if(password.length<10||password.length>128)return fail("初始密碼需 10–128 碼。",400);
+  if(role!=="super_admin"&&!institutionIds.length)return fail("請勾選至少一間補習班。",400);
+  if(role==="institution_admin"&&institutionIds.length!==1)return fail("補習班管理員只能管理一間補習班。",400);
+  if(!(await within(actor,institutionIds)))return fail("不可授權自己管理範圍以外的補習班。",403);
+  if(institutionIds.length){
+   const {data:institutions,error:ie}=await supabaseAdmin.from("institutions").select("id").in("id",institutionIds);
+   if(ie)return fail(`檢查補習班失敗：${ie.message}`,500);
+   if((institutions??[]).length!==institutionIds.length)return fail("補習班清單可能已變更，請重新整理後再選擇。",400);
+  }
+  const {data,error}=await supabaseAdmin.from("admin_users")
+   .insert({username,display_name:displayName,password_hash:await bcrypt.hash(password,12),role,active:true})
+   .select("id,username,display_name,role,active").single();
+  if(error)return fail(error.code==="23505"?"帳號已存在，請改用其他登入帳號。":`建立帳號失敗：${error.message}`,error.code==="23505"?409:500);
+  const {error:grantError}=institutionIds.length
+   ? await supabaseAdmin.from("admin_user_institutions").insert(institutionIds.map(id=>({admin_user_id:data.id,institution_id:id})))
+   : {error:null};
+  if(grantError){
+   const rollback=await supabaseAdmin.from("admin_users").delete().eq("id",data.id);
+   if(rollback.error){
+    console.error("Teacher creation rollback failed",{userId:data.id,rollbackError:rollback.error});
+    return fail("帳號建立但授權設定失敗，且無法自動復原；請聯繫總管理員檢查教師清單，勿重複新增。",500);
+   }
+   return fail(`補習班授權失敗，帳號未建立：${grantError.message}`,500);
+  }
+  return NextResponse.json({teacher:{...data,institutionIds,classIds:[]}});
+ }catch(e){
+  console.error("Teacher account creation failed",e);
+  return fail("新增帳號時發生資料庫或伺服器錯誤，請確認 v2.0 SQL 已執行；詳細錯誤請查看 Vercel Logs。",500);
+ }
 }
 export async function PATCH(request:NextRequest){
  const actor=await requireAdminSession(request);if(!actor)return fail("未登入。",401);

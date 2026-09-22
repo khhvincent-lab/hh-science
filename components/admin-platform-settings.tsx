@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 type InstitutionRow = {id:string; name:string; region_id?:string; brand_title?:string|null};
 type RegionRow = {id:string; name:string};
@@ -18,6 +18,9 @@ export default function AdminPlatformSettings({ actor, onBrandChanged }: { actor
   const [institutionIds,setInstitutionIds]=useState<string[]>([]);
   const [role,setRole]=useState("teacher"); const [message,setMessage]=useState(""); const [error,setError]=useState("");
   const [busy,setBusy]=useState(false);
+  const accountFeedbackRef=useRef<HTMLDivElement>(null);
+  const [accountFeedback,setAccountFeedback]=useState<{kind:"error"|"success";text:string}|null>(null);
+  const [accountLoadError,setAccountLoadError]=useState("");
   const load=useCallback(async()=>{
     const [tr,or,br]=await Promise.all([fetch("/api/admin/teachers",{cache:"no-store"}),fetch("/api/admin/organizations?all=1",{cache:"no-store"}),fetch("/api/admin/brand",{cache:"no-store"})]);
     const [td,od,bd]=await Promise.all([tr.json(),or.json(),br.json()]);
@@ -25,14 +28,45 @@ export default function AdminPlatformSettings({ actor, onBrandChanged }: { actor
     if(!or.ok) throw new Error(od.error||"讀取班級失敗。");
     setTeachers(td.teachers||[]); setClasses(od.classes||[]); setInstitutions(od.institutions||[]); setRegions(od.regions||[]); if(bd.brand)setBrand(bd.brand);
   },[]);
-  useEffect(()=>{void load().catch(e=>setError(e instanceof Error?e.message:"讀取設定失敗。"));},[load]);
+  useEffect(()=>{void load().catch(e=>setAccountLoadError(e instanceof Error?e.message:"讀取設定失敗。"));},[load]);
   const teacherRows=useMemo(()=>teachers.filter(t=>t.id!==actor?.id),[teachers,actor?.id]);
   const canCreate=(r:string)=>actor?.role==="super_admin"||actor?.role==="platform_admin"&&["institution_admin","teacher"].includes(r)||actor?.role==="institution_admin"&&r==="teacher";
   const visibleInstitutions=actor?.role==="super_admin"?institutions:institutions.filter(i=>(teachers.find(t=>t.id===actor?.id)?.institutionIds||[]).includes(i.id));
   const institutionLabel=(i:InstitutionRow)=>`${regions.find(r=>r.id===i.region_id)?.name||"未分類"}｜${i.name}`;
+  function accountStatus(kind:"error"|"success",text:string){
+    setAccountFeedback({kind,text});
+    // 錯誤就在「新增帳號」旁，無須捲回整個後台頂部尋找訊息。
+    requestAnimationFrame(()=>accountFeedbackRef.current?.scrollIntoView({behavior:"smooth",block:"nearest"}));
+  }
   async function addTeacher(){
-    setBusy(true);setError("");setMessage("");
-    try{const r=await fetch("/api/admin/teachers",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({username,displayName,password,role,institutionIds:role==="super_admin"?[]:institutionIds})});const d=await r.json();if(!r.ok)throw new Error(d.error||"建立教師失敗。");setUsername("");setDisplayName("");setPassword("");setInstitutionIds([]);setMessage("教師帳號已建立。");await load();}catch(e){setError(e instanceof Error?e.message:"建立教師失敗。");}finally{setBusy(false);}
+    if(busy)return;
+    setError("");setMessage("");setAccountFeedback(null);
+    const login=username.trim().toLowerCase(), name=displayName.trim();
+    if(!/^[a-z0-9._-]{3,40}$/.test(login))return accountStatus("error","請填寫登入帳號：3～40 碼英文小寫、數字、點、底線或連字號。");
+    if(!name||name.length>40)return accountStatus("error","請填寫教師姓名，最多 40 字。");
+    if(password.length<10||password.length>128)return accountStatus("error","請設定 10～128 碼初始密碼。");
+    if(role!=="super_admin"&&!institutionIds.length)return accountStatus("error","請先勾選至少一間補習班；教師將自動管理該補習班的所有班級。");
+    if(role==="institution_admin"&&institutionIds.length!==1)return accountStatus("error","補習班管理員只能勾選一間補習班。");
+    if(!canCreate(role))return accountStatus("error","目前登入的管理員沒有建立此角色的權限。");
+    setBusy(true);
+    let created=false;
+    try{
+      const r=await fetch("/api/admin/teachers",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({username:login,displayName:name,password,role,institutionIds:role==="super_admin"?[]:institutionIds}),signal:AbortSignal.timeout(25000)});
+      const raw=await r.text();let d:{error?:string;teacher?:Teacher}={};
+      try{d=JSON.parse(raw);}catch{if(!r.ok)throw new Error(`伺服器回應 ${r.status}，請查看 Vercel Function Logs。`);}
+      if(!r.ok)throw new Error(d.error||`建立帳號失敗（HTTP ${r.status}）。`);
+      created=true;
+      setUsername("");setDisplayName("");setPassword("");setInstitutionIds([]);
+      accountStatus("success",`「${name}」帳號已建立。請用新帳號與初始密碼登入確認。`);
+      try{await load();setAccountLoadError("");}catch(refreshError){
+        setAccountLoadError(refreshError instanceof Error?refreshError.message:"名單更新失敗。");
+        accountStatus("success",`「${name}」帳號已建立，但清單更新失敗；請按「重新整理教師名單」，不要重複建立。`);
+      }
+    }catch(e){if(!created){
+      const text=e instanceof Error?e.message:"建立帳號失敗，請稍後再試。";
+      accountStatus("error",e instanceof Error&&e.name==="TimeoutError"?"新增請求逾時，請先重新整理教師名單確認是否已建立，再決定是否重試。":text);
+    }}
+    finally{setBusy(false);}
   }
   async function updateTeacher(id:string,patch:any){
     setError("");setMessage(""); const r=await fetch("/api/admin/teachers",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({id,...patch})});const d=await r.json();if(!r.ok){setError(d.error||"更新教師失敗。");return;}setMessage("教師權限已更新。");await load();
@@ -79,6 +113,7 @@ export default function AdminPlatformSettings({ actor, onBrandChanged }: { actor
     </section>}
     <section className="hh-card admin-panel">
       <div className="admin-panel-heading"><div><div className="hh-eyebrow">TEACHER ACCOUNTS</div><h2 className="hh-display">管理員分級與教師帳號</h2><p>總管理員／跨補習班管理員／補習班管理員／教師，統一採補習班層級授權，教師可查看授權補習班的全部班級與學生。</p></div></div>
+      {accountLoadError&&<div className="admin-notice danger" role="alert">教師名單或補習班讀取異常：{accountLoadError} <button type="button" className="admin-ghost-button" onClick={()=>void load().then(()=>setAccountLoadError("")).catch(e=>setAccountLoadError(e instanceof Error?e.message:"重新讀取失敗"))}>重新整理教師名單</button></div>}
       <div className="admin-settings-grid">
         <label className="admin-field"><span>帳號角色</span><select className="hh-input" value={role} onChange={e=>{setRole(e.target.value);setInstitutionIds([]);}}>{[["super_admin","總管理員"],["platform_admin","跨補習班管理員"],["institution_admin","補習班管理員"],["teacher","教師"]].filter(x=>canCreate(x[0])).map(x=><option value={x[0]} key={x[0]}>{x[1]}</option>)}</select></label>
         <label className="admin-field"><span>登入帳號</span><input className="hh-input" value={username} onChange={e=>setUsername(e.target.value)} placeholder="例如 wang.chem"/></label>
@@ -87,7 +122,8 @@ export default function AdminPlatformSettings({ actor, onBrandChanged }: { actor
       </div>
       {role!=="super_admin"&&<div className="teacher-class-picker"><strong>補習班授權（補習班管理員限一間）</strong><div className="teacher-class-grid">{visibleInstitutions.map(i=><label key={i.id} className="teacher-class-chip"><input type="checkbox" checked={institutionIds.includes(i.id)} onChange={e=>setInstitutionIds(old=>e.target.checked?(role==="institution_admin"?[i.id]:[...old,i.id]):old.filter(x=>x!==i.id))}/><span>{institutionLabel(i)}</span></label>)}</div></div>}
       {role==="teacher"&&<p className="v2-scope-tip">教師自動管理所選補習班的全部班級，包含未來新增的班級。</p>}
-      <div className="admin-actions"><button className="hh-button-primary" type="button" onClick={()=>void addTeacher()} disabled={busy}>新增帳號</button></div>
+      <div className="admin-actions"><button className="hh-button-primary" type="button" onClick={()=>void addTeacher()} disabled={busy}>{busy?"正在建立帳號…":"新增帳號"}</button></div>
+      <div ref={accountFeedbackRef} aria-live="polite" aria-atomic="true">{accountFeedback&&<div role={accountFeedback.kind==="error"?"alert":"status"} className={`admin-notice ${accountFeedback.kind==="error"?"danger":"success"}`}>{accountFeedback.text}</div>}</div>
       <div className="teacher-account-list">{teacherRows.map(t=><div key={t.id} className="teacher-account-row" style={{display:"grid",gap:10}}><div><strong>{t.display_name}</strong><small>@{t.username} · {{super_admin:"總管理員",platform_admin:"跨補習班管理員",institution_admin:"補習班管理員",teacher:"教師"}[t.role]||t.role} · {t.active?"啟用":"停用"}</small></div>
       {actor?.role==="super_admin"&&<label className="admin-field"><span>角色</span><select className="hh-input" value={t.role} onChange={e=>void updateTeacher(t.id,{role:e.target.value})}>{[["super_admin","總管理員"],["platform_admin","跨補習班管理員"],["institution_admin","補習班管理員"],["teacher","教師"]].map(x=><option value={x[0]} key={x[0]}>{x[1]}</option>)}</select></label>}
       {t.role!=="super_admin"&&<div className="teacher-class-grid compact">{visibleInstitutions.map(i=><label key={i.id} className="teacher-class-chip"><input type="checkbox" checked={(t.institutionIds||[]).includes(i.id)} onChange={e=>{const next=e.target.checked?(t.role==="institution_admin"?[i.id]:[...(t.institutionIds||[]),i.id]):(t.institutionIds||[]).filter(x=>x!==i.id);void updateTeacher(t.id,{institutionIds:next});}}/><span>{institutionLabel(i)}</span></label>)}</div>}
