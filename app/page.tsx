@@ -3665,6 +3665,7 @@ export default function Home() {
           <button type="button" onClick={() => {
             const target = document.querySelector(images.length ? '[data-tour="solve-button"]' : '[data-tour="upload-zone"]');
             if (target instanceof HTMLElement) target.scrollIntoView({ behavior: "smooth", block: "center" });
+            setFirstActionNudge(false);
           }}>{images.length ? "前往解題" : "前往上傳"}</button>
           <button type="button" className="student-first-action-nudge-close" aria-label="關閉提示" onClick={() => setFirstActionNudge(false)}>×</button>
         </div>
@@ -6217,18 +6218,19 @@ export default function Home() {
         .student-first-action-pulse { animation: studentFirstActionPulse 1.6s ease-in-out 2; }
         .student-first-action-nudge {
           position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom)); z-index: 330;
-          width: min(560px, calc(100vw - 24px)); transform: translateX(-50%);
+          box-sizing: border-box; width: min(560px, calc(100vw - 24px)); transform: translateX(-50%);
           display: grid; grid-template-columns: 34px minmax(0,1fr) auto; align-items: center; gap: 10px;
           padding: 12px 42px 12px 12px; border: 1px solid color-mix(in srgb,var(--action) 28%,var(--border));
           border-radius: 17px; background: color-mix(in srgb,var(--surface) 94%,transparent);
           box-shadow: 0 18px 48px rgba(5,10,7,.2); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
-          animation: studentTourCardIn .42s cubic-bezier(.2,.8,.2,1) both;
+          animation: studentFirstActionNudgeIn .3s ease both;
         }
         .student-first-action-nudge-icon { display:grid; place-items:center; width:34px; height:34px; border-radius:999px; background:var(--action); color:white; font-weight:900; }
         .student-first-action-nudge strong { display:block; color:var(--text); font-size:12px; line-height:1.35; }
         .student-first-action-nudge p { margin:3px 0 0; color:var(--text-secondary); font-size:10px; line-height:1.45; }
         .student-first-action-nudge > button:not(.student-first-action-nudge-close) { min-height:36px; padding:0 12px; border:0; border-radius:11px; background:var(--action); color:white; font-size:10px; font-weight:900; cursor:pointer; }
-        .student-first-action-nudge-close { position:absolute; top:7px; right:8px; width:27px; height:27px; border:0; background:transparent; color:var(--text-muted); font-size:20px; cursor:pointer; }
+        .student-first-action-nudge-close { position:absolute; top:4px; right:4px; width:44px; height:44px; border:0; background:transparent; color:var(--text-muted); font-size:24px; cursor:pointer; }
+        @keyframes studentFirstActionNudgeIn { from { opacity:0; } to { opacity:1; } }
         @keyframes studentTourCardIn { from { opacity:0; transform:translateY(10px) scale(.985); } to { opacity:1; transform:translateY(0) scale(1); } }
 
         /* v1.3.4 guided walkthrough: move to and spotlight the real interface */
@@ -6433,7 +6435,7 @@ export default function Home() {
         }
 
         @media (max-width: 760px) {
-          .student-first-action-nudge { grid-template-columns:30px minmax(0,1fr); gap:8px; padding:11px 36px 11px 11px; }
+          .student-first-action-nudge { bottom:calc(70px + env(safe-area-inset-bottom)); grid-template-columns:30px minmax(0,1fr); gap:8px; padding:12px 48px 12px 12px; }
           .student-first-action-nudge-icon { width:30px; height:30px; }
           .student-first-action-nudge > button:not(.student-first-action-nudge-close) { grid-column:1 / -1; width:100%; }
           .student-guided-tour-layer.has-target {
