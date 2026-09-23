@@ -39,7 +39,7 @@ Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/bui
 
 - 學生每日剩餘題數：6 題以上綠色、2–5 題琥珀橘、1 題和 0 題紅色（0 題另顯示明日可繼續解題）。
 - 科目辨識沿用解題前的 Science Gate，不新增圖片辨識呼叫：僅在已允許的自然科題目、單一科目且辨識信心 >= 85，並且選擇科目與辨識科目不同時才回傳 SUBJECT_MISMATCH。跨科、模糊和低信心分類不阻擋；誤傳未預約題數，提醒切換且保留上傳圖片。
-- 盧澔化學官方 LINE：使用已確認的官方帳號 `@199dbmdh`。漢堡選單開啟官方帳號；「LINE 詢問老師」開啟官方帳號的預填文字聊天室，學生仍須自行送出訊息。可用 `NEXT_PUBLIC_OFFICIAL_LINE_ID` 覆蓋帳號 ID，或 `NEXT_PUBLIC_OFFICIAL_LINE_URL` 作為沒有 ID 時的官方主頁備用連結。
+- 盧澔化學官方 LINE：使用已確認的官方帳號 `@199dbmdh`。漢堡選單開啟官方帳號；（此為 v2.0.7 原始行為，v2.0.8 已修正：官方 LINE 按鈕改以原生分享頁附圖，由學生選擇官方帳號與送出。）可用 `NEXT_PUBLIC_OFFICIAL_LINE_ID` 覆蓋帳號 ID，或 `NEXT_PUBLIC_OFFICIAL_LINE_URL` 作為沒有 ID 時的官方主頁備用連結。
 - 「儲存解析圖片」一次點擊即分享／儲存：解題完成後預先準備 PNG，支援的手機顯示系統分享選項，否則使用瀏覽器下載；實際儲存至相簿或檔案的位置由裝置分享／下載功能決定。
 - 不需變更資料庫或執行 SQL。
 
