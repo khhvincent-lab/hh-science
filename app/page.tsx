@@ -1145,7 +1145,7 @@ export default function Home() {
 
   function setupSubject(currentStudent: StudentSession) {
     const classConfigured = loginClasses.find((item) => item.id === currentStudent.classId)?.allowed_subjects;
-    const configured = Array.isArray(currentStudent.allowedSubjects) && currentStudent.allowedSubjects.length
+    const configured = Array.isArray(currentStudent.allowedSubjects)
       ? currentStudent.allowedSubjects
       : Array.isArray(classConfigured) && classConfigured.length
         ? classConfigured
@@ -1847,6 +1847,10 @@ export default function Home() {
 
       if (!response.ok) {
         if (data.usage && typeof data.usage.remaining === "number") setUsage(data.usage);
+        if (data.code === "SUBJECT_NOT_ALLOWED" && Array.isArray(data.allowedSubjects)) {
+          setStudent((current) => current ? { ...current, allowedSubjects: data.allowedSubjects } : current);
+          setActiveView("solve");
+        }
         if (data.code === "SUBJECT_MISMATCH") {
           const suggestedSubject = String(data.detectedSubject || "");
           if (allSubjectOptions.some((item) => item.value === suggestedSubject)) {
@@ -1882,7 +1886,7 @@ export default function Home() {
   const availableSubjects = (() => {
     if (!student) return [];
     const classConfigured = loginClasses.find((item) => item.id === student.classId)?.allowed_subjects;
-    const configured = Array.isArray(student.allowedSubjects) && student.allowedSubjects.length
+    const configured = Array.isArray(student.allowedSubjects)
       ? student.allowedSubjects
       : Array.isArray(classConfigured) && classConfigured.length
         ? classConfigured
