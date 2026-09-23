@@ -23,3 +23,4 @@ jobs:
           # This CI job never sends requests to the placeholder Supabase host.
           SUPABASE_URL: https://build-placeholder.supabase.co
           SUPABASE_SECRET_KEY: build-placeholder-not-a-real-key
+          SESSION_SECRET: build-placeholder-not-a-real-session-secret-32chars
