@@ -6,6 +6,7 @@ import katex from "katex";
 import { toPng } from "html-to-image";
 import ThemeToggle from "@/components/theme-toggle";
 import AdaptiveBrandLogo from "@/components/adaptive-brand-logo";
+import { getOfficialLineChatUrl, getOfficialLineProfileUrl } from "@/lib/official-line";
 import ScienceDiagramView from "@/components/science-diagram";
 import ChemicalStructureView from "@/components/chemical-structure";
 import type { ChemicalStructure, ScienceDiagram } from "@/lib/ai/types";
@@ -1901,7 +1902,13 @@ export default function Home() {
       "",
       "我已使用 H.H. Science Lab 解題，想請老師協助確認。",
     ].join("\n");
-    window.open("https://line.me/R/msg/text/?" + encodeURIComponent(message), "_blank");
+    const officialChat = getOfficialLineChatUrl(message);
+    const officialProfile = getOfficialLineProfileUrl();
+    if (!officialChat && !officialProfile) {
+      alert("盧澔化學官方 LINE 尚未設定，請向老師索取官方 LINE 連結。");
+      return;
+    }
+    window.open(officialChat || officialProfile!, "_blank", "noopener,noreferrer");
   }
 
   async function normalizeQuestionImageForExport(source: string) {
@@ -2145,52 +2152,29 @@ export default function Home() {
   }
 
   async function handleSaveImage() {
-    if (!exportCardRef.current || !solveData) return;
-
-    // 第二次點擊：這一段不先做任何 await，讓 iOS 保留「使用者手勢」，
-    // navigator.share 才能直接打開系統分享表。
-    if (preparedShareFile) {
-      try {
-        if (
-          navigator.share &&
-          navigator.canShare?.({ files: [preparedShareFile] })
-        ) {
+    if (!exportCardRef.current || !solveData || isSaving) return;
+    setIsSaving(true);
+    try {
+      // One click: build the PNG and immediately offer the native share/saving options.
+      // Browsers that do not allow async file sharing fall back to downloading.
+      const file = preparedShareFile || await buildSolutionImageFile();
+      setPreparedShareFile(file);
+      if (navigator.share && navigator.canShare?.({ files: [file] })) {
+        try {
           await navigator.share({
             title: "H.H. Science Lab 題目解析",
-            text: "觀念詳解與選項解析",
-            files: [preparedShareFile],
+            files: [file],
           });
           return;
+        } catch (error) {
+          if (error instanceof DOMException && error.name === "AbortError") return;
+          console.warn("Native share unavailable; falling back to download.", error);
         }
-
-        downloadPreparedFile(preparedShareFile);
-        return;
-      } catch (error) {
-        if (error instanceof DOMException && error.name === "AbortError") {
-          return;
-        }
-
-        console.error("Share solution image failed:", error);
-        alert("系統分享沒有成功，將改用下載方式儲存。");
-        downloadPreparedFile(preparedShareFile);
-        return;
       }
-    }
-
-    // 第一次點擊：先可靠地生成完整 PNG。
-    setIsSaving(true);
-
-    try {
-      const file = await buildSolutionImageFile();
-      setPreparedShareFile(file);
+      downloadPreparedFile(file);
     } catch (error) {
       console.error("Build solution image failed:", error);
-
-      const message =
-        error instanceof Error
-          ? `${error.name}: ${error.message}`
-          : "未知錯誤";
-
+      const message = error instanceof Error ? error.message : "未知錯誤";
       alert(`解析圖片建立失敗。\n\n${message}`);
     } finally {
       setIsSaving(false);
@@ -2332,6 +2316,19 @@ export default function Home() {
                   }}
                 >
                   加入主畫面
+                </button>
+
+                <button
+                  type="button"
+                  className="v207-menu-line-link"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    const url = getOfficialLineProfileUrl();
+                    if (url) window.open(url, "_blank", "noopener,noreferrer");
+                    else alert("盧澔化學官方 LINE 尚未設定，請向老師索取官方 LINE 連結。");
+                  }}
+                >
+                  盧澔化學官方 LINE ↗
                 </button>
 
                 <div className="student-menu-separator" />
@@ -3014,18 +3011,10 @@ export default function Home() {
               <div className="student-result-actions" data-tour="result-actions">
                 <button type="button" onClick={handleLineAsk} className="student-line-button">LINE 詢問老師</button>
                 <button type="button" onClick={handleSaveImage} disabled={isSaving} className="student-save-button">
-                  {isSaving
-                    ? "正在產生解析圖片…"
-                    : preparedShareFile
-                      ? "分享／存到照片"
-                      : "產生解析圖片"}
+                  {isSaving ? "正在產生解析圖片…" : "儲存解析圖片"}
                 </button>
               </div>
-              {preparedShareFile && (
-                <div className="student-save-hint">
-                  圖片已產生完成，再按一次「分享／存到照片」即可開啟系統分享表。
-                </div>
-              )}
+
             </div>
           )}
         </section>}
