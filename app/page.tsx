@@ -769,6 +769,7 @@ export default function Home() {
   const [referenceAnswer, setReferenceAnswer] = useState("");
   const [questionNote, setQuestionNote] = useState("");
   const [questionError, setQuestionError] = useState("");
+  const [subjectSuggestion, setSubjectSuggestion] = useState<{ subject: string; label: string } | null>(null);
 
   const [isSolving, setIsSolving] = useState(false);
   const [solveData, setSolveData] = useState<SolveData | null>(null);
@@ -1722,6 +1723,7 @@ export default function Home() {
   }
 
   function clearQuestion() {
+    setSubjectSuggestion(null);
     setImages([]);
     setEditQueue([]);
     setEditQueueIndex(0);
@@ -1747,6 +1749,7 @@ export default function Home() {
   async function handleStartSolve() {
     setFirstActionNudge(false);
     setQuestionError("");
+    setSubjectSuggestion(null);
     if (!student) return setQuestionError("請先登入。");
     if (usage.remaining <= 0) {
       return setQuestionError(`今日 ${usage.limit} 題 AI 解題額度已使用完畢。`);
@@ -1782,7 +1785,16 @@ export default function Home() {
       const data = await response.json();
 
       if (!response.ok) {
-        if (data.usage) setUsage(data.usage);
+        if (data.usage && typeof data.usage.remaining === "number") setUsage(data.usage);
+        if (data.code === "SUBJECT_MISMATCH") {
+          const suggestedSubject = String(data.detectedSubject || "");
+          if (allSubjectOptions.some((item) => item.value === suggestedSubject)) {
+            setSubjectSuggestion({
+              subject: suggestedSubject,
+              label: allSubjectOptions.find((item) => item.value === suggestedSubject)?.label || "其他自然科",
+            });
+          }
+        }
         throw new Error(data.error || "AI 解題失敗");
       }
 
@@ -2187,11 +2199,18 @@ export default function Home() {
 
   const limitReached = usage.remaining <= 0;
   const usageTone =
-    usage.remaining <= 2
+    usage.remaining <= 1
       ? "danger"
       : usage.remaining <= 5
         ? "warning"
         : "caution";
+  const quotaStatus = usage.remaining <= 0
+    ? "今日額度已用完"
+    : usage.remaining === 1
+      ? "最後一題"
+      : usage.remaining <= 5
+        ? "題數偏少"
+        : "題數充足";
 
   const tutorialCardWidth = tutorialTargetRect
     ? Math.min(420, Math.max(280, tutorialTargetRect.viewportWidth - 24))
@@ -2369,9 +2388,10 @@ export default function Home() {
                 role="status"
                 aria-label={`今日還能解 ${usage.remaining} 題，每日額度 ${usage.limit} 題`}
               >
-                <div className="v206-quota-topline"><span>今日還能解</span><strong className="hh-number">{usage.remaining}<small> 題</small></strong></div>
+                <div className="v207-quota-status">{quotaStatus}</div>
+                <div className="v206-quota-topline"><span>{usage.remaining === 0 ? "明日可繼續解題" : "今日還能解"}</span><strong className="hh-number">{usage.remaining}<small> 題</small></strong></div>
                 <div className="v206-quota-track" aria-hidden="true"><span style={{width:`${usage.limit>0?Math.max(0,Math.min(100,usage.remaining/usage.limit*100)):0}%`}} /></div>
-                <div className="v206-quota-bottomline">{usage.remaining === 0 ? "今日額度已使用完畢" : usage.remaining <= 2 ? "剩餘題數不多囉" : `每日額度 ${usage.limit} 題`}</div>
+                <div className="v206-quota-bottomline">每日額度 {usage.limit} 題</div>
               </div>
             </div>
             
@@ -2783,7 +2803,7 @@ export default function Home() {
                     <button
                       key={item.value}
                       type="button"
-                      onClick={() => setSubject(item.value)}
+                      onClick={() => { setSubject(item.value); setSubjectSuggestion(null); setQuestionError(""); }}
                       className={`student-subject-option student-subject-${item.value} ${subject === item.value ? "student-subject-option-selected" : ""}`}
                       aria-pressed={subject === item.value}
                     >
@@ -2834,7 +2854,31 @@ export default function Home() {
         {activeView === "result" && <section ref={resultRef} className={`hh-card student-panel student-result-panel ${!student ? "student-panel-disabled" : ""}`}>
           <StepHeader number="3" title="解題解析" description="答案 → 觀念詳解 → 選項解析 → 追問" tone="terra" />
 
-          {questionError && !isSolving && <div className="student-alert student-alert-danger">{questionError}</div>}
+          {questionError && !isSolving && <div className="student-alert student-alert-danger">
+            {questionError}
+            {subjectSuggestion && (
+              <div className="v207-subject-suggestion">
+                <button type="button" className="hh-button-primary" onClick={() => {
+                  const permitted = availableSubjects.some((item) => item.value === subjectSuggestion.subject);
+                  if (permitted) {
+                    setSubject(subjectSuggestion.subject);
+                    setQuestionError("");
+                    setSubjectSuggestion(null);
+                    setActiveView("solve");
+                    window.scrollTo({ top: 0, behavior: "smooth" });
+                  } else {
+                    setQuestionError(`本班尚未開放${subjectSuggestion.label}，請聯繫老師。`);
+                    setSubjectSuggestion(null);
+                  }
+                }}>切換為{subjectSuggestion.label}並返回題目</button>
+                <button type="button" className="hh-button-secondary" onClick={() => {
+                  setSubjectSuggestion(null);
+                  setActiveView("solve");
+                  window.scrollTo({ top: 0, behavior: "smooth" });
+                }}>返回檢查題目</button>
+              </div>
+            )}
+          </div>
           {!solveData && !isSolving && (
             <div className="student-result-empty">
               <div className="student-empty-symbol">∴</div>
