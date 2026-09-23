@@ -3074,7 +3074,7 @@ export default function Home() {
                     if (url) window.open(url, "_blank", "noopener,noreferrer");
                   }}>開啟盧澔化學官方 LINE</button>
                 )}
-              </div>
+              </div>}
             </div>
           )}
         </section>}
