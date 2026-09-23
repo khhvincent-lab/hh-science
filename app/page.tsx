@@ -555,7 +555,7 @@ const tutorialTargetSelectors: Record<number, string[]> = {
   5: ['[data-tour="question-note"]'],
   6: ['[data-tour="solve-button"]'],
   7: ['[data-tour="concept-analysis"]'],
-  8: ['[data-tour="concept-analysis"] [data-annotation]'],
+  8: ['[data-tour="explanation-content"] [data-annotation]'],
   9: ['[data-tour="option-analysis"]'],
   10: ['[data-tour="followup"]'],
   11: ['[data-tour="result-actions"]'],
@@ -737,6 +737,7 @@ export default function Home() {
   const [tutorialAutoFlow, setTutorialAutoFlow] = useState(false);
   const [tutorialTargetRect, setTutorialTargetRect] = useState<TutorialTargetRect | null>(null);
   const [tutorialAnimating, setTutorialAnimating] = useState(false);
+  const [tutorialUnavailableSteps, setTutorialUnavailableSteps] = useState<number[]>([]);
   const [firstActionNudge, setFirstActionNudge] = useState(false);
   const [installGuideOpen, setInstallGuideOpen] = useState(false);
   const [installPlatform, setInstallPlatform] = useState<FirstUsePlatform>("ios");
@@ -799,6 +800,7 @@ export default function Home() {
       ? RESULT_TUTORIAL_SEQUENCE
       : FULL_TUTORIAL_SEQUENCE;
   const tutorialSequence = tutorialSequenceBase.filter((step) => {
+    if (tutorialUnavailableSteps.includes(step)) return false;
     if (step === 8 && !hasInteractiveAnnotations) return false;
     if (step === 9 && !solveData?.options) return false;
     return true;
@@ -963,7 +965,8 @@ export default function Home() {
           return;
         }
 
-        maybeOpenInstallGuide();
+        // Finish the first real result walkthrough before offering installation.
+        if (tutorialSeen) maybeOpenInstallGuide();
       } catch {
         // localStorage 可能因瀏覽器隱私設定不可用；不影響主要解題流程。
       }
@@ -974,7 +977,7 @@ export default function Home() {
   }, [authLoading, student?.id, student?.mustChangePin, tutorialOpen]);
 
   useEffect(() => {
-    if (!student || !solveData || student.mustChangePin || tutorialOpen) return;
+    if (!student || !solveData || isSolving || student.mustChangePin || tutorialOpen) return;
 
     let shouldResume = false;
 
@@ -996,11 +999,20 @@ export default function Home() {
 
     return () => window.clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [student?.id, student?.mustChangePin, solveData?.historyId, tutorialOpen]);
+  }, [student?.id, student?.mustChangePin, solveData, isSolving, tutorialOpen]);
 
   useEffect(() => {
     if (!tutorialOpen) {
       setTutorialTargetRect(null);
+      return;
+    }
+
+    // Switch tabs first; measure only after React has made the target visible.
+    const requiredView = activeTutorialStepIndex >= 7 ? "result" : "solve";
+    setTutorialTargetRect(null);
+    setTutorialAnimating(true);
+    if (activeView !== requiredView) {
+      setActiveView(requiredView);
       return;
     }
 
@@ -1016,13 +1028,18 @@ export default function Home() {
     let measureAnimationFrame = 0;
 
     const isMobileViewport = () => window.innerWidth <= 760;
-    const mobileSheetReserve = () => Math.min(236, Math.max(184, window.innerHeight * 0.28));
+    const mobileSheetReserve = () => {
+      const card = document.querySelector(".student-guided-tour-card");
+      return (card?.getBoundingClientRect().height || 236) + 24;
+    };
 
     const findTarget = () => {
       const selectors = tutorialTargetSelectors[activeTutorialStepIndex] || [];
       for (const selector of selectors) {
-        const element = document.querySelector(selector);
-        if (element instanceof HTMLElement) return element;
+        const elements = document.querySelectorAll(selector);
+        for (const element of elements) {
+          if (element instanceof HTMLElement && element.getClientRects().length && element.getBoundingClientRect().height > 0) return element;
+        }
       }
       return null;
     };
@@ -1068,6 +1085,11 @@ export default function Home() {
       const target = findTarget();
       if (!target) {
         setTutorialTargetRect(null);
+        setTutorialAnimating(false);
+        // Some answers have annotation metadata but no rendered marks.
+        if (activeTutorialStepIndex === 8 || activeTutorialStepIndex === 9) {
+          setTutorialUnavailableSteps((current) => current.includes(activeTutorialStepIndex) ? current : [...current, activeTutorialStepIndex]);
+        }
         return;
       }
 
@@ -1088,12 +1110,14 @@ export default function Home() {
       const maxScrollY = Math.max(0, scrollingElement.scrollHeight - viewportHeight);
       const targetY = Math.min(rawTargetY, maxScrollY);
       const distance = targetY - startY;
-      const duration = Math.min(900, Math.max(460, Math.abs(distance) * 0.58));
+      const duration = window.matchMedia("(prefers-reduced-motion: reduce)").matches
+        ? 0
+        : Math.min(700, Math.max(300, Math.abs(distance) * 0.45));
       const startedAt = performance.now();
 
       const animateScroll = (now: number) => {
         if (cancelled) return;
-        const progress = Math.min(1, (now - startedAt) / duration);
+        const progress = duration === 0 ? 1 : Math.min(1, (now - startedAt) / duration);
         const eased = progress < 0.5
           ? 4 * progress * progress * progress
           : 1 - Math.pow(-2 * progress + 2, 3) / 2;
@@ -1103,7 +1127,10 @@ export default function Home() {
         if (progress < 1) {
           scrollAnimationFrame = window.requestAnimationFrame(animateScroll);
         } else {
-          measureTimer = window.setTimeout(measure, 110);
+          measureTimer = window.setTimeout(() => {
+            measure();
+            setTutorialAnimating(false);
+          }, 80);
         }
       };
 
@@ -1124,17 +1151,7 @@ export default function Home() {
       window.removeEventListener("resize", scheduleMeasure);
       window.removeEventListener("scroll", scheduleMeasure, true);
     };
-  }, [tutorialOpen, activeTutorialStepIndex, solveData?.historyId]);
-
-  useEffect(() => {
-    if (!tutorialOpen) {
-      setTutorialAnimating(false);
-      return;
-    }
-    setTutorialAnimating(true);
-    const timer = window.setTimeout(() => setTutorialAnimating(false), 430);
-    return () => window.clearTimeout(timer);
-  }, [tutorialOpen, tutorialStep, tutorialPhase]);
+  }, [tutorialOpen, activeTutorialStepIndex, activeView, solveData, tutorialSequence.length]);
 
   useEffect(() => {
     if (student && activeView === "history") {
@@ -1189,9 +1206,13 @@ export default function Home() {
   }
 
   function startTutorial(phase: TutorialPhase, autoFlow = false) {
-    setActiveView("solve");
+    setActiveView(phase === "results" ? "result" : "solve");
+    setFirstActionNudge(false);
+    setInstallGuideOpen(false);
+    setSelectedAnnotation(null);
     setMenuOpen(false);
     setTutorialPhase(phase);
+    setTutorialUnavailableSteps([]);
     setTutorialStep(0);
     setTutorialAutoFlow(autoFlow);
     setTutorialTargetRect(null);
@@ -1204,6 +1225,7 @@ export default function Home() {
 
   function closeTutorialSurface() {
     setTutorialOpen(false);
+    setTutorialAnimating(false);
     setTutorialAutoFlow(false);
     setTutorialTargetRect(null);
     setMenuOpen(false);
@@ -3019,7 +3041,7 @@ export default function Home() {
                     <h3 className="hh-display">觀念詳解</h3>
                   </div>
                 </div>
-                <div className="student-result-content">
+                <div className="student-result-content" data-tour="explanation-content">
                   <ScienceText text={solveData.explanation} annotations={solveData.annotations} onAnnotationClick={setSelectedAnnotation} />
                   <ScienceDiagramView diagram={solveData.diagram} />
                   <ChemicalStructureView structure={solveData.chemicalStructure} />
@@ -6273,6 +6295,9 @@ export default function Home() {
           pointer-events: auto;
           z-index: 342;
           max-width: calc(100vw - 24px);
+          display: flex;
+          flex-direction: column;
+          max-height: calc(100dvh - 24px);
           overflow: hidden;
           border-radius: 20px;
           box-shadow: 0 24px 70px rgba(5, 10, 7, .34);
@@ -6299,6 +6324,8 @@ export default function Home() {
         }
 
         .student-guided-tour-body {
+          min-height: 0;
+          overflow-y: auto;
           padding: 9px 14px 8px;
         }
 
@@ -6413,6 +6440,7 @@ export default function Home() {
         }
 
         .student-guided-tour-card .student-firstuse-actions {
+          flex-shrink: 0;
           gap: 7px;
           padding: 0 14px 10px;
         }
@@ -6450,7 +6478,7 @@ export default function Home() {
             bottom: max(10px, env(safe-area-inset-bottom)) !important;
             width: auto !important;
             max-width: none !important;
-            max-height: min(208px, calc(100dvh - 24px)) !important;
+            max-height: min(300px, calc(100dvh - 80px)) !important;
             border-radius: 18px !important;
             overflow: hidden !important;
           }
@@ -6474,12 +6502,9 @@ export default function Home() {
           }
 
           .student-guided-tour-card .student-firstuse-copy > p {
-            display: -webkit-box;
-            overflow: hidden;
-            -webkit-box-orient: vertical;
-            -webkit-line-clamp: 2;
+            display: block;
             margin: 0;
-            font-size: 10.5px;
+            font-size: 12px;
             line-height: 1.4;
           }
 
