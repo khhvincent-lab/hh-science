@@ -760,6 +760,37 @@ export async function POST(
     const dailyLimit =
       settings.dailyLimit;
 
+    // Class permissions are authoritative. Check before Science Gate and
+    // quota reservation so stale clients cannot submit a disallowed subject.
+    const { data: solveStudent, error: solveStudentError } = await supabaseAdmin
+      .from("students")
+      .select("class_id,active")
+      .eq("id", session.studentId)
+      .maybeSingle();
+    if (solveStudentError || !solveStudent?.active) {
+      return NextResponse.json({ error: "學生帳號資料讀取失敗，請重新登入。" }, { status: 403 });
+    }
+    if (solveStudent.class_id) {
+      const { data: solveClass, error: solveClassError } = await supabaseAdmin
+        .from("classes")
+        .select("allowed_subjects")
+        .eq("id", solveStudent.class_id)
+        .maybeSingle();
+      if (solveClassError || !solveClass) {
+        return NextResponse.json({ error: "班級科目設定讀取失敗，請稍後再試。" }, { status: 500 });
+      }
+      const allowedSubjects: string[] = Array.isArray(solveClass.allowed_subjects)
+        ? solveClass.allowed_subjects
+        : [];
+      if (!allowedSubjects.includes(subject)) {
+        return NextResponse.json({
+          error: "此班級目前未開放選擇的科目，請返回首頁重新選擇。",
+          code: "SUBJECT_NOT_ALLOWED",
+          allowedSubjects,
+          usage: { limit: dailyLimit, charged: false },
+        }, { status: 403 });
+      }
+    }
 
     /* -----------------------------------------------------
        Science Gate

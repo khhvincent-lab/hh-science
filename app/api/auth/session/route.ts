@@ -57,7 +57,7 @@ export async function GET(
         "students"
       )
       .select(
-        "id,campus,name,active,must_change_pin"
+        "id,campus,name,active,must_change_pin,class_id"
       )
       .eq(
         "id",
@@ -78,6 +78,24 @@ export async function GET(
   }
 
 
+  // Subject permissions belong to the student's current class, not campus.
+  // Read them on every session refresh so admin changes reach existing logins.
+  let allowedSubjects: string[] | null = null;
+  if (student.class_id) {
+    const { data: classRow, error: classError } = await supabaseAdmin
+      .from("classes")
+      .select("allowed_subjects")
+      .eq("id", student.class_id)
+      .maybeSingle();
+    if (classError || !classRow) {
+      console.error("Student class subject lookup error:", classError);
+      return NextResponse.json({ error: "班級科目設定讀取失敗。" }, { status: 500 });
+    }
+    allowedSubjects = Array.isArray(classRow.allowed_subjects)
+      ? classRow.allowed_subjects
+      : [];
+  }
+
   return NextResponse.json({
     authenticated:
       true,
@@ -91,6 +109,9 @@ export async function GET(
 
       name:
         student.name,
+
+      classId: student.class_id,
+      allowedSubjects,
 
       mustChangePin:
         Boolean(

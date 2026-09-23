@@ -816,6 +816,8 @@ export default function Home() {
             id: data.student.id,
             campus: data.student.campus,
             name: data.student.name,
+            classId: data.student.classId ?? null,
+            allowedSubjects: data.student.allowedSubjects ?? null,
             mustChangePin: Boolean(data.student.mustChangePin ?? data.mustChangePin),
           };
           setStudent(restored);
@@ -830,6 +832,59 @@ export default function Home() {
     }
     restoreSession();
   }, []);
+
+  // Keep class permissions in sync for students who leave the PWA open while
+  // an administrator changes the allowed subjects in another browser.
+  useEffect(() => {
+    if (!student || student.mustChangePin) return;
+    let cancelled = false;
+    let inFlight = false;
+    const refreshPermissions = async () => {
+      if (inFlight || document.visibilityState === "hidden") return;
+      inFlight = true;
+      try {
+        const response = await fetch("/api/auth/session", { cache: "no-store" });
+        if (!response.ok) return;
+        const data = await response.json();
+        if (cancelled || !data.authenticated || data.student?.id !== student.id) return;
+        const updatedSubjects: string[] | null = data.student.allowedSubjects ?? null;
+        setStudent((current) => current?.id === student.id
+          ? {
+              ...current,
+              classId: data.student.classId ?? null,
+              allowedSubjects: updatedSubjects,
+              mustChangePin: Boolean(data.student.mustChangePin),
+            }
+          : current);
+      } catch (error) {
+        console.error("Refresh student subject permissions:", error);
+      } finally {
+        inFlight = false;
+      }
+    };
+    const onReturn = () => { if (document.visibilityState === "visible") void refreshPermissions(); };
+    window.addEventListener("focus", onReturn);
+    document.addEventListener("visibilitychange", onReturn);
+    const interval = window.setInterval(() => void refreshPermissions(), 60000);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("focus", onReturn);
+      document.removeEventListener("visibilitychange", onReturn);
+      window.clearInterval(interval);
+    };
+  }, [student?.id, student?.mustChangePin]);
+
+  // When class permissions change, deselect an unavailable subject rather than
+  // leaving a now-forbidden choice on the screen.
+  useEffect(() => {
+    if (!student) return;
+    const configured = student.allowedSubjects;
+    if (!Array.isArray(configured)) return;
+    const allowed = allSubjectOptions.filter((item) => configured.includes(item.value));
+    setSubject((current) => allowed.some((item) => item.value === current)
+      ? current
+      : allowed.length === 1 ? allowed[0].value : "");
+  }, [student?.id, student?.classId, student?.allowedSubjects]);
 
   useEffect(() => {
     async function loadLoginOptions() {
@@ -1090,7 +1145,7 @@ export default function Home() {
 
   function setupSubject(currentStudent: StudentSession) {
     const classConfigured = loginClasses.find((item) => item.id === currentStudent.classId)?.allowed_subjects;
-    const configured = Array.isArray(currentStudent.allowedSubjects) && currentStudent.allowedSubjects.length
+    const configured = Array.isArray(currentStudent.allowedSubjects)
       ? currentStudent.allowedSubjects
       : Array.isArray(classConfigured) && classConfigured.length
         ? classConfigured
@@ -1268,6 +1323,8 @@ export default function Home() {
         id: data.student.id,
         campus: data.student.campus,
         name: data.student.name,
+        classId: data.student.classId ?? null,
+        allowedSubjects: data.student.allowedSubjects ?? null,
         mustChangePin: Boolean(data.student.mustChangePin ?? data.mustChangePin),
       };
 
@@ -1790,6 +1847,10 @@ export default function Home() {
 
       if (!response.ok) {
         if (data.usage && typeof data.usage.remaining === "number") setUsage(data.usage);
+        if (data.code === "SUBJECT_NOT_ALLOWED" && Array.isArray(data.allowedSubjects)) {
+          setStudent((current) => current ? { ...current, allowedSubjects: data.allowedSubjects } : current);
+          setActiveView("solve");
+        }
         if (data.code === "SUBJECT_MISMATCH") {
           const suggestedSubject = String(data.detectedSubject || "");
           if (allSubjectOptions.some((item) => item.value === suggestedSubject)) {
@@ -1825,7 +1886,7 @@ export default function Home() {
   const availableSubjects = (() => {
     if (!student) return [];
     const classConfigured = loginClasses.find((item) => item.id === student.classId)?.allowed_subjects;
-    const configured = Array.isArray(student.allowedSubjects) && student.allowedSubjects.length
+    const configured = Array.isArray(student.allowedSubjects)
       ? student.allowedSubjects
       : Array.isArray(classConfigured) && classConfigured.length
         ? classConfigured
@@ -3410,7 +3471,7 @@ export default function Home() {
         </nav>}
         <footer className="student-footer">
           <div className="hh-eyebrow">{brand.englishName}</div>
-          <div>{brand.name} v2.0.8</div>
+          <div>{brand.name} v2.0.9</div>
         </footer>
       </div>
 
