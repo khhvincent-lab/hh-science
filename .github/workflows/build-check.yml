@@ -18,3 +18,8 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
+        env:
+          # Non-production placeholders for module initialization during Next.js build.
+          # This CI job never sends requests to the placeholder Supabase host.
+          SUPABASE_URL: https://build-placeholder.supabase.co
+          SUPABASE_SECRET_KEY: build-placeholder-not-a-real-key
