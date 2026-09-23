@@ -815,6 +815,43 @@ export async function POST(
     }
 
 
+    /*
+     * Subject mismatch is checked against the existing Science Gate result:
+     * no extra vision call, no quota reservation, no charged student attempt.
+     * Mixed/unclear and low-confidence classifications remain eligible.
+     */
+    const subjectNames: Record<string, string> = {
+      physics: "物理",
+      chemistry: "化學",
+      biology: "生物",
+      earth: "地科",
+    };
+    const detectedSubject = gateCheck.gate.category;
+    const confidentMismatch =
+      Object.prototype.hasOwnProperty.call(subjectNames, subject) &&
+      Object.prototype.hasOwnProperty.call(subjectNames, detectedSubject) &&
+      subject !== detectedSubject &&
+      gateCheck.gate.confidence >= 85;
+
+    if (confidentMismatch) {
+      return NextResponse.json(
+        {
+          error: `這題看起來主要屬於${subjectNames[detectedSubject]}，目前選擇的是${subjectNames[subject]}。請確認後切換科目再解題。`,
+          code: "SUBJECT_MISMATCH",
+          selectedSubject: subject,
+          detectedSubject,
+          detectedLabel: subjectNames[detectedSubject],
+          confidence: gateCheck.gate.confidence,
+          gate: gateCheck.gate,
+          usage: {
+            limit: dailyLimit,
+            charged: false,
+          },
+        },
+        { status: 422 },
+      );
+    }
+
     /* -----------------------------------------------------
        Reserve quota
     ----------------------------------------------------- */

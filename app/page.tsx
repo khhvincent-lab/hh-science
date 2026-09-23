@@ -6,6 +6,7 @@ import katex from "katex";
 import { toPng } from "html-to-image";
 import ThemeToggle from "@/components/theme-toggle";
 import AdaptiveBrandLogo from "@/components/adaptive-brand-logo";
+import { getOfficialLineChatUrl, getOfficialLineProfileUrl } from "@/lib/official-line";
 import ScienceDiagramView from "@/components/science-diagram";
 import ChemicalStructureView from "@/components/chemical-structure";
 import type { ChemicalStructure, ScienceDiagram } from "@/lib/ai/types";
@@ -769,6 +770,7 @@ export default function Home() {
   const [referenceAnswer, setReferenceAnswer] = useState("");
   const [questionNote, setQuestionNote] = useState("");
   const [questionError, setQuestionError] = useState("");
+  const [subjectSuggestion, setSubjectSuggestion] = useState<{ subject: string; label: string } | null>(null);
 
   const [isSolving, setIsSolving] = useState(false);
   const [solveData, setSolveData] = useState<SolveData | null>(null);
@@ -780,7 +782,10 @@ export default function Home() {
   const [followupError, setFollowupError] = useState("");
 
   const [isSaving, setIsSaving] = useState(false);
+  const [isPreparingLine, setIsPreparingLine] = useState(false);
+  const [lineShareNotice, setLineShareNotice] = useState("");
   const [preparedShareFile, setPreparedShareFile] = useState<File | null>(null);
+  const imagePreparationRef = useRef<Promise<File> | null>(null);
   const [exportQuestionImage, setExportQuestionImage] = useState("");
   const resultRef = useRef<HTMLElement | null>(null);
   const uploadPanelRef = useRef<HTMLElement | null>(null);
@@ -1722,6 +1727,7 @@ export default function Home() {
   }
 
   function clearQuestion() {
+    setSubjectSuggestion(null);
     setImages([]);
     setEditQueue([]);
     setEditQueueIndex(0);
@@ -1747,6 +1753,7 @@ export default function Home() {
   async function handleStartSolve() {
     setFirstActionNudge(false);
     setQuestionError("");
+    setSubjectSuggestion(null);
     if (!student) return setQuestionError("請先登入。");
     if (usage.remaining <= 0) {
       return setQuestionError(`今日 ${usage.limit} 題 AI 解題額度已使用完畢。`);
@@ -1782,7 +1789,16 @@ export default function Home() {
       const data = await response.json();
 
       if (!response.ok) {
-        if (data.usage) setUsage(data.usage);
+        if (data.usage && typeof data.usage.remaining === "number") setUsage(data.usage);
+        if (data.code === "SUBJECT_MISMATCH") {
+          const suggestedSubject = String(data.detectedSubject || "");
+          if (allSubjectOptions.some((item) => item.value === suggestedSubject)) {
+            setSubjectSuggestion({
+              subject: suggestedSubject,
+              label: allSubjectOptions.find((item) => item.value === suggestedSubject)?.label || "其他自然科",
+            });
+          }
+        }
         throw new Error(data.error || "AI 解題失敗");
       }
 
@@ -1875,21 +1891,95 @@ export default function Home() {
     }
   }
 
-  function handleLineAsk() {
-    if (!student) return;
+  function buildLineQuestionMessage() {
+    if (!student) return "";
     const subjectLabel = availableSubjects.find((item) => item.value === subject)?.label || "自然科";
-    const message = [
-      "【H.H. Science Lab 詢問老師】",
-      "",
+    return [
+      "【解題實驗室｜詢問老師】",
       `班級：${student.campus}`,
       `學生：${student.name}`,
       `科目：${subjectLabel}`,
-      "",
-      questionNote ? `學生補充：${questionNote}` : "想詢問題目解析中的內容。",
-      "",
-      "我已使用 H.H. Science Lab 解題，想請老師協助確認。",
+      questionNote ? `補充：${questionNote}` : "想請老師協助確認這題的解析。",
+      "解析圖片請見附圖。",
     ].join("\n");
-    window.open("https://line.me/R/msg/text/?" + encodeURIComponent(message), "_blank");
+  }
+
+  async function handleLineAsk(destination: "official" | "share") {
+    if (!student || !solveData || isPreparingLine) return;
+    setLineShareNotice("");
+    setIsPreparingLine(true);
+    const message = buildLineQuestionMessage();
+    const officialChat = destination === "official"
+      ? (getOfficialLineChatUrl(message) || getOfficialLineProfileUrl())
+      : null;
+    if (destination === "official" && !officialChat) {
+      setLineShareNotice("官方 LINE 尚未設定，請聯繫老師。");
+      setIsPreparingLine(false);
+      return;
+    }
+
+    // Reserve the official chat tab during the tap: opening it after asynchronous
+    // image creation may otherwise be blocked by iOS Safari's popup protection.
+    const officialTab = destination === "official"
+      ? window.open("about:blank", "_blank")
+      : null;
+    if (officialTab) officialTab.opener = null;
+
+    try {
+      const file = preparedShareFile || await (imagePreparationRef.current || buildSolutionImageFile());
+      setPreparedShareFile(file);
+
+      if (destination === "official") {
+        // LINE's oaMessage deep link accepts text only; image delivery needs a
+        // separate explicit user action inside the official LINE conversation.
+        // Copy the rendered PNG for direct paste, falling back to a PNG download.
+        let imageCopied = false;
+        if (typeof ClipboardItem !== "undefined" && navigator.clipboard?.write) {
+          try {
+            await navigator.clipboard.write([new ClipboardItem({ "image/png": file })]);
+            imageCopied = true;
+          } catch (error) {
+            console.warn("LINE image clipboard unavailable", error);
+          }
+        }
+        if (!imageCopied) downloadPreparedFile(file);
+        setLineShareNotice(imageCopied
+          ? "解析圖片已複製。請在盧澔化學官方 LINE 聊天室長按貼上圖片，再自行按送出；文字已預填。"
+          : "已下載解析圖片。請在盧澔化學官方 LINE 聊天室使用「＋」附上該圖片，再自行按送出。");
+        if (officialTab && !officialTab.closed) {
+          officialTab.location.replace(officialChat!);
+        } else {
+          window.location.assign(officialChat!);
+        }
+        return;
+      }
+
+      // Generic LINE enquiry: OS share sheet delivers an actual PNG file.
+      // LINE and the recipient are selected by the student, not by our site.
+      if (navigator.share && navigator.canShare?.({ files: [file] })) {
+        try {
+          await navigator.share({
+            title: "解題實驗室｜詢問老師",
+            text: message,
+            files: [file],
+          });
+          return;
+        } catch (error) {
+          if (error instanceof DOMException && error.name === "AbortError") return;
+          console.warn("Sharing the solution image failed", error);
+        }
+      }
+      downloadPreparedFile(file);
+      setLineShareNotice("已下載解析圖片。請開啟 LINE，選擇要詢問的老師並附上圖片送出。");
+    } catch (error) {
+      if (officialTab && !officialTab.closed) officialTab.close();
+      console.error("Preparing LINE question image failed", error);
+      setLineShareNotice(error instanceof Error
+        ? `解析圖片準備失敗：${error.message}`
+        : "解析圖片準備失敗，請稍後再試。");
+    } finally {
+      setIsPreparingLine(false);
+    }
   }
 
   async function normalizeQuestionImageForExport(source: string) {
@@ -2132,53 +2222,52 @@ export default function Home() {
     }, 60000);
   }
 
-  async function handleSaveImage() {
-    if (!exportCardRef.current || !solveData) return;
+  // Prepare the image when the answer appears, so on iOS the first tap can
+  // synchronously open the native share sheet without losing user activation.
+  useEffect(() => {
+    if (!solveData || !image || isSolving) return;
+    let cancelled = false;
+    const job = (async () => {
+      await waitForNextPaint();
+      return buildSolutionImageFile();
+    })();
+    imagePreparationRef.current = job;
+    void job.then((file) => {
+      if (!cancelled) setPreparedShareFile(file);
+    }).catch((error) => {
+      // Export remains available on demand if the background attempt failed.
+      console.warn("Image pre-generation deferred until save:", error);
+    });
+    return () => {
+      cancelled = true;
+      if (imagePreparationRef.current === job) imagePreparationRef.current = null;
+    };
+  }, [solveData, image, isSolving]);
 
-    // 第二次點擊：這一段不先做任何 await，讓 iOS 保留「使用者手勢」，
-    // navigator.share 才能直接打開系統分享表。
-    if (preparedShareFile) {
-      try {
-        if (
-          navigator.share &&
-          navigator.canShare?.({ files: [preparedShareFile] })
-        ) {
+  async function handleSaveImage() {
+    if (!exportCardRef.current || !solveData || isSaving) return;
+    setIsSaving(true);
+    try {
+      // One click: build the PNG and immediately offer the native share/saving options.
+      // Browsers that do not allow async file sharing fall back to downloading.
+      const file = preparedShareFile || await (imagePreparationRef.current || buildSolutionImageFile());
+      setPreparedShareFile(file);
+      if (navigator.share && navigator.canShare?.({ files: [file] })) {
+        try {
           await navigator.share({
             title: "H.H. Science Lab 題目解析",
-            text: "觀念詳解與選項解析",
-            files: [preparedShareFile],
+            files: [file],
           });
           return;
+        } catch (error) {
+          if (error instanceof DOMException && error.name === "AbortError") return;
+          console.warn("Native share unavailable; falling back to download.", error);
         }
-
-        downloadPreparedFile(preparedShareFile);
-        return;
-      } catch (error) {
-        if (error instanceof DOMException && error.name === "AbortError") {
-          return;
-        }
-
-        console.error("Share solution image failed:", error);
-        alert("系統分享沒有成功，將改用下載方式儲存。");
-        downloadPreparedFile(preparedShareFile);
-        return;
       }
-    }
-
-    // 第一次點擊：先可靠地生成完整 PNG。
-    setIsSaving(true);
-
-    try {
-      const file = await buildSolutionImageFile();
-      setPreparedShareFile(file);
+      downloadPreparedFile(file);
     } catch (error) {
       console.error("Build solution image failed:", error);
-
-      const message =
-        error instanceof Error
-          ? `${error.name}: ${error.message}`
-          : "未知錯誤";
-
+      const message = error instanceof Error ? error.message : "未知錯誤";
       alert(`解析圖片建立失敗。\n\n${message}`);
     } finally {
       setIsSaving(false);
@@ -2187,11 +2276,18 @@ export default function Home() {
 
   const limitReached = usage.remaining <= 0;
   const usageTone =
-    usage.remaining <= 2
+    usage.remaining <= 1
       ? "danger"
       : usage.remaining <= 5
         ? "warning"
         : "caution";
+  const quotaStatus = usage.remaining <= 0
+    ? "今日額度已用完"
+    : usage.remaining === 1
+      ? "最後一題"
+      : usage.remaining <= 5
+        ? "題數偏少"
+        : "題數充足";
 
   const tutorialCardWidth = tutorialTargetRect
     ? Math.min(420, Math.max(280, tutorialTargetRect.viewportWidth - 24))
@@ -2315,6 +2411,19 @@ export default function Home() {
                   加入主畫面
                 </button>
 
+                <button
+                  type="button"
+                  className="v207-menu-line-link"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    const url = getOfficialLineProfileUrl();
+                    if (url) window.open(url, "_blank", "noopener,noreferrer");
+                    else alert("盧澔化學官方 LINE 尚未設定，請向老師索取官方 LINE 連結。");
+                  }}
+                >
+                  盧澔化學官方 LINE ↗
+                </button>
+
                 <div className="student-menu-separator" />
 
                 {student && (
@@ -2369,9 +2478,10 @@ export default function Home() {
                 role="status"
                 aria-label={`今日還能解 ${usage.remaining} 題，每日額度 ${usage.limit} 題`}
               >
-                <div className="v206-quota-topline"><span>今日還能解</span><strong className="hh-number">{usage.remaining}<small> 題</small></strong></div>
+                <div className="v207-quota-status">{quotaStatus}</div>
+                <div className="v206-quota-topline"><span>{usage.remaining === 0 ? "明日可繼續解題" : "今日還能解"}</span><strong className="hh-number">{usage.remaining}<small> 題</small></strong></div>
                 <div className="v206-quota-track" aria-hidden="true"><span style={{width:`${usage.limit>0?Math.max(0,Math.min(100,usage.remaining/usage.limit*100)):0}%`}} /></div>
-                <div className="v206-quota-bottomline">{usage.remaining === 0 ? "今日額度已使用完畢" : usage.remaining <= 2 ? "剩餘題數不多囉" : `每日額度 ${usage.limit} 題`}</div>
+                <div className="v206-quota-bottomline">每日額度 {usage.limit} 題</div>
               </div>
             </div>
             
@@ -2783,7 +2893,7 @@ export default function Home() {
                     <button
                       key={item.value}
                       type="button"
-                      onClick={() => setSubject(item.value)}
+                      onClick={() => { setSubject(item.value); setSubjectSuggestion(null); setQuestionError(""); }}
                       className={`student-subject-option student-subject-${item.value} ${subject === item.value ? "student-subject-option-selected" : ""}`}
                       aria-pressed={subject === item.value}
                     >
@@ -2834,7 +2944,31 @@ export default function Home() {
         {activeView === "result" && <section ref={resultRef} className={`hh-card student-panel student-result-panel ${!student ? "student-panel-disabled" : ""}`}>
           <StepHeader number="3" title="解題解析" description="答案 → 觀念詳解 → 選項解析 → 追問" tone="terra" />
 
-          {questionError && !isSolving && <div className="student-alert student-alert-danger">{questionError}</div>}
+          {questionError && !isSolving && <div className="student-alert student-alert-danger">
+            {questionError}
+            {subjectSuggestion && (
+              <div className="v207-subject-suggestion">
+                <button type="button" className="hh-button-primary" onClick={() => {
+                  const permitted = availableSubjects.some((item) => item.value === subjectSuggestion.subject);
+                  if (permitted) {
+                    setSubject(subjectSuggestion.subject);
+                    setQuestionError("");
+                    setSubjectSuggestion(null);
+                    setActiveView("solve");
+                    window.scrollTo({ top: 0, behavior: "smooth" });
+                  } else {
+                    setQuestionError(`本班尚未開放${subjectSuggestion.label}，請聯繫老師。`);
+                    setSubjectSuggestion(null);
+                  }
+                }}>切換為{subjectSuggestion.label}並返回題目</button>
+                <button type="button" className="hh-button-secondary" onClick={() => {
+                  setSubjectSuggestion(null);
+                  setActiveView("solve");
+                  window.scrollTo({ top: 0, behavior: "smooth" });
+                }}>返回檢查題目</button>
+              </div>
+            )}
+          </div>}
           {!solveData && !isSolving && (
             <div className="student-result-empty">
               <div className="student-empty-symbol">∴</div>
@@ -2968,20 +3102,17 @@ export default function Home() {
               </section>
 
               <div className="student-result-actions" data-tour="result-actions">
-                <button type="button" onClick={handleLineAsk} className="student-line-button">LINE 詢問老師</button>
+                <button type="button" onClick={() => void handleLineAsk("official")} disabled={isPreparingLine || isSaving} className="student-line-button v207-line-official-button">
+                  {isPreparingLine ? "準備解析圖片…" : "詢問真人老師｜盧澔化學"}
+                </button>
+                <button type="button" onClick={() => void handleLineAsk("share")} disabled={isPreparingLine || isSaving} className="student-line-button v207-line-share-button">
+                  LINE 分享給老師
+                </button>
                 <button type="button" onClick={handleSaveImage} disabled={isSaving} className="student-save-button">
-                  {isSaving
-                    ? "正在產生解析圖片…"
-                    : preparedShareFile
-                      ? "分享／存到照片"
-                      : "產生解析圖片"}
+                  {isSaving ? "正在產生解析圖片…" : "儲存成照片"}
                 </button>
               </div>
-              {preparedShareFile && (
-                <div className="student-save-hint">
-                  圖片已產生完成，再按一次「分享／存到照片」即可開啟系統分享表。
-                </div>
-              )}
+              {lineShareNotice && <div role="status" className="student-save-hint v207-line-share-notice">{lineShareNotice}</div>}
             </div>
           )}
         </section>}
@@ -3317,7 +3448,7 @@ export default function Home() {
         </nav>}
         <footer className="student-footer">
           <div className="hh-eyebrow">{brand.englishName}</div>
-          <div>{brand.name} v2.0.5</div>
+          <div>{brand.name} v2.0.7</div>
         </footer>
       </div>
 

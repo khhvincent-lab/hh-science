@@ -871,3 +871,76 @@ html[data-theme] .student-page .v206-quota-danger .v206-quota-track>span{backgro
   html[data-theme] .student-page.student-compact-ready .v206-quota-topline strong{font-size:22px}
 }
 @media(prefers-reduced-motion:reduce){html[data-theme] .student-page .v206-quota-track>span{transition:none}}
+
+
+/* v2.0.7 – quota status: low-saturation green, amber, red on all five themes. */
+html[data-theme] .student-page .v206-quota-card{
+  --v207-status:#9ad2b8;
+  --v207-border:#5b9e80;
+  --v207-track:#66bb93;
+  background:color-mix(in srgb,#112b22 88%,var(--v2-hero) 12%);
+  border-color:var(--v207-border);
+  color:#f8faf8;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.09),0 4px 18px rgba(0,0,0,.11);
+  gap:5px;
+}
+html[data-theme] .student-page .v206-quota-warning{
+  --v207-status:#e7b978;
+  --v207-border:#c2944e;
+  --v207-track:#d9a65b;
+  background:color-mix(in srgb,#2b2114 90%,var(--v2-hero) 10%);
+}
+html[data-theme] .student-page .v206-quota-danger{
+  --v207-status:#e8a0a1;
+  --v207-border:#c9787b;
+  --v207-track:#d58386;
+  background:color-mix(in srgb,#2b171a 90%,var(--v2-hero) 10%);
+}
+html[data-theme] .student-page .v207-quota-status{font-size:11px;font-weight:900;letter-spacing:.035em;color:var(--v207-status);line-height:1.3}
+html[data-theme] .student-page .v206-quota-topline{color:#d9dedc}
+html[data-theme] .student-page .v206-quota-topline strong{color:#fff}
+html[data-theme] .student-page .v206-quota-topline strong small{color:#e8edeb}
+html[data-theme] .student-page .v206-quota-track{background:rgba(255,255,255,.19)}
+html[data-theme] .student-page .v206-quota-track>span,
+html[data-theme] .student-page .v206-quota-warning .v206-quota-track>span,
+html[data-theme] .student-page .v206-quota-danger .v206-quota-track>span{background:var(--v207-track)}
+html[data-theme] .student-page .v206-quota-bottomline{color:#c9cecd;opacity:1}
+html[data-theme] .student-page .v207-subject-suggestion{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+html[data-theme] .student-page .v207-subject-suggestion button{min-height:40px;max-width:100%;white-space:normal}
+html[data-theme] .student-page .student-menu-panel .v207-menu-line-link{color:var(--action);font-weight:900}
+@media(max-width:740px){
+  html[data-theme] .student-page.student-compact-ready .v207-quota-status{font-size:10px;letter-spacing:0}
+  html[data-theme] .student-page.student-compact-ready .v206-quota-topline{flex-wrap:wrap;gap:2px}
+  html[data-theme] .student-page.student-compact-ready .v206-quota-topline strong{font-size:27px}
+  html[data-theme] .student-page.student-compact-ready .v206-quota-bottomline{font-size:9px}
+  html[data-theme] .student-page .v207-subject-suggestion{display:grid}
+}
+
+
+/* v2.0.7 – distinct official and general LINE image-sharing actions */
+html[data-theme] .student-page .student-result-actions{
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:10px;
+}
+html[data-theme] .student-page .student-result-actions .v207-line-official-button{
+  background:#176d50;
+  color:#fff;
+  border:1px solid #399c78;
+}
+html[data-theme] .student-page .student-result-actions .v207-line-share-button{
+  background:#305d50;
+  color:#fff;
+  border:1px solid #549b80;
+}
+html[data-theme] .student-page .student-result-actions .student-save-button{
+  grid-column:1 / -1;
+  background:#3a3023;
+  color:#e8c991;
+  border:1px solid #a58a59;
+}
+html[data-theme] .student-page .student-result-actions button:disabled{opacity:.56;cursor:wait}
+html[data-theme] .student-page .v207-line-share-notice{margin-top:11px;text-align:left;line-height:1.65}
+@media(max-width:740px){
+  html[data-theme] .student-page .student-result-actions{grid-template-columns:minmax(0,1fr)}
+  html[data-theme] .student-page .student-result-actions .student-save-button{grid-column:auto}
+}
