@@ -5,6 +5,7 @@ import { Cropper } from "react-cropper";
 import katex from "katex";
 import { toPng } from "html-to-image";
 import ThemeToggle from "@/components/theme-toggle";
+import AdaptiveBrandLogo from "@/components/adaptive-brand-logo";
 import ScienceDiagramView from "@/components/science-diagram";
 import ChemicalStructureView from "@/components/chemical-structure";
 import type { ChemicalStructure, ScienceDiagram } from "@/lib/ai/types";
@@ -2242,7 +2243,7 @@ export default function Home() {
               setMenuOpen(false);
             }}
           >
-            <img className="v2-student-brand-icon" src="/icon-192.png" alt="" width="37" height="37" />
+            <AdaptiveBrandLogo className="v2-student-brand-icon" size={37} />
             <span className="v2-student-brand-copy"><span className="student-app-brand-zh">{brand.name}</span><span className="student-app-brand-en">{brand.englishName}</span></span>
           </button>
 
@@ -3316,7 +3317,7 @@ export default function Home() {
         </nav>}
         <footer className="student-footer">
           <div className="hh-eyebrow">{brand.englishName}</div>
-          <div>{brand.name} v2.0.4</div>
+          <div>{brand.name} v2.0.5</div>
         </footer>
       </div>
 

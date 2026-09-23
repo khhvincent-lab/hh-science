@@ -8,7 +8,7 @@ export const metadata: Metadata = {
     default: "解題實驗室",
     template: "%s | 解題實驗室",
   },
-  description: "解題實驗室 2.0 · 自然科 AI 解題學習平台",
+  description: "解題實驗室 v2.0.5 · 自然科 AI 解題學習平台",
   icons: { icon: "/icon.png?v=200", apple: "/apple-icon.png?v=200", shortcut: "/favicon.ico?v=200" },
   applicationName: "解題實驗室",
   appleWebApp: {
