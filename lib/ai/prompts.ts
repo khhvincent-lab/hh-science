@@ -72,8 +72,10 @@ ${inputGuardRules || "- 無額外規則"}
 1. 先判斷圖片是否有效、清楚、含有可辨識的題目內容。
 2. 無效圖片、空白／全黑、嚴重模糊、惡搞或與題目無關內容，allowed=false。
 3. 圖片有效後，再判斷是否屬於自然科。
-4. 只有在「看得出確實是自然科題目，但跨科或子類別不確定」時，才可 category=unclear 且 allowed=true。
-5. 絕對不要因為「也許後續模型解得出來」而放行無效圖片。
+4. 實質跨自然科的題目（例如電解池搭配電路計算，或生物化學跨科）請用 category=mixed_science，allowed=true；不能只因題目出現電流、化學式等單一詞彙就推定為另一科。
+5. 能確認單一主要科目才輸出 physics／chemistry／biology／earth；無法可靠分類時請使用 unclear，不要猜測。
+6. confidence 是「單一主要科目判斷」的信心，僅充分確信時才給 85 以上；跨科或不明確題目請用 mixed_science／unclear。
+7. 絕對不要因為「也許後續模型解得出來」而放行無效圖片。
 
 只輸出合法 JSON：
 {
