@@ -42,3 +42,7 @@ Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/bui
 - 盧澔化學官方 LINE：使用已確認的官方帳號 `@199dbmdh`。漢堡選單開啟官方帳號；「LINE 詢問老師」開啟官方帳號的預填文字聊天室，學生仍須自行送出訊息。可用 `NEXT_PUBLIC_OFFICIAL_LINE_ID` 覆蓋帳號 ID，或 `NEXT_PUBLIC_OFFICIAL_LINE_URL` 作為沒有 ID 時的官方主頁備用連結。
 - 「儲存解析圖片」一次點擊即分享／儲存：解題完成後預先準備 PNG，支援的手機顯示系統分享選項，否則使用瀏覽器下載；實際儲存至相簿或檔案的位置由裝置分享／下載功能決定。
 - 不需變更資料庫或執行 SQL。
+
+## v2.0.8 LINE 圖片分享修正
+
+官方 LINE 的文字深連結無法附帶網站產生的 PNG，因此「詢問真人老師｜盧澔化學」改為手機系統原生圖片分享頁：選 LINE，再選盧澔化學官方帳號 `@199dbmdh` 並由學生確認送出。一般「LINE 分享給老師」亦傳送 PNG 檔案，分享呼叫只帶 files，避免 iOS/LINE 文字與圖片混合時僅收到文字的情形。若系統不支援檔案分享，下載解析 PNG 供學生在 LINE 手動附加；前端不可強制指定原生分享頁的收件對象，也無法直接對官方 LINE 帳號自動傳送圖片。無 DB 異動。
