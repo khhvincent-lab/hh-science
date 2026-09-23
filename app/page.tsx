@@ -3103,13 +3103,13 @@ export default function Home() {
 
               <div className="student-result-actions" data-tour="result-actions">
                 <button type="button" onClick={() => void handleLineAsk("official")} disabled={isPreparingLine || isSaving} className="student-line-button v207-line-official-button">
-                  {isPreparingLine ? "準備解析圖片…" : "詢問盧澔化學官方 LINE"}
+                  {isPreparingLine ? "準備解析圖片…" : "詢問真人老師｜盧澔化學"}
                 </button>
                 <button type="button" onClick={() => void handleLineAsk("share")} disabled={isPreparingLine || isSaving} className="student-line-button v207-line-share-button">
-                  用 LINE 詢問其他老師
+                  LINE 分享給老師
                 </button>
                 <button type="button" onClick={handleSaveImage} disabled={isSaving} className="student-save-button">
-                  {isSaving ? "正在產生解析圖片…" : "儲存解析圖片"}
+                  {isSaving ? "正在產生解析圖片…" : "儲存成照片"}
                 </button>
               </div>
               {lineShareNotice && <div role="status" className="student-save-hint v207-line-share-notice">{lineShareNotice}</div>}
