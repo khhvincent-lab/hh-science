@@ -1979,7 +1979,7 @@ export default function Home() {
   function teacherHelpMessage() {
     if (!student || !solveData) return "";
     const question = teacherHelpQuestion.trim() || "想請老師協助釐清這題的觀念與解法。";
-    const excerpt = solveData.explanation.replace(/\\s+/g, " ").slice(0, 600);
+    const excerpt = solveData.explanation.replace(/\s+/g, " ").slice(0, 600);
     return [
       "【解題實驗室｜真人導師求助】",
       "學生：" + student.name,
@@ -1989,7 +1989,7 @@ export default function Home() {
       "AI 答案：" + solveData.answer,
       "AI 詳解摘要：" + excerpt + (solveData.explanation.length > 600 ? "…" : ""),
       "完整題目圖片及 AI 詳解請見學生另外附上的解題圖片。",
-    ].join("\\n");
+    ].join("\n");
   }
 
   function openOfficialTeacherChat() {
