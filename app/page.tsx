@@ -2898,7 +2898,7 @@ export default function Home() {
                 }}>返回檢查題目</button>
               </div>
             )}
-          </div>
+          </div>}
           {!solveData && !isSolving && (
             <div className="student-result-empty">
               <div className="student-empty-symbol">∴</div>
