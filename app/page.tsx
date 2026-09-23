@@ -3471,7 +3471,7 @@ export default function Home() {
         </nav>}
         <footer className="student-footer">
           <div className="hh-eyebrow">{brand.englishName}</div>
-          <div>{brand.name} v2.0.8</div>
+          <div>{brand.name} v2.0.9</div>
         </footer>
       </div>
 
