@@ -6,7 +6,7 @@ import katex from "katex";
 import { toPng } from "html-to-image";
 import ThemeToggle from "@/components/theme-toggle";
 import AdaptiveBrandLogo from "@/components/adaptive-brand-logo";
-import { getOfficialLineChatUrl, getOfficialLineProfileUrl } from "@/lib/official-line";
+import { getOfficialLineProfileUrl } from "@/lib/official-line";
 import ScienceDiagramView from "@/components/science-diagram";
 import ChemicalStructureView from "@/components/chemical-structure";
 import type { ChemicalStructure, ScienceDiagram } from "@/lib/ai/types";
@@ -1891,92 +1891,46 @@ export default function Home() {
     }
   }
 
-  function buildLineQuestionMessage() {
-    if (!student) return "";
-    const subjectLabel = availableSubjects.find((item) => item.value === subject)?.label || "自然科";
-    return [
-      "【解題實驗室｜詢問老師】",
-      `班級：${student.campus}`,
-      `學生：${student.name}`,
-      `科目：${subjectLabel}`,
-      questionNote ? `補充：${questionNote}` : "想請老師協助確認這題的解析。",
-      "解析圖片請見附圖。",
-    ].join("\n");
-  }
-
   async function handleLineAsk(destination: "official" | "share") {
     if (!student || !solveData || isPreparingLine) return;
     setLineShareNotice("");
-    setIsPreparingLine(true);
-    const message = buildLineQuestionMessage();
-    const officialChat = destination === "official"
-      ? (getOfficialLineChatUrl(message) || getOfficialLineProfileUrl())
-      : null;
-    if (destination === "official" && !officialChat) {
-      setLineShareNotice("官方 LINE 尚未設定，請聯繫老師。");
-      setIsPreparingLine(false);
+
+    // A direct LINE oaMessage link only supports prefilled text, not PNG files.
+    // The previous official flow opened a text-only chat. Instead share the
+    // actual image through the OS picker; the student selects LINE and then
+    // chooses @199dbmdh (or any other teacher for the generic action).
+    const file = preparedShareFile;
+    if (!file) {
+      setLineShareNotice("解析附圖還在準備中，請稍候再按一次。若持續無法完成，請先使用「儲存成照片」。");
       return;
     }
 
-    // Reserve the official chat tab during the tap: opening it after asynchronous
-    // image creation may otherwise be blocked by iOS Safari's popup protection.
-    const officialTab = destination === "official"
-      ? window.open("about:blank", "_blank")
-      : null;
-    if (officialTab) officialTab.opener = null;
-
+    const official = destination === "official";
+    const instructions = official
+      ? "請在分享頁選擇 LINE，再選「盧澔化學」官方帳號（@199dbmdh），確認圖片後按送出。"
+      : "請在分享頁選擇 LINE，再選擇老師，確認圖片後按送出。";
+    setLineShareNotice(instructions);
+    setIsPreparingLine(true);
     try {
-      const file = preparedShareFile || await (imagePreparationRef.current || buildSolutionImageFile());
-      setPreparedShareFile(file);
-
-      if (destination === "official") {
-        // LINE's oaMessage deep link accepts text only; image delivery needs a
-        // separate explicit user action inside the official LINE conversation.
-        // Copy the rendered PNG for direct paste, falling back to a PNG download.
-        let imageCopied = false;
-        if (typeof ClipboardItem !== "undefined" && navigator.clipboard?.write) {
-          try {
-            await navigator.clipboard.write([new ClipboardItem({ "image/png": file })]);
-            imageCopied = true;
-          } catch (error) {
-            console.warn("LINE image clipboard unavailable", error);
-          }
-        }
-        if (!imageCopied) downloadPreparedFile(file);
-        setLineShareNotice(imageCopied
-          ? "解析圖片已複製。請在盧澔化學官方 LINE 聊天室長按貼上圖片，再自行按送出；文字已預填。"
-          : "已下載解析圖片。請在盧澔化學官方 LINE 聊天室使用「＋」附上該圖片，再自行按送出。");
-        if (officialTab && !officialTab.closed) {
-          officialTab.location.replace(officialChat!);
-        } else {
-          window.location.assign(officialChat!);
-        }
-        return;
-      }
-
-      // Generic LINE enquiry: OS share sheet delivers an actual PNG file.
-      // LINE and the recipient are selected by the student, not by our site.
+      // Files only: certain iOS/LINE versions silently discard attachments
+      // when a native share combines image + text. The rendered PNG already
+      // contains the original question, answer, explanation, student and campus.
       if (navigator.share && navigator.canShare?.({ files: [file] })) {
         try {
-          await navigator.share({
-            title: "解題實驗室｜詢問老師",
-            text: message,
-            files: [file],
-          });
+          await navigator.share({ files: [file] });
           return;
         } catch (error) {
           if (error instanceof DOMException && error.name === "AbortError") return;
-          console.warn("Sharing the solution image failed", error);
+          console.warn("LINE image share failed; falling back to download", error);
         }
       }
       downloadPreparedFile(file);
-      setLineShareNotice("已下載解析圖片。請開啟 LINE，選擇要詢問的老師並附上圖片送出。");
+      setLineShareNotice(official
+        ? "已下載完整解析圖片。請開啟盧澔化學官方 LINE，按「＋」選擇此圖片並送出。"
+        : "已下載完整解析圖片。請開啟 LINE，選擇老師並附上此圖片送出。");
     } catch (error) {
-      if (officialTab && !officialTab.closed) officialTab.close();
-      console.error("Preparing LINE question image failed", error);
-      setLineShareNotice(error instanceof Error
-        ? `解析圖片準備失敗：${error.message}`
-        : "解析圖片準備失敗，請稍後再試。");
+      console.error("LINE image share failed", error);
+      setLineShareNotice(error instanceof Error ? `無法分享圖片：${error.message}` : "無法分享圖片，請改用儲存成照片。");
     } finally {
       setIsPreparingLine(false);
     }
@@ -3103,7 +3057,7 @@ export default function Home() {
 
               <div className="student-result-actions" data-tour="result-actions">
                 <button type="button" onClick={() => void handleLineAsk("official")} disabled={isPreparingLine || isSaving} className="student-line-button v207-line-official-button">
-                  {isPreparingLine ? "準備解析圖片…" : "詢問真人老師｜盧澔化學"}
+                  {isPreparingLine ? "開啟圖片分享…" : "詢問真人老師｜盧澔化學"}
                 </button>
                 <button type="button" onClick={() => void handleLineAsk("share")} disabled={isPreparingLine || isSaving} className="student-line-button v207-line-share-button">
                   LINE 分享給老師
@@ -3112,7 +3066,15 @@ export default function Home() {
                   {isSaving ? "正在產生解析圖片…" : "儲存成照片"}
                 </button>
               </div>
-              {lineShareNotice && <div role="status" className="student-save-hint v207-line-share-notice">{lineShareNotice}</div>}
+              {lineShareNotice && <div role="status" className="student-save-hint v207-line-share-notice">
+                {lineShareNotice}
+                {lineShareNotice.startsWith("已下載完整解析圖片。請開啟盧澔化學官方 LINE") && (
+                  <button type="button" className="hh-button-secondary" onClick={() => {
+                    const url = getOfficialLineProfileUrl();
+                    if (url) window.open(url, "_blank", "noopener,noreferrer");
+                  }}>開啟盧澔化學官方 LINE</button>
+                )}
+              </div>}
             </div>
           )}
         </section>}
@@ -3448,7 +3410,7 @@ export default function Home() {
         </nav>}
         <footer className="student-footer">
           <div className="hh-eyebrow">{brand.englishName}</div>
-          <div>{brand.name} v2.0.7</div>
+          <div>{brand.name} v2.0.8</div>
         </footer>
       </div>
 
