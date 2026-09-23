@@ -915,3 +915,27 @@ html[data-theme] .student-page .student-menu-panel .v207-menu-line-link{color:va
   html[data-theme] .student-page.student-compact-ready .v206-quota-bottomline{font-size:9px}
   html[data-theme] .student-page .v207-subject-suggestion{display:grid}
 }
+
+
+/* v2.0.7 – distinct official and general LINE image-sharing actions */
+html[data-theme] .student-page .student-result-actions{
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:10px;
+}
+html[data-theme] .student-page .student-result-actions .v207-line-official-button{
+  background:#146d49;
+  color:#fff;
+  border:1px solid #31986a;
+}
+html[data-theme] .student-page .student-result-actions .v207-line-share-button{
+  background:color-mix(in srgb,#146d49 11%,var(--surface));
+  color:var(--text);
+  border:1px solid color-mix(in srgb,#31986a 50%,var(--border));
+}
+html[data-theme] .student-page .student-result-actions .student-save-button{grid-column:1 / -1}
+html[data-theme] .student-page .student-result-actions button:disabled{opacity:.56;cursor:wait}
+html[data-theme] .student-page .v207-line-share-notice{margin-top:11px;text-align:left;line-height:1.65}
+@media(max-width:740px){
+  html[data-theme] .student-page .student-result-actions{grid-template-columns:minmax(0,1fr)}
+  html[data-theme] .student-page .student-result-actions .student-save-button{grid-column:auto}
+}
