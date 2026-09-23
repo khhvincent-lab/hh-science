@@ -843,3 +843,31 @@ html[data-theme] .admin-login-brand .admin-login-mark .adaptive-brand-logo {
 @media (prefers-reduced-motion:reduce) {
   html .adaptive-brand-logo {transition:none}
 }
+
+
+/* v2.0.6 | Remaining daily questions: one clear, high-contrast indicator. */
+html[data-theme] .student-page .v206-quota-card{box-sizing:border-box;display:grid;gap:4px;min-width:142px;padding:10px 12px;border-radius:15px;border:1px solid color-mix(in srgb,var(--v2-highlight) 35%,var(--border));background:color-mix(in srgb,var(--v2-highlight) 12%,var(--v2-hero));color:var(--v2-hero-text);box-shadow:0 1px 0 rgba(255,255,255,.11) inset}
+html[data-theme] .student-page .v206-quota-topline{display:flex;align-items:center;justify-content:space-between;gap:7px;font-size:11px;font-weight:800;white-space:nowrap}
+html[data-theme] .student-page .v206-quota-topline strong{font-size:29px;line-height:1;letter-spacing:-.04em;font-variant-numeric:tabular-nums;color:var(--v2-hero-text)}
+html[data-theme] .student-page .v206-quota-topline strong small{font-size:12px;font-weight:800;letter-spacing:normal}
+html[data-theme] .student-page .v206-quota-track{height:5px;overflow:hidden;border-radius:99px;background:color-mix(in srgb,var(--v2-hero-text) 23%,transparent)}
+html[data-theme] .student-page .v206-quota-track>span{display:block;height:100%;border-radius:inherit;background:var(--v2-highlight);transition:width .25s ease}
+html[data-theme] .student-page .v206-quota-bottomline{font-size:10px;line-height:1.2;opacity:.86;white-space:nowrap}
+html[data-theme] .student-page .v206-quota-warning{border-color:color-mix(in srgb,var(--quota-warning) 60%,var(--border))}
+html[data-theme] .student-page .v206-quota-warning .v206-quota-track>span{background:var(--quota-warning)}
+html[data-theme] .student-page .v206-quota-danger{border-color:color-mix(in srgb,var(--quota-danger) 72%,var(--border));background:color-mix(in srgb,var(--quota-danger) 17%,var(--v2-hero))}
+html[data-theme] .student-page .v206-quota-danger .v206-quota-track>span{background:var(--quota-danger)}
+@media(max-width:740px){
+  html[data-theme] .student-page.student-compact-ready .student-welcome-actions{display:block!important;width:auto!important;min-width:0!important;flex:0 0 auto}
+  html[data-theme] .student-page.student-compact-ready .v206-quota-card{min-width:113px;padding:8px 9px;gap:3px;border-radius:12px}
+  html[data-theme] .student-page.student-compact-ready .v206-quota-topline{font-size:10px;gap:5px}
+  html[data-theme] .student-page.student-compact-ready .v206-quota-topline strong{font-size:25px}
+  html[data-theme] .student-page.student-compact-ready .v206-quota-topline strong small{font-size:11px}
+  html[data-theme] .student-page.student-compact-ready .v206-quota-bottomline{font-size:9px}
+  html[data-theme] .student-page.student-compact-ready .student-welcome-main{flex:1;min-width:0}
+}
+@media(max-width:360px){
+  html[data-theme] .student-page.student-compact-ready .v206-quota-card{min-width:105px;padding:7px}
+  html[data-theme] .student-page.student-compact-ready .v206-quota-topline strong{font-size:22px}
+}
+@media(prefers-reduced-motion:reduce){html[data-theme] .student-page .v206-quota-track>span{transition:none}}
