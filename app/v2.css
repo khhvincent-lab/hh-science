@@ -923,16 +923,21 @@ html[data-theme] .student-page .student-result-actions{
   gap:10px;
 }
 html[data-theme] .student-page .student-result-actions .v207-line-official-button{
-  background:#146d49;
+  background:#176d50;
   color:#fff;
-  border:1px solid #31986a;
+  border:1px solid #399c78;
 }
 html[data-theme] .student-page .student-result-actions .v207-line-share-button{
-  background:color-mix(in srgb,#146d49 11%,var(--surface));
-  color:var(--text);
-  border:1px solid color-mix(in srgb,#31986a 50%,var(--border));
+  background:#305d50;
+  color:#fff;
+  border:1px solid #549b80;
 }
-html[data-theme] .student-page .student-result-actions .student-save-button{grid-column:1 / -1}
+html[data-theme] .student-page .student-result-actions .student-save-button{
+  grid-column:1 / -1;
+  background:#3a3023;
+  color:#e8c991;
+  border:1px solid #a58a59;
+}
 html[data-theme] .student-page .student-result-actions button:disabled{opacity:.56;cursor:wait}
 html[data-theme] .student-page .v207-line-share-notice{margin-top:11px;text-align:left;line-height:1.65}
 @media(max-width:740px){
