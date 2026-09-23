@@ -2364,14 +2364,14 @@ export default function Home() {
             </div>
 
             <div className="student-welcome-actions">
-              <div className={`student-usage-pill student-usage-pill-${usageTone}`}>
-                <span>剩餘</span>
-                <span className="hh-number">{usage.remaining}</span>
-                <span>題</span>
-              </div>
-              <div className="v2-quota-summary" aria-label={`今日剩餘 ${usage.remaining} 題，共 ${usage.limit} 題`}>
-                <small>今日解題額度　{usage.remaining} / {usage.limit}</small>
-                <div className="v2-quota-track"><span style={{width:`${usage.limit>0?Math.max(0,Math.min(100,usage.remaining/usage.limit*100)):0}%`}} /></div>
+              <div
+                className={`v206-quota-card v206-quota-${usageTone}`}
+                role="status"
+                aria-label={`今日還能解 ${usage.remaining} 題，每日額度 ${usage.limit} 題`}
+              >
+                <div className="v206-quota-topline"><span>今日還能解</span><strong className="hh-number">{usage.remaining}<small> 題</small></strong></div>
+                <div className="v206-quota-track" aria-hidden="true"><span style={{width:`${usage.limit>0?Math.max(0,Math.min(100,usage.remaining/usage.limit*100)):0}%`}} /></div>
+                <div className="v206-quota-bottomline">{usage.remaining === 0 ? "今日額度已使用完畢" : usage.remaining <= 2 ? "剩餘題數不多囉" : `每日額度 ${usage.limit} 題`}</div>
               </div>
             </div>
             
