@@ -7,7 +7,9 @@
  * for the menu/profile when the ID is not yet available.
  * Never guess an official-account ID or route students to generic LINE share.
  */
-const officialId = (process.env.NEXT_PUBLIC_OFFICIAL_LINE_ID || "").trim();
+// Confirmed by the site owner: 盧澔化學 LINE Official Account @199dbmdh.
+// A deployment environment variable can override the default if the account changes.
+const officialId = (process.env.NEXT_PUBLIC_OFFICIAL_LINE_ID || "@199dbmdh").trim();
 const officialUrl = (process.env.NEXT_PUBLIC_OFFICIAL_LINE_URL || "").trim();
 
 export function getOfficialLineProfileUrl(): string | null {
