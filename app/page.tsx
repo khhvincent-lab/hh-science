@@ -783,6 +783,7 @@ export default function Home() {
 
   const [isSaving, setIsSaving] = useState(false);
   const [preparedShareFile, setPreparedShareFile] = useState<File | null>(null);
+  const imagePreparationRef = useRef<Promise<File> | null>(null);
   const [exportQuestionImage, setExportQuestionImage] = useState("");
   const resultRef = useRef<HTMLElement | null>(null);
   const uploadPanelRef = useRef<HTMLElement | null>(null);
@@ -2151,13 +2152,35 @@ export default function Home() {
     }, 60000);
   }
 
+  // Prepare the image when the answer appears, so on iOS the first tap can
+  // synchronously open the native share sheet without losing user activation.
+  useEffect(() => {
+    if (!solveData || !image || isSolving) return;
+    let cancelled = false;
+    const job = (async () => {
+      await waitForNextPaint();
+      return buildSolutionImageFile();
+    })();
+    imagePreparationRef.current = job;
+    void job.then((file) => {
+      if (!cancelled) setPreparedShareFile(file);
+    }).catch((error) => {
+      // Export remains available on demand if the background attempt failed.
+      console.warn("Image pre-generation deferred until save:", error);
+    });
+    return () => {
+      cancelled = true;
+      if (imagePreparationRef.current === job) imagePreparationRef.current = null;
+    };
+  }, [solveData, image, isSolving]);
+
   async function handleSaveImage() {
     if (!exportCardRef.current || !solveData || isSaving) return;
     setIsSaving(true);
     try {
       // One click: build the PNG and immediately offer the native share/saving options.
       // Browsers that do not allow async file sharing fall back to downloading.
-      const file = preparedShareFile || await buildSolutionImageFile();
+      const file = preparedShareFile || await (imagePreparationRef.current || buildSolutionImageFile());
       setPreparedShareFile(file);
       if (navigator.share && navigator.canShare?.({ files: [file] })) {
         try {
@@ -3350,7 +3373,7 @@ export default function Home() {
         </nav>}
         <footer className="student-footer">
           <div className="hh-eyebrow">{brand.englishName}</div>
-          <div>{brand.name} v2.0.5</div>
+          <div>{brand.name} v2.0.7</div>
         </footer>
       </div>
 
