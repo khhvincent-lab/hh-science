@@ -1889,6 +1889,7 @@ function StudentsSection(props: {
   const [classSortKey, setClassSortKey] = useState<ClassSortKey>("name");
   const [classSortDirection, setClassSortDirection] = useState<"asc" | "desc">("asc");
   const [newStudentOpen, setNewStudentOpen] = useState(false);
+  const [createStudentNotice, setCreateStudentNotice] = useState<{ text: string; error: boolean } | null>(null);
 
   const institutionById = useMemo(() => new Map(institutions.map((item) => [item.id, item])), [institutions]);
   const regionById = useMemo(() => new Map(regions.map((item) => [item.id, item])), [regions]);
@@ -2244,31 +2245,36 @@ function StudentsSection(props: {
   async function createStudent() {
     const name = props.newName.trim();
     if (!name || !regionId || !institutionId || !classId) {
-      setOrgMessage("請輸入姓名並完整選擇地區、合作單位、班級。");
+      setCreateStudentNotice({
+        text: !name ? "請輸入學生姓名。" : "請完整選擇地區、合作單位與班級。",
+        error: true,
+      });
       return;
     }
 
     setOrgBusy(true);
-    setOrgMessage("正在新增學生…");
+    setCreateStudentNotice({ text: "正在新增學生…", error: false });
     try {
       const response = await fetch("/api/admin/students", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name,
-          regionId,
-          institutionId,
-          classId,
-        }),
+        body: JSON.stringify({ name, regionId, institutionId, classId }),
       });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "新增學生失敗。");
+      const data = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(data?.error || `新增學生失敗（HTTP ${response.status}）。`);
 
       props.setNewName("");
-      setOrgMessage(`已新增 ${name}`);
-      await props.reloadStudents();
+      setCreateStudentNotice({ text: `已新增 ${name}。`, error: false });
+      try {
+        await props.reloadStudents();
+      } catch {
+        setCreateStudentNotice({ text: `已新增 ${name}，但名單更新失敗。請重新整理確認，勿重複新增。`, error: true });
+      }
     } catch (error) {
-      setOrgMessage(error instanceof Error ? error.message : "新增學生失敗。");
+      setCreateStudentNotice({
+        text: error instanceof Error ? error.message : "新增學生失敗。",
+        error: true,
+      });
     } finally {
       setOrgBusy(false);
     }
@@ -2501,8 +2507,13 @@ function StudentsSection(props: {
             {visibleClasses.map((classRow) => <option key={classRow.id} value={classRow.id}>{compactClassLabel(classRow)}</option>)}
           </select>
           <input className="hh-input" placeholder="學生姓名" value={props.newName} onChange={(event) => props.setNewName(event.target.value)} />
-          <button className="hh-button-primary" onClick={() => void createStudent()} disabled={orgBusy}>新增</button>
+          <button type="button" className="hh-button-primary" onClick={() => void createStudent()} disabled={orgBusy}>{orgBusy ? "新增中…" : "新增"}</button>
         </div>
+        {createStudentNotice && (
+          <div role="status" aria-live="polite" className={`admin-notice ${createStudentNotice.error ? "danger" : "success"} student-create-notice`}>
+            {createStudentNotice.text}
+          </div>
+        )}
       </div>
 
       <div className="student-create-subpanel bulk-import-panel">
@@ -2708,7 +2719,7 @@ function StudentsSection(props: {
         .promotion-summary { min-height:48px; display:grid; align-content:center; gap:2px; padding:8px 10px; border:1px solid var(--border); border-radius:10px; background:var(--surface-soft); min-width:0; }
         .promotion-summary strong,.promotion-summary span { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
         .promotion-summary span { font-size:11px; color:var(--text-secondary); }
-        .student-create-hub{padding:0;overflow:hidden}.student-create-toggle{width:100%;border:0;background:transparent;color:var(--text);padding:16px 18px;display:flex;align-items:center;justify-content:space-between;text-align:left;cursor:pointer}.student-create-toggle span{display:grid;gap:3px}.student-create-toggle small{font-size:10px;letter-spacing:.18em;color:var(--text-secondary);font-weight:900}.student-create-toggle strong{font-size:20px}.student-create-toggle em{font-style:normal;font-size:12px;color:var(--text-secondary)}.student-create-toggle>b{font-size:12px;color:var(--text-secondary)}.student-create-body{display:grid;gap:12px;padding:0 14px 14px}.student-create-subpanel{padding:14px;border:1px solid var(--border);border-radius:12px;background:var(--surface-soft)}.student-pin-last{margin-top:2px}.class-overview-toolbar{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:10px 0}.class-overview-toolbar .hh-select{max-width:220px}.class-overview-toolbar span{font-size:12px;color:var(--text-secondary);white-space:nowrap}.class-overview-grid{border:1px solid var(--border);border-radius:12px;overflow:hidden}.class-overview-grid-head,.class-overview-grid-row{display:grid;grid-template-columns:minmax(220px,2fr) repeat(5,minmax(78px,1fr));align-items:center}.class-overview-grid-head{background:var(--surface-soft);border-bottom:1px solid var(--border)}.class-overview-grid-head button{border:0;background:transparent;color:var(--text-secondary);font-weight:850;font-size:12px;padding:11px 10px;text-align:left;cursor:pointer}.class-overview-grid-row{border-bottom:1px solid var(--border);padding:10px}.class-overview-grid-row:last-child{border-bottom:0}.class-overview-grid-row>span{display:grid;gap:2px}.class-overview-grid-row>span b{font-size:14px}.class-overview-grid-row>span small,.class-overview-name small{font-size:10px;color:var(--text-secondary)}.class-overview-name{display:grid;gap:2px}.class-overview-name strong{font-size:14px}.class-overview-name small{white-space:normal}
+        .student-create-hub{padding:0;overflow:hidden}.student-create-toggle{width:100%;border:0;background:transparent;color:var(--text);padding:16px 18px;display:flex;align-items:center;justify-content:space-between;text-align:left;cursor:pointer}.student-create-toggle span{display:grid;gap:3px}.student-create-toggle small{font-size:10px;letter-spacing:.18em;color:var(--text-secondary);font-weight:900}.student-create-toggle strong{font-size:20px}.student-create-toggle em{font-style:normal;font-size:12px;color:var(--text-secondary)}.student-create-toggle>b{font-size:12px;color:var(--text-secondary)}.student-create-body{display:grid;gap:12px;padding:0 14px 14px}.student-create-subpanel{padding:14px;border:1px solid var(--border);border-radius:12px;background:var(--surface-soft)}.student-create-notice{margin-top:10px}.student-pin-last{margin-top:2px}.class-overview-toolbar{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:10px 0}.class-overview-toolbar .hh-select{max-width:220px}.class-overview-toolbar span{font-size:12px;color:var(--text-secondary);white-space:nowrap}.class-overview-grid{border:1px solid var(--border);border-radius:12px;overflow:hidden}.class-overview-grid-head,.class-overview-grid-row{display:grid;grid-template-columns:minmax(220px,2fr) repeat(5,minmax(78px,1fr));align-items:center}.class-overview-grid-head{background:var(--surface-soft);border-bottom:1px solid var(--border)}.class-overview-grid-head button{border:0;background:transparent;color:var(--text-secondary);font-weight:850;font-size:12px;padding:11px 10px;text-align:left;cursor:pointer}.class-overview-grid-row{border-bottom:1px solid var(--border);padding:10px}.class-overview-grid-row:last-child{border-bottom:0}.class-overview-grid-row>span{display:grid;gap:2px}.class-overview-grid-row>span b{font-size:14px}.class-overview-grid-row>span small,.class-overview-name small{font-size:10px;color:var(--text-secondary)}.class-overview-name{display:grid;gap:2px}.class-overview-name strong{font-size:14px}.class-overview-name small{white-space:normal}
         .class-overview-table { display:grid; margin-top:10px; border:1px solid var(--border); border-radius:12px; overflow:hidden; }
         .class-overview-head,.class-overview-row { display:grid; grid-template-columns:minmax(180px,2.2fr) repeat(4,minmax(64px,.7fr)) minmax(90px,.9fr); gap:8px; align-items:center; padding:10px 12px; }
         .class-overview-head { background:var(--surface-soft); color:var(--text-secondary); font-size:11px; font-weight:900; }
