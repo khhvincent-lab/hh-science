@@ -782,6 +782,8 @@ export default function Home() {
   const [followupError, setFollowupError] = useState("");
 
   const [isSaving, setIsSaving] = useState(false);
+  const [isPreparingLine, setIsPreparingLine] = useState(false);
+  const [lineShareNotice, setLineShareNotice] = useState("");
   const [preparedShareFile, setPreparedShareFile] = useState<File | null>(null);
   const imagePreparationRef = useRef<Promise<File> | null>(null);
   const [exportQuestionImage, setExportQuestionImage] = useState("");
@@ -1889,27 +1891,95 @@ export default function Home() {
     }
   }
 
-  function handleLineAsk() {
-    if (!student) return;
+  function buildLineQuestionMessage() {
+    if (!student) return "";
     const subjectLabel = availableSubjects.find((item) => item.value === subject)?.label || "自然科";
-    const message = [
-      "【H.H. Science Lab 詢問老師】",
-      "",
+    return [
+      "【解題實驗室｜詢問老師】",
       `班級：${student.campus}`,
       `學生：${student.name}`,
       `科目：${subjectLabel}`,
-      "",
-      questionNote ? `學生補充：${questionNote}` : "想詢問題目解析中的內容。",
-      "",
-      "我已使用 H.H. Science Lab 解題，想請老師協助確認。",
+      questionNote ? `補充：${questionNote}` : "想請老師協助確認這題的解析。",
+      "解析圖片請見附圖。",
     ].join("\n");
-    const officialChat = getOfficialLineChatUrl(message);
-    const officialProfile = getOfficialLineProfileUrl();
-    if (!officialChat && !officialProfile) {
-      alert("盧澔化學官方 LINE 尚未設定，請向老師索取官方 LINE 連結。");
+  }
+
+  async function handleLineAsk(destination: "official" | "share") {
+    if (!student || !solveData || isPreparingLine) return;
+    setLineShareNotice("");
+    setIsPreparingLine(true);
+    const message = buildLineQuestionMessage();
+    const officialChat = destination === "official"
+      ? (getOfficialLineChatUrl(message) || getOfficialLineProfileUrl())
+      : null;
+    if (destination === "official" && !officialChat) {
+      setLineShareNotice("官方 LINE 尚未設定，請聯繫老師。");
+      setIsPreparingLine(false);
       return;
     }
-    window.open(officialChat || officialProfile!, "_blank", "noopener,noreferrer");
+
+    // Reserve the official chat tab during the tap: opening it after asynchronous
+    // image creation may otherwise be blocked by iOS Safari's popup protection.
+    const officialTab = destination === "official"
+      ? window.open("about:blank", "_blank")
+      : null;
+    if (officialTab) officialTab.opener = null;
+
+    try {
+      const file = preparedShareFile || await (imagePreparationRef.current || buildSolutionImageFile());
+      setPreparedShareFile(file);
+
+      if (destination === "official") {
+        // LINE's oaMessage deep link accepts text only; image delivery needs a
+        // separate explicit user action inside the official LINE conversation.
+        // Copy the rendered PNG for direct paste, falling back to a PNG download.
+        let imageCopied = false;
+        if (typeof ClipboardItem !== "undefined" && navigator.clipboard?.write) {
+          try {
+            await navigator.clipboard.write([new ClipboardItem({ "image/png": file })]);
+            imageCopied = true;
+          } catch (error) {
+            console.warn("LINE image clipboard unavailable", error);
+          }
+        }
+        if (!imageCopied) downloadPreparedFile(file);
+        setLineShareNotice(imageCopied
+          ? "解析圖片已複製。請在盧澔化學官方 LINE 聊天室長按貼上圖片，再自行按送出；文字已預填。"
+          : "已下載解析圖片。請在盧澔化學官方 LINE 聊天室使用「＋」附上該圖片，再自行按送出。");
+        if (officialTab && !officialTab.closed) {
+          officialTab.location.replace(officialChat!);
+        } else {
+          window.location.assign(officialChat!);
+        }
+        return;
+      }
+
+      // Generic LINE enquiry: OS share sheet delivers an actual PNG file.
+      // LINE and the recipient are selected by the student, not by our site.
+      if (navigator.share && navigator.canShare?.({ files: [file] })) {
+        try {
+          await navigator.share({
+            title: "解題實驗室｜詢問老師",
+            text: message,
+            files: [file],
+          });
+          return;
+        } catch (error) {
+          if (error instanceof DOMException && error.name === "AbortError") return;
+          console.warn("Sharing the solution image failed", error);
+        }
+      }
+      downloadPreparedFile(file);
+      setLineShareNotice("已下載解析圖片。請開啟 LINE，選擇要詢問的老師並附上圖片送出。");
+    } catch (error) {
+      if (officialTab && !officialTab.closed) officialTab.close();
+      console.error("Preparing LINE question image failed", error);
+      setLineShareNotice(error instanceof Error
+        ? `解析圖片準備失敗：${error.message}`
+        : "解析圖片準備失敗，請稍後再試。");
+    } finally {
+      setIsPreparingLine(false);
+    }
   }
 
   async function normalizeQuestionImageForExport(source: string) {
@@ -3032,12 +3102,17 @@ export default function Home() {
               </section>
 
               <div className="student-result-actions" data-tour="result-actions">
-                <button type="button" onClick={handleLineAsk} className="student-line-button">LINE 詢問老師</button>
+                <button type="button" onClick={() => void handleLineAsk("official")} disabled={isPreparingLine || isSaving} className="student-line-button v207-line-official-button">
+                  {isPreparingLine ? "準備解析圖片…" : "詢問盧澔化學官方 LINE"}
+                </button>
+                <button type="button" onClick={() => void handleLineAsk("share")} disabled={isPreparingLine || isSaving} className="student-line-button v207-line-share-button">
+                  用 LINE 詢問其他老師
+                </button>
                 <button type="button" onClick={handleSaveImage} disabled={isSaving} className="student-save-button">
                   {isSaving ? "正在產生解析圖片…" : "儲存解析圖片"}
                 </button>
               </div>
-
+              {lineShareNotice && <div role="status" className="student-save-hint v207-line-share-notice">{lineShareNotice}</div>}
             </div>
           )}
         </section>}
