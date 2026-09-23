@@ -1313,6 +1313,8 @@ export default function AdminPage() {
               solverSettings={solverSettings}
               loading={dashboardLoading}
               error={dashboardError}
+              isSuperAdmin={adminUser?.role === "super_admin"}
+              onNavigate={(section) => { setActiveSection(section); setMobileMenuOpen(false); }}
             />
           )}
 
@@ -1478,11 +1480,15 @@ function DashboardSection({
   solverSettings,
   loading,
   error,
+  isSuperAdmin,
+  onNavigate,
 }: {
   dashboard: DashboardData | null;
   solverSettings: SolverSettingsData | null;
   loading: boolean;
   error: string;
+  isSuperAdmin: boolean;
+  onNavigate: (section: AdminSection) => void;
 }) {
   const [costAlertThreshold, setCostAlertThreshold] = useState("500");
   const [costAlertLoading, setCostAlertLoading] = useState(true);
@@ -1591,6 +1597,14 @@ function DashboardSection({
     Number.isFinite(costAlertValue) &&
     costAlertValue > 0 &&
     usdToTwd(dashboard!.month.cost) >= costAlertValue;
+  const classStudentTotal = dashboardClassRows.reduce((sum, row) => sum + row.students, 0);
+  const classActiveTotal = dashboardClassRows.reduce((sum, row) => sum + row.todayActive, 0);
+  const todayActivePercent = classStudentTotal > 0
+    ? Math.round(classActiveTotal / classStudentTotal * 100)
+    : null;
+  const pendingItems = [
+    ...(isCostAlert && isSuperAdmin ? [{ key: "cost" as const, title: "本月成本已達警示門檻", note: "查看成本來源及模型使用量", section: "cost" as AdminSection }] : []),
+  ];
 
   if (loading && !dashboard) {
     return <div className="hh-card admin-state-card">正在讀取管理資料…</div>;
@@ -1605,13 +1619,54 @@ function DashboardSection({
 
   return (
     <div className="admin-stack admin-dashboard-stack">
+      <section className="hh-card admin-panel v206-admin-hero">
+        <div>
+          <div className="hh-eyebrow">TODAY · SMART OVERVIEW</div>
+          <h2 className="hh-display">今天的解題實驗室</h2>
+          <p>今日已完成 <strong>{dashboard.today.questions.toLocaleString("zh-TW")} 題</strong>解題，有 <strong>{dashboard.today.students.toLocaleString("zh-TW")} 位學生</strong>使用。
+            {todayActivePercent !== null ? ` 已記錄班級今日參與率約 ${todayActivePercent}%。` : ""}
+          </p>
+        </div>
+        <div className="v206-admin-hero-meta">
+          <span>今日 API 成本</span>
+          <strong className="hh-number">{formatTwdFromUsd(dashboard.today.cost)}</strong>
+          <small>平均每題 {formatTwdFromUsd(dashboard.today.averageCost)}</small>
+        </div>
+      </section>
+
+      <section className="hh-card admin-panel v206-admin-attention">
+        <div className="admin-section-head compact">
+          <div>
+            <div className="hh-eyebrow">ACTION CENTER</div>
+            <h2 className="hh-display">今日關注事項</h2>
+          </div>
+          <span className="admin-section-note">依目前有權限的真實營運資料顯示</span>
+        </div>
+        <div className="v206-admin-attention-grid">
+          {pendingItems.length > 0 ? pendingItems.map((item) => (
+            <button key={item.key} type="button" className="v206-admin-attention-item warning" onClick={() => onNavigate(item.section)}>
+              <span>需要關注</span><strong>{item.title}</strong><small>{item.note} →</small>
+            </button>
+          )) : (
+            <div className="v206-admin-attention-empty">目前沒有達到已設定的成本警示門檻。其他解題品質及待校正數據請至教學引擎查看。</div>
+          )}
+          <button type="button" className="v206-admin-attention-item" onClick={() => onNavigate("usage")}>
+            <span>班務管理</span><strong>查看今日班級參與</strong><small>按班級查看活躍學生與解題量 →</small>
+          </button>
+          {isSuperAdmin && (
+            <button type="button" className="v206-admin-attention-item" onClick={() => onNavigate("teachingQuestions")}>
+              <span>教學品質</span><strong>前往教師校正</strong><small>核對需教師介入的題目 →</small>
+            </button>
+          )}
+        </div>
+      </section>
       <section className="hh-card admin-panel admin-period-panel">
         <div className="admin-section-head compact">
           <div>
             <div className="hh-eyebrow">THIS MONTH · TODAY</div>
-            <h2 className="hh-display">解題與成本概況</h2>
+            <h2 className="hh-display">營運數字</h2>
           </div>
-          <span className="admin-section-note">快速掌握本月累積與今日即時使用</span>
+          <span className="admin-section-note">今日與本月的完整用量</span>
         </div>
 
         <div className="admin-period-grid">
@@ -1729,6 +1784,7 @@ function DashboardSection({
               <tr>
                 <th>班級</th>
                 <th>學生</th>
+                <th>今日活躍</th>
                 <th>今日</th>
                 <th>本月</th>
                 <th>本月成本</th>
@@ -1739,13 +1795,14 @@ function DashboardSection({
                 <tr key={row.classId}>
                   <td><strong>{row.label}</strong></td>
                   <td>{row.students}</td>
+                  <td>{row.students > 0 ? `${row.todayActive} 人 · ${Math.round(row.todayActive / row.students * 100)}%` : "—"}</td>
                   <td>{row.todayQuestions} 題</td>
                   <td>{row.monthQuestions} 題</td>
                   <td>NT$ {row.monthCostTwd.toFixed(1)}</td>
                 </tr>
               ))}
               {dashboardClassRows.length === 0 && (
-                <tr><td colSpan={5}>目前沒有班級統計資料。</td></tr>
+                <tr><td colSpan={6}>目前沒有班級統計資料。</td></tr>
               )}
             </tbody>
           </table>
@@ -10922,6 +10979,26 @@ const adminStyles = `
 
 .site-focus-filters{display:flex;gap:6px;flex-wrap:wrap;margin-top:12px}.site-focus-filters button{border:1px solid var(--border);border-radius:999px;background:var(--surface-soft);color:var(--text-secondary);padding:6px 9px;font:inherit;font-size:8.5px;font-weight:900;cursor:pointer}.site-focus-filters button.active{background:var(--primary);border-color:var(--primary);color:var(--primary-contrast,#fff)}.site-question-topline i.neutral{background:var(--surface-soft);color:var(--text-secondary)}.site-question-topline i.warning{background:color-mix(in srgb,#d9952b 15%,var(--surface));color:#c8861f}.site-question-topline i.info{background:color-mix(in srgb,#4f82d9 13%,var(--surface));color:#4f82d9}
 
+
+
+/* v2.0.6: smart management homepage uses existing authenticated dashboard data. */
+.v206-admin-hero{display:flex;justify-content:space-between;gap:20px;align-items:center;background:linear-gradient(115deg,var(--surface),color-mix(in srgb,var(--action) 9%,var(--surface-soft)))}
+.v206-admin-hero h2{font-size:clamp(21px,2.4vw,29px);margin:8px 0}
+.v206-admin-hero p{margin:0;color:var(--text-secondary);line-height:1.8}
+.v206-admin-hero p strong{color:var(--text)}
+.v206-admin-hero-meta{min-width:170px;display:grid;gap:5px;padding:14px 17px;background:color-mix(in srgb,var(--action) 8%,var(--surface));border:1px solid var(--border);border-radius:16px}
+.v206-admin-hero-meta span,.v206-admin-hero-meta small{color:var(--text-secondary);font-size:12px}
+.v206-admin-hero-meta strong{font-size:clamp(21px,2.5vw,29px);font-variant-numeric:tabular-nums;color:var(--text)}
+.v206-admin-attention-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.v206-admin-attention-item{display:grid;align-content:start;gap:8px;padding:15px;text-align:left;min-width:0;min-height:112px;color:var(--text);background:var(--surface-soft);border:1px solid var(--border);border-radius:15px;cursor:pointer}
+.v206-admin-attention-item:hover,.v206-admin-attention-item:focus-visible{border-color:var(--action);outline-offset:3px;background:color-mix(in srgb,var(--action) 7%,var(--surface-soft))}
+.v206-admin-attention-item span{font-size:11px;font-weight:800;color:var(--text-muted)}
+.v206-admin-attention-item strong{font-size:15px;line-height:1.35}
+.v206-admin-attention-item small{font-size:12px;line-height:1.5;color:var(--text-secondary)}
+.v206-admin-attention-item.warning{border-color:color-mix(in srgb,#c18a38 50%,var(--border));background:color-mix(in srgb,#c18a38 8%,var(--surface))}
+.v206-admin-attention-empty{display:grid;align-content:center;min-height:112px;padding:14px 17px;border-radius:15px;background:var(--surface-soft);color:var(--text-secondary);border:1px solid var(--border);font-size:13px;line-height:1.6}
+@media(max-width:900px){.v206-admin-attention-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:650px){.v206-admin-hero{align-items:stretch;flex-direction:column}.v206-admin-hero-meta{min-width:0}.v206-admin-attention-grid{grid-template-columns:minmax(0,1fr)}.v206-admin-attention-item,.v206-admin-attention-empty{min-height:0;padding:13px}}
 
 
 `;
