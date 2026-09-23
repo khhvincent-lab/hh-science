@@ -3068,7 +3068,7 @@ export default function Home() {
               </div>
               {lineShareNotice && <div role="status" className="student-save-hint v207-line-share-notice">
                 {lineShareNotice}
-                {lineShareNotice.includes("已下載") && (
+                {lineShareNotice.startsWith("已下載完整解析圖片。請開啟盧澔化學官方 LINE") && (
                   <button type="button" className="hh-button-secondary" onClick={() => {
                     const url = getOfficialLineProfileUrl();
                     if (url) window.open(url, "_blank", "noopener,noreferrer");
@@ -3410,7 +3410,7 @@ export default function Home() {
         </nav>}
         <footer className="student-footer">
           <div className="hh-eyebrow">{brand.englishName}</div>
-          <div>{brand.name} v2.0.7</div>
+          <div>{brand.name} v2.0.8</div>
         </footer>
       </div>
 
