@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
-import { ADMIN_SCOPE_COOKIE, ADMIN_SESSION_COOKIE, type AdminSessionPayload, verifyAdminSessionToken } from "@/lib/admin-session";
+import { ADMIN_SCOPE_COOKIE, ADMIN_SESSION_COOKIE, type AdminSessionPayload, normalizeAdminRole, verifyAdminSessionToken } from "@/lib/admin-session";
 
 export async function requireAdminSession(request: NextRequest) {
   const token = request.cookies.get(ADMIN_SESSION_COOKIE)?.value;
@@ -8,8 +8,8 @@ export async function requireAdminSession(request: NextRequest) {
   if (!session) return null;
   if (session.legacy) return null;
   const { data, error } = await supabaseAdmin.from("admin_users")
-    .select("id,role,active,password_changed_at").eq("id", session.userId).maybeSingle();
-  if (error || !data?.active || data.role !== session.role) return null;
+    .select("id,role,active,deleted_at,password_changed_at").eq("id", session.userId).maybeSingle();
+  if (error || !data?.active || data.deleted_at || normalizeAdminRole(data.role) !== session.role) return null;
   if (data.password_changed_at && (!session.issuedAt || session.issuedAt * 1000 + 999 < new Date(data.password_changed_at).getTime())) return null;
   return session;
 }
@@ -20,11 +20,15 @@ export function isSuperAdmin(session: AdminSessionPayload | null) {
 
 export async function getEffectiveTeacherId(request: NextRequest, session: AdminSessionPayload) {
   if (session.role === "teacher") return session.userId;
-  return request.cookies.get(ADMIN_SCOPE_COOKIE)?.value || null;
+  const scopeId = request.cookies.get(ADMIN_SCOPE_COOKIE)?.value;
+  if (!scopeId) return null;
+  const { data } = await supabaseAdmin.from("admin_users")
+    .select("id,role,active,deleted_at").eq("id",scopeId).maybeSingle();
+  return data?.active && !data.deleted_at && normalizeAdminRole(data.role) === "teacher" ? data.id : null;
 }
 
 export async function getAccessibleClassIds(request: NextRequest, session: AdminSessionPayload): Promise<string[] | null> {
-  if (isSuperAdmin(session) && !request.cookies.get(ADMIN_SCOPE_COOKIE)?.value) return null;
+  if (isSuperAdmin(session) && !(await getEffectiveTeacherId(request, session))) return null;
   const viewerId = session.role === "super_admin" ? (await getEffectiveTeacherId(request, session)) : session.userId;
   if (!viewerId) return [];
   // v2.0：四種角色一致依補習班授權，自動涵蓋後續新增班級。
