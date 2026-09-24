@@ -490,6 +490,7 @@ export default function AdminPage() {
   const [loginLoading, setLoginLoading] = useState(false);
 
   const [activeSection, setActiveSection] = useState<AdminSection>("dashboard");
+  const [siteQuestionInitialFocus, setSiteQuestionInitialFocus] = useState<"all" | "pending">("all");
   const [calibrationTargetId, setCalibrationTargetId] = useState<string | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [openNavGroup, setOpenNavGroup] = useState<"classes" | "ai" | "teaching" | null>(null);
@@ -1192,7 +1193,7 @@ export default function AdminPage() {
         <nav className="admin-nav admin-nav-v13">
           <NavButton active={activeSection === "dashboard"} icon="01" label="管理總覽" onClick={() => { setActiveSection("dashboard"); setMobileMenuOpen(false); }} />
           {(
-            <NavButton active={activeSection === "siteQuestions"} icon="02" label="全站題目" onClick={() => { setActiveSection("siteQuestions"); setMobileMenuOpen(false); }} />
+            <NavButton active={activeSection === "siteQuestions"} icon="02" label="全站題目" onClick={() => { setSiteQuestionInitialFocus("all"); setActiveSection("siteQuestions"); setMobileMenuOpen(false); }} />
           )}
 
           <AdminNavGroup
@@ -1316,12 +1317,12 @@ export default function AdminPage() {
               loading={dashboardLoading}
               error={dashboardError}
               isSuperAdmin={adminUser?.role === "super_admin"}
-              onNavigate={(section) => { setActiveSection(section); setMobileMenuOpen(false); }}
+              onNavigate={(section, focus) => { if (section === "siteQuestions") setSiteQuestionInitialFocus(focus || "all"); setActiveSection(section); setMobileMenuOpen(false); }}
             />
           )}
 
           {activeSection === "siteQuestions" && (
-            <SiteQuestionsSection onCalibrate={(historyId) => { setCalibrationTargetId(historyId); setActiveSection("teachingQuestions"); setOpenNavGroup("teaching"); }} />
+            <SiteQuestionsSection initialFocus={siteQuestionInitialFocus} canReview={adminUser?.role === "super_admin"} onCalibrate={(historyId) => { setCalibrationTargetId(historyId); setActiveSection("teachingQuestions"); setOpenNavGroup("teaching"); }} />
           )}
 
           {activeSection === "usage" && (
@@ -3902,7 +3903,7 @@ type TeachingQuestionCost = {
 type TeachingQuestionRow = {
   id:string; studentId:string; studentName:string; campus:string; regionName:string; institutionName:string; className:string;
   subject:string; referenceAnswer:string; questionNote:string; answer:string; explanation:string; options:string; annotations:any[]; diagram:ScienceDiagram|null; chemicalStructure:ChemicalStructure|null; imageUrls:string[]; followups:AdminFollowup[];
-  createdAt:string; primaryProvider?:string|null; primaryModel?:string|null; primaryAnswer?:string|null; verifierProvider?:string|null; verifierModel?:string|null; verifierResult?:any; arbiterProvider?:string|null; arbiterModel?:string|null; arbiterAnswer?:string|null; disputeStatus:string; issue:boolean; cost:TeachingQuestionCost;
+  createdAt:string; primaryProvider?:string|null; primaryModel?:string|null; primaryAnswer?:string|null; verifierProvider?:string|null; verifierModel?:string|null; verifierResult?:any; arbiterProvider?:string|null; arbiterModel?:string|null; arbiterAnswer?:string|null; disputeStatus:string; issue:boolean; automaticMatch?:boolean; answerMismatch?:boolean; review?:{verdict:"ai_correct"|"ai_incorrect"|"unreviewed";note:string;reviewedAt:string;reviewerName:string}|null; cost:TeachingQuestionCost;
 };
 
 const TEACHING_COST_ROLE_ORDER: TeachingQuestionCostRole["role"][] = ["science_gate", "primary", "verifier", "arbiter"];
@@ -3915,32 +3916,57 @@ function teachingCostRoleLabel(role: TeachingQuestionCostRole["role"]) {
 }
 
 
-function SiteQuestionsSection({onCalibrate}:{onCalibrate:(historyId:string)=>void}) {
+function SiteQuestionsSection({onCalibrate,initialFocus="all",canReview=false}:{onCalibrate:(historyId:string)=>void;initialFocus?:"all"|"pending";canReview?:boolean}) {
   const [items,setItems]=useState<TeachingQuestionRow[]>([]);
   const [selected,setSelected]=useState<TeachingQuestionRow|null>(null);
   const [loading,setLoading]=useState(true);
   const [message,setMessage]=useState("");
   const [q,setQ]=useState("");
   const [subject,setSubject]=useState("");
-  const [range,setRange]=useState<"today"|"all">("today");
+  const [range,setRange]=useState<"today"|"all">(initialFocus==="pending"?"all":"today");
   const [filtersOpen,setFiltersOpen]=useState(false);
-  const [focus,setFocus]=useState<"all"|"followup"|"issue"|"verifier"|"arbiter"|"highCost">("all");
+  const [focus,setFocus]=useState<"all"|"followup"|"issue"|"pending"|"reviewed"|"verifier"|"arbiter"|"highCost">(initialFocus);
+  const [page,setPage]=useState(0);
+  const [hasMore,setHasMore]=useState(false);
+  const [reviewNote,setReviewNote]=useState("");
+  const [reviewBusy,setReviewBusy]=useState(false);
+  const [reviewMessage,setReviewMessage]=useState("");
 
   const load=useCallback(async()=>{
     setLoading(true); setMessage("");
     try{
-      const params=new URLSearchParams({range});
+      const params=new URLSearchParams({range,page:String(page),focus});
       if(q.trim())params.set("q",q.trim());
       if(subject)params.set("subject",subject);
       const response=await fetch(`/api/admin/teaching-questions?${params.toString()}`,{cache:"no-store"});
       const data=await response.json();
       if(!response.ok)throw new Error(data.error||"讀取全站題目失敗。");
       setItems(Array.isArray(data.items)?data.items:[]);
+      setHasMore(Boolean(data.hasMore));
     }catch(e){setMessage(e instanceof Error?e.message:"讀取全站題目失敗。");}
     finally{setLoading(false);}
-  },[q,subject,range]);
+  },[q,subject,range,focus,page]);
   useEffect(()=>{void load();},[load]);
-  const visibleItems=items.filter(item=>{if(focus==="followup")return (item.followups?.length||0)>0;if(focus==="issue")return item.issue;if(focus==="verifier")return Boolean(item.verifierModel);if(focus==="arbiter")return Boolean(item.arbiterModel);if(focus==="highCost")return Boolean(item.cost?.hasCostRecord&&Number(item.cost.totalCostUsd||0)>=0.006);return true;});
+  const visibleItems=items;
+  const pendingCount=items.filter(item=>item.answerMismatch).length;
+  const reviewLabel=(item:TeachingQuestionRow)=>item.review?.verdict==="ai_correct"?"已確認 AI 正確":item.review?.verdict==="ai_incorrect"?"已確認 AI 答錯":item.answerMismatch?"答案待核對":item.issue?"需注意":!item.referenceAnswer?.trim()?"未納入統計":"已比對";
+  const reviewTone=(item:TeachingQuestionRow)=>item.review?.verdict&&item.review.verdict!=="unreviewed"?item.review.verdict:item.answerMismatch?"pending":"neutral";
+
+  async function saveAnswerReview(verdict:"ai_correct"|"ai_incorrect"|"unreviewed") {
+    if(!selected||!canReview)return;
+    setReviewBusy(true);setReviewMessage("");
+    try{
+      const response=await fetch("/api/admin/answer-review",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({solveHistoryId:selected.id,verdict,note:reviewNote})});
+      const data=await response.json();
+      if(!response.ok)throw new Error(data.error||"儲存覆核失敗。");
+      const needsReview=verdict==="unreviewed"&&!selected.automaticMatch&&Boolean(selected.referenceAnswer);
+      const updated={...selected,review:{...data.review,reviewerName:"總管理員"},answerMismatch:needsReview,issue:verdict==="ai_incorrect"||needsReview||(verdict==="unreviewed"&&selected.disputeStatus==="disputed")};
+      setSelected(updated);
+      setReviewMessage(verdict==="unreviewed"?"已撤回判定，這題重新列入待核對。":"已儲存覆核，正確率會依這項判定重新計算。");
+      void load();
+    }catch(e){setReviewMessage(e instanceof Error?e.message:"儲存覆核失敗。");}
+    finally{setReviewBusy(false);}
+  }
 
   if(selected){
     return <div className="admin-stack site-question-detail-v21">
@@ -3949,11 +3975,17 @@ function SiteQuestionsSection({onCalibrate}:{onCalibrate:(historyId:string)=>voi
         <button type="button" className="hh-button-primary" onClick={()=>onCalibrate(selected.id)}>教師校正 →</button>
       </div>
       <section className="hh-card admin-panel site-question-identity-card">
-        <div className="site-question-identity-main"><div><div className="hh-eyebrow">STUDENT QUESTION</div><h2 className="hh-display">{selected.studentName} · {adminSubjectLabel(selected.subject)}</h2><p>{[selected.regionName,selected.institutionName,selected.className].filter(Boolean).join(" · ")||selected.campus} · {new Date(selected.createdAt).toLocaleString("zh-TW")}</p></div>{selected.issue&&<span className="teaching-issue-badge">需要留意</span>}</div>
+        <div className="site-question-identity-main"><div><div className="hh-eyebrow">STUDENT QUESTION</div><h2 className="hh-display">{selected.studentName} · {adminSubjectLabel(selected.subject)}</h2><p>{[selected.regionName,selected.institutionName,selected.className].filter(Boolean).join(" · ")||selected.campus} · {new Date(selected.createdAt).toLocaleString("zh-TW")}</p></div><span className={`site-review-status ${reviewTone(selected)}`}>{reviewLabel(selected)}</span></div>
         {selected.imageUrls?.length>0&&<div className="site-question-images">{selected.imageUrls.map((url,index)=><img key={url} src={url} alt={`學生題目 ${index+1}`}/>)}</div>}
         <div className="site-question-meta-grid"><article><span>學生提供答案</span><strong>{selected.referenceAnswer||"未提供"}</strong></article><article><span>AI 最終答案</span><div className="admin-formula-value"><AdminScienceText text={selected.answer||"—"} /></div></article><article><span>本題成本</span><strong>{selected.cost?.hasCostRecord?formatQuestionCostTwd(selected.cost.totalCostUsd):"—"}</strong></article></div>
         {selected.questionNote&&<div className="site-question-note"><span>學生補充敘述</span><p>{selected.questionNote}</p></div>}
       </section>
+
+      {selected.referenceAnswer && <section className="hh-card admin-panel site-review-panel">
+        <div className="site-review-heading"><div><div className="hh-eyebrow">ANSWER REVIEW</div><h2 className="hh-display">答案核對</h2><p>依題目圖片與解法判斷；學生原先填寫的答案會完整保留。</p></div><span className={`site-review-status ${reviewTone(selected)}`}>{reviewLabel(selected)}</span></div>
+        {selected.review?.verdict!=="unreviewed"&&selected.review&&<div className="site-review-history">{selected.review.reviewerName} · {new Date(selected.review.reviewedAt).toLocaleString("zh-TW")}{selected.review.note&&<span>覆核說明：{selected.review.note}</span>}</div>}
+        {canReview&&<><label className="site-review-note"><span>覆核說明（選填）</span><textarea className="hh-input" maxLength={500} value={reviewNote} onChange={event=>setReviewNote(event.target.value)} placeholder="例如：依題目照片與計算過程核對，學生把選項填錯。" /></label><div className="site-review-actions"><button type="button" disabled={reviewBusy} className="site-review-correct" onClick={()=>void saveAnswerReview("ai_correct")}>AI 正確，學生答案誤填</button><button type="button" disabled={reviewBusy} className="site-review-incorrect" onClick={()=>void saveAnswerReview("ai_incorrect")}>AI 確實答錯</button>{selected.review&&selected.review.verdict!=="unreviewed"&&<button type="button" disabled={reviewBusy} className="site-review-reset" onClick={()=>void saveAnswerReview("unreviewed")}>撤回判定</button>}</div>{reviewMessage&&<p className="site-review-feedback" role="status">{reviewMessage}</p>}</>}
+      </section>}
 
       <section className="hh-card admin-panel site-student-view-card"><div className="hh-eyebrow">STUDENT VIEW</div><h2 className="hh-display">學生看到的解題內容</h2><div className="site-answer-hero"><span>答案</span><div className="admin-formula-value"><AdminScienceText text={selected.answer||"—"} /></div></div><div className="site-result-section"><h3>觀念解析／詳解</h3><AdminScienceText text={selected.explanation||"目前沒有詳解內容。"}/></div><ScienceDiagramView diagram={selected.diagram} compact /><ChemicalStructureView structure={selected.chemicalStructure} compact />{selected.options&&<div className="site-result-section"><h3>選項分析</h3><AdminScienceText text={formatAdminOptions(selected.options)}/></div>}</section>
 
@@ -3966,10 +3998,19 @@ function SiteQuestionsSection({onCalibrate}:{onCalibrate:(historyId:string)=>voi
   }
 
   return <div className="admin-stack site-questions-v21">
-    <section className="hh-card admin-panel teaching-toolbar site-question-toolbar"><div className="teaching-toolbar-head"><div><div className="hh-eyebrow">AI MONITOR</div><h2 className="hh-display">全站題目工作台</h2><p>每天先看需要老師注意的題：學生有追問、模型衝突、Verifier／Arbiter 出場或成本偏高，再決定是否進教師校正。</p></div><button type="button" className="hh-button-secondary teaching-filter-toggle" onClick={()=>setFiltersOpen(v=>!v)}>{filtersOpen?"收合搜尋":"搜尋與篩選"}</button></div><div className="site-focus-filters">{([["all","全部"],["followup","有追問"],["issue","需注意"],["verifier","Verifier"],["arbiter","Arbiter"],["highCost","高成本"]] as const).map(([key,label])=><button key={key} type="button" className={focus===key?"active":""} onClick={()=>setFocus(key)}>{label}</button>)}</div>{filtersOpen&&<div className="teaching-filter-row"><div className="teaching-range-switch"><button type="button" className={range==="today"?"active":""} onClick={()=>setRange("today")}>今天</button><button type="button" className={range==="all"?"active":""} onClick={()=>setRange("all")}>全部</button></div><input className="hh-input" placeholder="搜尋學生、題目或答案…" value={q} onChange={e=>setQ(e.target.value)}/><select className="hh-select" value={subject} onChange={e=>setSubject(e.target.value)}><option value="">全部科目</option><option value="physics">物理</option><option value="chemistry">化學</option><option value="biology">生物</option><option value="earth">地球科學</option></select></div>}</section>
+    <section className="hh-card admin-panel site-workbench-hero">
+      <div className="site-workbench-heading"><div><div className="hh-eyebrow">QUESTION WORKBENCH</div><h2 className="hh-display">全站題目</h2><p>先核對答案，再檢視解法、學生追問與模型成本。學生原填答案會保留。</p></div><div className="site-workbench-summary"><strong>{visibleItems.length}</strong><span>本頁題目</span>{pendingCount>0&&<small>{pendingCount} 題待核對</small>}</div></div>
+      <div className="site-focus-filters" role="group" aria-label="題目狀態篩選">{([ ["all","全部題目"],["pending","答案待核對"],["issue","需注意"],["reviewed","已覆核"] ] as const).map(([key,label])=><button key={key} type="button" className={focus===key?"active":""} aria-pressed={focus===key} onClick={()=>{setFocus(key);setPage(0);if(key==="pending"||key==="reviewed")setRange("all");}}>{label}</button>)}<button type="button" className={filtersOpen?"active":""} aria-expanded={filtersOpen} onClick={()=>setFiltersOpen(value=>!value)}>更多篩選 {filtersOpen?"−":"＋"}</button></div>
+      <div className="site-workbench-search"><input className="hh-input" aria-label="搜尋學生、題目或答案" placeholder="搜尋學生、題目或答案…" value={q} onChange={event=>{setQ(event.target.value);setPage(0);}}/><select className="hh-select" aria-label="科目" value={subject} onChange={event=>{setSubject(event.target.value);setPage(0);}}><option value="">全部科目</option><option value="physics">物理</option><option value="chemistry">化學</option><option value="biology">生物</option><option value="earth">地球科學</option></select><div className="teaching-range-switch"><button type="button" className={range==="today"?"active":""} onClick={()=>{setRange("today");setPage(0);}}>今天</button><button type="button" className={range==="all"?"active":""} onClick={()=>{setRange("all");setPage(0);}}>全部時間</button></div></div>
+      {filtersOpen&&<div className="site-focus-filters site-extra-filters" role="group" aria-label="其他題目篩選">{([ ["followup","有追問"],["verifier","Verifier"],["arbiter","Arbiter"],["highCost","高成本"] ] as const).map(([key,label])=><button key={key} type="button" className={focus===key?"active":""} aria-pressed={focus===key} onClick={()=>{setFocus(key);setPage(0);}}>{label}</button>)}</div>}
+    </section>
     {message&&<div className="admin-notice danger">{message}</div>}
-    <section className="site-question-list">{loading?<div className="hh-card admin-panel admin-empty">正在讀取全站題目…</div>:visibleItems.length===0?<div className="hh-card admin-panel admin-empty">目前沒有符合條件的題目。</div>:visibleItems.map(item=><button type="button" className="hh-card site-question-row" key={item.id} onClick={()=>setSelected(item)}><span className="site-question-thumb">{item.imageUrls?.[0]?<img src={item.imageUrls[0]} alt="題目縮圖"/>:<span>SCI</span>}</span><span className="site-question-copy"><span className="site-question-topline"><b>{new Date(item.createdAt).toLocaleString("zh-TW",{month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"})}</b><em className={`teaching-subject-chip teaching-subject-${item.subject}`}>{adminSubjectLabel(item.subject)}</em>{item.issue&&<i>需注意</i>}{item.verifierModel&&<i className="neutral">Verifier</i>}{item.arbiterModel&&<i className="warning">Arbiter</i>}{(item.followups?.length||0)>0&&<i className="info">追問 {item.followups.length}</i>}</span><strong>{item.studentName}</strong><small>{[item.regionName,item.institutionName,item.className].filter(Boolean).join(" · ")||item.campus}</small><p>{item.questionNote||item.explanation||"尚無題目摘要"}</p></span><span className="site-question-status"><span><small>AI 答案</small><span className="admin-answer-preview"><AdminScienceText text={item.answer||"—"} /></span></span><span><small>本題成本</small><b>{item.cost?.hasCostRecord?formatQuestionCostTwd(item.cost.totalCostUsd):"—"}</b></span><span><small>追問</small><b>{item.followups?.length||0}</b></span><strong className="site-question-open">查看 →</strong></span></button>)}</section>
-  </div>
+    <section className="site-question-list">{loading?<div className="hh-card admin-panel admin-empty">正在讀取題目…</div>:visibleItems.length===0?<div className="hh-card admin-panel admin-empty">這一頁沒有符合條件的題目；可以切換期間或查看下一頁。</div>:visibleItems.map(item=><button type="button" className="hh-card site-question-row site-question-row-v214" key={item.id} onClick={()=>{setSelected(item);setReviewNote(item.review?.note||"");setReviewMessage("");}}>
+      <span className="site-question-thumb">{item.imageUrls?.[0]?<img src={item.imageUrls[0]} alt="題目縮圖"/>:<span>SCI</span>}</span>
+      <span className="site-question-copy"><span className="site-question-topline"><b>{new Date(item.createdAt).toLocaleString("zh-TW",{month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"})}</b><em className={`teaching-subject-chip teaching-subject-${item.subject}`}>{adminSubjectLabel(item.subject)}</em><span className={`site-review-status ${reviewTone(item)}`}>{reviewLabel(item)}</span>{(item.followups?.length||0)>0&&<i className="info">追問 {item.followups.length}</i>}</span><strong>{item.studentName}<small>{[item.regionName,item.institutionName,item.className].filter(Boolean).join(" · ")||item.campus}</small></strong><p>{item.questionNote||item.explanation||"點開查看題目圖片與 AI 詳解"}</p><span className="site-row-answers"><span><small>學生參考答案</small><b>{item.referenceAnswer||"未填"}</b></span><span><small>AI 最終答案</small><b className="admin-answer-preview"><AdminScienceText text={item.answer||"—"}/></b></span></span><span className="site-row-foot"><span>本題成本 {item.cost?.hasCostRecord?formatQuestionCostTwd(item.cost.totalCostUsd):"未記錄"}</span><span>查看題目 →</span></span></span>
+    </button>)}</section>
+    {(hasMore||page>0)&&<nav className="site-pagination" aria-label="題目分頁"><button type="button" disabled={loading||page===0} onClick={()=>setPage(value=>Math.max(0,value-1))}>← 上一頁</button><span>第 {page+1} 頁</span><button type="button" disabled={loading||!hasMore} onClick={()=>setPage(value=>value+1)}>下一頁 →</button></nav>}
+  </div>;
 }
 
 function TeachingQuestionsSection({initialHistoryId,onInitialHistoryHandled,canEdit=true,canSaveGlobalRules=true}:{initialHistoryId?:string|null;onInitialHistoryHandled?:()=>void;canEdit?:boolean;canSaveGlobalRules?:boolean} = {}) {
@@ -4017,6 +4058,7 @@ function TeachingQuestionsSection({initialHistoryId,onInitialHistoryHandled,canE
       if(q.trim()) params.set("q",q.trim());
       if(subject) params.set("subject",subject);
       if(issues) params.set("issues","true");
+      if(initialHistoryId) params.set("historyId",initialHistoryId);
       params.set("range",range);
       const response=await fetch(`/api/admin/teaching-questions?${params.toString()}`,{cache:"no-store"});
       const data=await response.json();
@@ -4024,7 +4066,7 @@ function TeachingQuestionsSection({initialHistoryId,onInitialHistoryHandled,canE
       setItems(Array.isArray(data.items)?data.items:[]);
     } catch(e){setMessage(e instanceof Error?e.message:"讀取全站題目失敗。");}
     finally{setLoading(false);}
-  },[q,subject,issues,range]);
+  },[q,subject,issues,range,initialHistoryId]);
   useEffect(()=>{void load();},[load]);
   useEffect(()=>{
     if(!initialHistoryId || loading || selected) return;
@@ -11032,5 +11074,39 @@ const adminStyles = `
 @media(max-width:900px){.v206-admin-attention-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:650px){.v206-admin-hero{align-items:stretch;flex-direction:column}.v206-admin-hero-meta{min-width:0}.v206-admin-attention-grid{grid-template-columns:minmax(0,1fr)}.v206-admin-attention-item,.v206-admin-attention-empty{min-height:0;padding:13px}}
 
+/* v2.1.4 全站題目：以核對狀態與雙答案閱讀順序整理 */
+.site-workbench-hero{display:grid;gap:15px;background:linear-gradient(130deg,color-mix(in srgb,var(--primary) 8%,var(--surface)),var(--surface) 65%)}
+.site-workbench-heading{display:flex;align-items:center;justify-content:space-between;gap:15px}
+.site-workbench-heading h2{margin:4px 0 5px;font-size:24px}
+.site-workbench-heading p,.site-review-heading p{margin:0;color:var(--text-secondary);font-size:11px;line-height:1.55}
+.site-workbench-summary{display:grid;justify-items:end;gap:2px;min-width:82px;color:var(--text-secondary);font-size:10px}
+.site-workbench-summary strong{font-size:23px;color:var(--text)}
+.site-workbench-summary small{color:var(--danger);font-size:9px}
+.site-focus-filters{margin:0}.site-focus-filters button{font-size:10px;padding:8px 11px}
+.site-workbench-search{display:grid;grid-template-columns:minmax(0,1fr) 145px auto;gap:8px;align-items:center}
+.site-workbench-search .hh-input,.site-workbench-search .hh-select{min-height:42px}
+.site-extra-filters{padding-top:9px;border-top:1px solid var(--border)}
+.site-question-list{gap:9px}.site-question-row-v214{grid-template-columns:82px minmax(0,1fr)!important;gap:15px;align-items:start;padding:14px!important}
+.site-question-row-v214 .site-question-thumb{width:82px;height:88px}
+.site-question-row-v214 .site-question-copy{gap:8px}.site-question-row-v214 .site-question-copy>strong{display:flex;align-items:baseline;flex-wrap:wrap;gap:7px;font-size:15px}
+.site-question-row-v214 .site-question-copy>strong small{color:var(--text-muted);font-size:10px;font-weight:500}
+.site-question-row-v214 .site-question-copy>p{margin:0;font-size:11px;-webkit-line-clamp:2}
+.site-row-answers{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
+.site-row-answers>span{display:grid;gap:4px;align-content:start;min-width:0;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:var(--surface-soft)}
+.site-row-answers small{font-size:9px;color:var(--text-muted);font-weight:750}.site-row-answers b{font-size:12px;line-height:1.45;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.site-row-foot{display:flex;justify-content:space-between;gap:8px;color:var(--text-muted);font-size:10px}.site-row-foot span:last-child{color:var(--primary);font-weight:800}
+.site-review-status{display:inline-flex;align-items:center;flex:none;border-radius:999px;padding:5px 9px;font-size:9px;font-weight:800;line-height:1.2;background:var(--surface-soft);color:var(--text-secondary);border:1px solid var(--border)}
+.site-review-status.pending{background:color-mix(in srgb,#ce903e 13%,var(--surface));border-color:color-mix(in srgb,#ce903e 37%,var(--border));color:#b77824}
+.site-review-status.ai_correct{background:color-mix(in srgb,#48ab8a 13%,var(--surface));border-color:color-mix(in srgb,#48ab8a 37%,var(--border));color:#359274}
+.site-review-status.ai_incorrect{background:var(--danger-soft);border-color:color-mix(in srgb,var(--danger) 25%,var(--border));color:var(--danger)}
+.site-review-heading{display:flex;align-items:start;justify-content:space-between;gap:12px}.site-review-heading h2{margin:5px 0;font-size:19px}
+.site-review-history{margin-top:13px;padding:11px 12px;border-radius:11px;background:var(--surface-soft);font-size:11px;color:var(--text-secondary)}.site-review-history span{display:block;margin-top:5px;color:var(--text)}
+.site-review-note{display:grid;gap:6px;margin-top:16px;color:var(--text-secondary);font-size:10px;font-weight:750}.site-review-note textarea{min-height:72px;padding:11px;resize:vertical}
+.site-review-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}.site-review-actions button,.site-pagination button{border:1px solid var(--border-strong);border-radius:10px;background:var(--surface-soft);color:var(--text);min-height:38px;padding:8px 12px;font:inherit;font-size:10px;font-weight:800;cursor:pointer}
+.site-review-actions button:disabled,.site-pagination button:disabled{opacity:.45;cursor:default}.site-review-actions .site-review-correct{border-color:color-mix(in srgb,#48ab8a 55%,var(--border));background:color-mix(in srgb,#48ab8a 16%,var(--surface))}.site-review-actions .site-review-incorrect{border-color:color-mix(in srgb,var(--danger) 38%,var(--border))}.site-review-actions .site-review-reset{margin-left:auto;color:var(--text-secondary)}
+.site-review-feedback{margin:10px 0 0;font-size:11px;color:var(--text-secondary)}
+.site-pagination{display:flex;align-items:center;justify-content:center;gap:12px;padding:7px}.site-pagination span{font-size:11px;color:var(--text-secondary)}
+@media(max-width:760px){.site-workbench-heading{align-items:flex-start}.site-workbench-heading h2{font-size:21px}.site-workbench-search{grid-template-columns:minmax(0,1fr) 115px}.site-workbench-search .teaching-range-switch{grid-column:1/-1}.site-focus-filters button{font-size:9px;padding:7px 9px}.site-question-row-v214{grid-template-columns:66px minmax(0,1fr)!important;gap:10px;padding:11px!important}.site-question-row-v214 .site-question-thumb{width:66px;height:74px}.site-row-answers{grid-template-columns:1fr 1fr}.site-row-answers>span{padding:8px;gap:3px}.site-row-answers b{font-size:10px}.site-row-answers small{font-size:8px}.site-question-row-v214 .site-question-copy>strong{font-size:13px}.site-review-heading{flex-direction:column}.site-review-actions{display:grid;grid-template-columns:1fr 1fr}.site-review-actions .site-review-reset{grid-column:1/-1;margin:0}.site-workbench-summary{min-width:65px}}
+@media(max-width:420px){.site-question-row-v214 .site-question-thumb{width:55px;height:63px}.site-question-row-v214{grid-template-columns:55px minmax(0,1fr)!important}.site-workbench-search{grid-template-columns:1fr}.site-workbench-search .teaching-range-switch{grid-column:auto}.site-review-status{font-size:8px;padding:4px 7px}}
 
 `;

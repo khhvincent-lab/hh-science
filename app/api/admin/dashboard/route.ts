@@ -8,7 +8,7 @@ import {
 } from "@/lib/supabase-admin";
 
 import { requireAdminSession, getAccessibleStudentIds } from "@/lib/admin-access";
-import { answersMatch } from "@/lib/ai/answer-normalization";
+import { answerReviewState, getAccuracyReviews } from "@/lib/accuracy-review";
 
 import {
   getAISettings,
@@ -382,7 +382,8 @@ export async function GET(
     todayHistoryResult.data = (todayHistoryResult.data || []).filter((row:any) => allowStudent(row.student_id));
     monthHistoryResult.data = (monthHistoryResult.data || []).filter((row:any) => allowStudent(row.student_id));
     const referenceRows = monthHistoryResult.data.filter((row) => typeof row.reference_answer === "string" && row.reference_answer.trim().length > 0);
-    const referenceMatches = referenceRows.filter((row) => answersMatch(row.answer || "", row.reference_answer || "")).length;
+    const accuracyReviews = await getAccuracyReviews(referenceRows.map((row) => String(row.id)));
+    const referenceMatches = referenceRows.filter((row) => answerReviewState(row.answer, row.reference_answer, accuracyReviews.get(String(row.id))).countsCorrect).length;
     dailyUsageResult.data = (dailyUsageResult.data || []).filter((row:any) => allowStudent(row.student_id));
     studentsResult.data = (studentsResult.data || []).filter((row:any) => allowStudent(row.id));
 

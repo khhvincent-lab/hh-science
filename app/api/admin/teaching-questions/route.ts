@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdminSession, getAccessibleStudentIds } from "@/lib/admin-access";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { answerReviewState, getAccuracyReviews } from "@/lib/accuracy-review";
 
 const SOLVE_COST_ROLES = ["science_gate", "primary", "verifier", "arbiter"] as const;
 type SolveCostRole = (typeof SOLVE_COST_ROLES)[number];
@@ -101,9 +102,13 @@ export async function GET(request: NextRequest) {
   if (accessible !== null && !accessible.length) return NextResponse.json({ items: [] });
 
   const params = request.nextUrl.searchParams;
+  const historyId = params.get("historyId");
   const subject = params.get("subject") || "";
   const q = (params.get("q") || "").trim().toLocaleLowerCase("zh-Hant");
   const onlyIssues = params.get("issues") === "true";
+  const focus = params.get("focus") || "all";
+  const page = Math.min(1000, Math.max(0, Number.parseInt(params.get("page") || "0", 10) || 0));
+  const pageSize = 40;
   const range = params.get("range") === "all" ? "all" : "today";
   const today = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Taipei",
@@ -112,55 +117,64 @@ export async function GET(request: NextRequest) {
     day: "2-digit",
   }).format(new Date());
 
-  let query = supabaseAdmin
-    .from("solve_history")
-    .select(`
+  const matched: any[] = [];
+  for (let offset = 0; matched.length <= (page + 1) * pageSize; offset += 200) {
+    let query = supabaseAdmin
+      .from("solve_history")
+      .select(`
       id,student_id,subject,reference_answer,question_note,answer,explanation,options,annotations,diagram,chemical_structure,image_paths,created_at,
       primary_provider,primary_model,primary_answer,verifier_provider,verifier_model,verifier_result,
       arbiter_provider,arbiter_model,arbiter_answer,arbitration_trigger,dispute_status,
       students(name,campus,regions(name),institutions(name),classes(name))
     `)
-    .order("created_at", { ascending: false })
-    .limit(300);
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: false })
+      .range(offset, offset + 199);
 
-  if (accessible !== null) query = query.in("student_id", accessible);
-  if (range === "today") query = query.gte("created_at", `${today}T00:00:00+08:00`);
-  if (subject) query = query.eq("subject", subject);
+    if (accessible !== null) query = query.in("student_id", accessible);
+    if (historyId) query = query.eq("id", historyId);
+    if (!historyId && range === "today") query = query.gte("created_at", `${today}T00:00:00+08:00`);
+    if (subject) query = query.eq("subject", subject);
 
-  const { data, error } = await query;
-  if (error) {
-    return NextResponse.json({ error: `讀取全站題目失敗：${error.message}` }, { status: 500 });
+    const { data, error } = await query;
+    if (error) return NextResponse.json({ error: `讀取全站題目失敗：${error.message}` }, { status: 500 });
+    const batch = data || [];
+    const reviews = await getAccuracyReviews(batch.map((row: any) => String(row.id)));
+    const batchIds = batch.map((row: any) => String(row.id));
+    const followupIds = new Set<string>();
+    if (focus === "followup" && batchIds.length) {
+      const { data: followups, error: followupError } = await supabaseAdmin.from("solve_followups")
+        .select("solve_history_id").in("solve_history_id", batchIds);
+      if (followupError) throw followupError;
+      for (const followup of followups || []) followupIds.add(String(followup.solve_history_id));
+    }
+    const batchCosts = focus === "highCost" ? await fetchQuestionCosts(batchIds) : null;
+    for (const row of batch) {
+      const review = reviews.get(String(row.id));
+      const answerState = answerReviewState(row.answer, row.reference_answer, review);
+      const verifierVerdict = String(row.verifier_result?.verdict || "");
+      const issue = review?.verdict === "ai_correct" ? false : answerState.needsReview || review?.verdict === "ai_incorrect" ||
+        row.dispute_status === "disputed" || Boolean(row.arbitration_trigger) || verifierVerdict === "major_error";
+      if ((onlyIssues || focus === "issue") && !issue) continue;
+      if (focus === "pending" && !answerState.needsReview) continue;
+      if (focus === "reviewed" && !review?.verdict?.startsWith("ai_")) continue;
+      if (focus === "followup" && !followupIds.has(String(row.id))) continue;
+      if (focus === "verifier" && !row.verifier_model) continue;
+      if (focus === "arbiter" && !row.arbiter_model) continue;
+      if (focus === "highCost" && Number(batchCosts?.get(String(row.id))?.totalCostUsd || 0) < 0.006) continue;
+      if (q) {
+        const student = Array.isArray(row.students) ? row.students[0] : row.students;
+        const haystack = [student?.name, student?.campus, row.question_note, row.answer, row.reference_answer, row.explanation, row.options]
+          .map((value) => String(value || "")).join("\n").toLocaleLowerCase("zh-Hant");
+        if (!haystack.includes(q)) continue;
+      }
+      matched.push({ ...row, review, issue, automaticMatch: answerState.automaticMatch, answerMismatch: answerState.needsReview });
+      if (matched.length > (page + 1) * pageSize) break;
+    }
+    if (batch.length < 200) break;
   }
-
-  const rows = (data || []).filter((row: any) => {
-    const verifierVerdict = String(row.verifier_result?.verdict || "");
-    const isIssue =
-      row.dispute_status === "disputed" ||
-      Boolean(row.arbitration_trigger) ||
-      verifierVerdict === "major_error" ||
-      (row.reference_answer &&
-        row.primary_answer &&
-        String(row.reference_answer).trim() !== String(row.primary_answer).trim());
-
-    if (onlyIssues && !isIssue) return false;
-    if (!q) return true;
-
-    const student = Array.isArray(row.students) ? row.students[0] : row.students;
-    const haystack = [
-      student?.name,
-      student?.campus,
-      row.question_note,
-      row.answer,
-      row.reference_answer,
-      row.explanation,
-      row.options,
-    ]
-      .map((v) => String(v || ""))
-      .join("\n")
-      .toLocaleLowerCase("zh-Hant");
-
-    return haystack.includes(q);
-  });
+  const hasMore = matched.length > (page + 1) * pageSize;
+  const rows = matched.slice(page * pageSize, (page + 1) * pageSize);
 
   let costMap = new Map<string, any>();
   try {
@@ -205,14 +219,7 @@ export async function GET(request: NextRequest) {
       const region = Array.isArray(student?.regions) ? student.regions[0] : student?.regions;
       const institution = Array.isArray(student?.institutions) ? student.institutions[0] : student?.institutions;
       const klass = Array.isArray(student?.classes) ? student.classes[0] : student?.classes;
-      const verifierVerdict = String(row.verifier_result?.verdict || "");
-      const issue =
-        row.dispute_status === "disputed" ||
-        Boolean(row.arbitration_trigger) ||
-        verifierVerdict === "major_error" ||
-        (row.reference_answer &&
-          row.primary_answer &&
-          String(row.reference_answer).trim() !== String(row.primary_answer).trim());
+      const issue = Boolean(row.issue);
 
       const costBucket = costMap.get(String(row.id));
       const costRoles = costBucket
@@ -252,6 +259,9 @@ export async function GET(request: NextRequest) {
         arbiterAnswer: row.arbiter_answer || null,
         disputeStatus: row.dispute_status || "normal",
         issue,
+        automaticMatch: row.automaticMatch,
+        answerMismatch: row.answerMismatch,
+        review: row.review || null,
         followups: followupMap.get(String(row.id)) || [],
         cost: {
           hasCostRecord: Boolean(costBucket),
@@ -263,5 +273,5 @@ export async function GET(request: NextRequest) {
     }),
   );
 
-  return NextResponse.json({ items });
+  return NextResponse.json({ items, page, hasMore });
 }
