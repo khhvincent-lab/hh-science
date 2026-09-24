@@ -944,3 +944,97 @@ html[data-theme] .student-page .v207-line-share-notice{margin-top:11px;text-alig
   html[data-theme] .student-page .student-result-actions{grid-template-columns:minmax(0,1fr)}
   html[data-theme] .student-page .student-result-actions .student-save-button{grid-column:auto}
 }
+
+/* v2.0.10 | Quota belongs to its theme, not a separate black/amber badge.
+   Status thresholds: >=4 adequate, 2-3 low, 0-1 critical.
+   Five themes x three states; consistent layout and legible number/text. */
+html[data-theme] .student-page .v206-quota-card{
+  background:var(--v210-quota-bg);
+  border-color:var(--v210-quota-border);
+  color:var(--v210-quota-text);
+  box-shadow:inset 0 1px 0 var(--v210-quota-sheen),0 2px 9px var(--v210-quota-shadow);
+}
+html[data-theme] .student-page .v207-quota-status{color:var(--v210-quota-label)}
+html[data-theme] .student-page .v206-quota-topline,
+html[data-theme] .student-page .v206-quota-bottomline{color:var(--v210-quota-muted);opacity:1}
+html[data-theme] .student-page .v206-quota-topline strong,
+html[data-theme] .student-page .v206-quota-topline strong small{color:var(--v210-quota-text)}
+html[data-theme] .student-page .v206-quota-track{background:var(--v210-quota-rail)}
+html[data-theme] .student-page .v206-quota-track>span,
+html[data-theme] .student-page .v206-quota-warning .v206-quota-track>span,
+html[data-theme] .student-page .v206-quota-danger .v206-quota-track>span{background:var(--v210-quota-fill)}
+
+/* 靜謐深藍 — matte navy, warm slate, muted burgundy. */
+html[data-theme="midnight"] .student-page .v206-quota-card{
+  --v210-quota-bg:#253a51;--v210-quota-border:#617d9b;
+  --v210-quota-label:#c2e0ff;--v210-quota-text:#f4f9ff;--v210-quota-muted:#d4e2ee;
+  --v210-quota-fill:#8bbfec;--v210-quota-rail:#465b70;--v210-quota-sheen:#ffffff16;--v210-quota-shadow:#09132028;
+}
+html[data-theme="midnight"] .student-page .v206-quota-warning{
+  --v210-quota-bg:#39382f;--v210-quota-border:#96815e;--v210-quota-label:#edcf9d;
+  --v210-quota-muted:#e0d5bf;--v210-quota-fill:#d4b17c;--v210-quota-rail:#585043;
+}
+html[data-theme="midnight"] .student-page .v206-quota-danger{
+  --v210-quota-bg:#40323b;--v210-quota-border:#a47a88;--v210-quota-label:#f0b8c3;
+  --v210-quota-muted:#e6d1d7;--v210-quota-fill:#d898a9;--v210-quota-rail:#604a53;
+}
+
+/* 森語晨光 — light sage, oat and blush; no black quota tile. */
+html[data-theme="nordic"] .student-page .v206-quota-card{
+  --v210-quota-bg:#e8f1e9;--v210-quota-border:#a9c7b3;
+  --v210-quota-label:#315f48;--v210-quota-text:#244635;--v210-quota-muted:#526b59;
+  --v210-quota-fill:#548d6e;--v210-quota-rail:#ceded1;--v210-quota-sheen:#ffffffa6;--v210-quota-shadow:#254b3112;
+}
+html[data-theme="nordic"] .student-page .v206-quota-warning{
+  --v210-quota-bg:#f7edda;--v210-quota-border:#d6bf93;--v210-quota-label:#85602f;
+  --v210-quota-text:#684b28;--v210-quota-muted:#846c4a;--v210-quota-fill:#b88949;--v210-quota-rail:#e9dac0;
+}
+html[data-theme="nordic"] .student-page .v206-quota-danger{
+  --v210-quota-bg:#f7e9e9;--v210-quota-border:#dbb1b1;--v210-quota-label:#994c58;
+  --v210-quota-text:#7c3b48;--v210-quota-muted:#986771;--v210-quota-fill:#b96573;--v210-quota-rail:#ead1d5;
+}
+
+/* 極光藍境 — ice-blue glass, pale amber, and rose. */
+html[data-theme="aurora"] .student-page .v206-quota-card{
+  --v210-quota-bg:#e8f3ff;--v210-quota-border:#a7c9ef;
+  --v210-quota-label:#255da7;--v210-quota-text:#174780;--v210-quota-muted:#4d719e;
+  --v210-quota-fill:#4a8ed5;--v210-quota-rail:#cbdff3;--v210-quota-sheen:#ffffffba;--v210-quota-shadow:#2560a41a;
+}
+html[data-theme="aurora"] .student-page .v206-quota-warning{
+  --v210-quota-bg:#fff1dd;--v210-quota-border:#e3bf8f;--v210-quota-label:#956328;
+  --v210-quota-text:#71491f;--v210-quota-muted:#946c42;--v210-quota-fill:#c58c49;--v210-quota-rail:#efd9b9;
+}
+html[data-theme="aurora"] .student-page .v206-quota-danger{
+  --v210-quota-bg:#fdebf0;--v210-quota-border:#e4b5c3;--v210-quota-label:#a64e63;
+  --v210-quota-text:#81374b;--v210-quota-muted:#a06977;--v210-quota-fill:#cc7189;--v210-quota-rail:#f0d3dc;
+}
+
+/* 墨夜流金 — charcoal gold, gentle bronze, wine-grey. */
+html[data-theme="gold"] .student-page .v206-quota-card{
+  --v210-quota-bg:#373630;--v210-quota-border:#736b58;
+  --v210-quota-label:#e6cc94;--v210-quota-text:#faf0da;--v210-quota-muted:#d4c5aa;
+  --v210-quota-fill:#cdb782;--v210-quota-rail:#565146;--v210-quota-sheen:#ffffff12;--v210-quota-shadow:#00000029;
+}
+html[data-theme="gold"] .student-page .v206-quota-warning{
+  --v210-quota-bg:#40382d;--v210-quota-border:#99805b;--v210-quota-label:#f1d19b;
+  --v210-quota-muted:#decdb1;--v210-quota-fill:#dbb778;--v210-quota-rail:#615342;
+}
+html[data-theme="gold"] .student-page .v206-quota-danger{
+  --v210-quota-bg:#423235;--v210-quota-border:#a57878;--v210-quota-label:#edb1b5;
+  --v210-quota-muted:#dec7c7;--v210-quota-fill:#d48f95;--v210-quota-rail:#60484b;
+}
+
+/* 玄霧石墨 — cool metal, warm-grey amber, muted wine. */
+html[data-theme="obsidian"] .student-page .v206-quota-card{
+  --v210-quota-bg:#37424b;--v210-quota-border:#687d8e;
+  --v210-quota-label:#cadde9;--v210-quota-text:#f2f6f9;--v210-quota-muted:#d0dce4;
+  --v210-quota-fill:#a4c1d1;--v210-quota-rail:#52616b;--v210-quota-sheen:#ffffff12;--v210-quota-shadow:#00000025;
+}
+html[data-theme="obsidian"] .student-page .v206-quota-warning{
+  --v210-quota-bg:#403d39;--v210-quota-border:#93816c;--v210-quota-label:#edcfaa;
+  --v210-quota-muted:#ddd1c2;--v210-quota-fill:#c9aa81;--v210-quota-rail:#5e564d;
+}
+html[data-theme="obsidian"] .student-page .v206-quota-danger{
+  --v210-quota-bg:#45393e;--v210-quota-border:#a07c84;--v210-quota-label:#ecc2c9;
+  --v210-quota-muted:#ddccd0;--v210-quota-fill:#d3a0aa;--v210-quota-rail:#625158;
+}
