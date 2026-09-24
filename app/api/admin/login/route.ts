@@ -2,7 +2,7 @@ import { createHash } from "crypto";
 import bcrypt from "bcryptjs";
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
-import { ADMIN_SESSION_COOKIE, ADMIN_SESSION_MAX_AGE, createAdminSessionToken } from "@/lib/admin-session";
+import { ADMIN_SESSION_COOKIE, ADMIN_SESSION_MAX_AGE, createAdminSessionToken, normalizeAdminRole } from "@/lib/admin-session";
 
 const ADMIN_RATE_LIMIT = { attempts: 5, windowSeconds: 15 * 60 };
 function getClientIp(request: NextRequest) { const f=request.headers.get("x-forwarded-for"); return f?.split(",")[0]?.trim() || request.headers.get("x-real-ip")?.trim() || "unknown"; }
@@ -45,8 +45,8 @@ export async function POST(request: NextRequest) {
   if (!valid) return NextResponse.json({ error: "帳號或密碼錯誤。" }, { status: 401 });
   await clearRateLimit(rateKey);
   if (user?.id) await supabaseAdmin.from("admin_users").update({ last_login_at: new Date().toISOString() }).eq("id", user.id);
-  const token = createAdminSessionToken({ role:user?.role ?? "super_admin", userId:user?.id ?? "legacy-admin", username:user?.username ?? "admin", displayName:user?.display_name ?? "總管理員", legacy });
-  const response = NextResponse.json({ success:true, user:{ id:user?.id ?? "legacy-admin", username:user?.username ?? "admin", displayName:user?.display_name ?? "總管理員", role:user?.role ?? "super_admin" } });
+  const token = createAdminSessionToken({ role:normalizeAdminRole(user?.role) ?? "super_admin", userId:user?.id ?? "legacy-admin", username:user?.username ?? "admin", displayName:user?.display_name ?? "總管理員", legacy });
+  const response = NextResponse.json({ success:true, user:{ id:user?.id ?? "legacy-admin", username:user?.username ?? "admin", displayName:user?.display_name ?? "總管理員", role:normalizeAdminRole(user?.role) ?? "super_admin" } });
   response.cookies.set(ADMIN_SESSION_COOKIE, token, { httpOnly:true, sameSite:"lax", secure:process.env.NODE_ENV === "production", path:"/", maxAge:ADMIN_SESSION_MAX_AGE });
   return response;
 }
