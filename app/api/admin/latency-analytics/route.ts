@@ -1,13 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
-import { verifyAdminSessionToken } from "@/lib/admin-session";
+import { requireAdminSession, getAccessibleStudentIds } from "@/lib/admin-access";
 
 type RangeKey = "today" | "7d" | "30d" | "month";
 
-async function requireAdmin(request: NextRequest) {
-  const token = request.cookies.get("hh_science_admin_session")?.value;
-  return token ? verifyAdminSessionToken(token) : null;
-}
 
 function taipeiParts(date = new Date()) {
   const parts = new Intl.DateTimeFormat("en-CA", {
@@ -47,7 +43,8 @@ function resolveRange(range: RangeKey) {
 }
 
 export async function GET(request: NextRequest) {
-  if (!(await requireAdmin(request))) {
+  const admin = await requireAdminSession(request);
+  if (!admin) {
     return NextResponse.json({ error: "未登入管理員。" }, { status: 401 });
   }
 
@@ -55,9 +52,13 @@ export async function GET(request: NextRequest) {
   const range: RangeKey = raw === "today" || raw === "30d" || raw === "month" ? raw : "7d";
   const { start, end, label } = resolveRange(range);
 
+  const allowedIds = await getAccessibleStudentIds(request, admin);
+  if (allowedIds !== null && !allowedIds.length) {
+    return NextResponse.json({range,label,totalCalls:0,averageMs:0,models:[]});
+  }
   const { data, error } = await supabaseAdmin
     .from("api_usage")
-    .select("provider,model,latency_ms,created_at,success")
+    .select("student_id,provider,model,latency_ms,created_at,success")
     .gte("created_at", start.toISOString())
     .lte("created_at", end.toISOString())
     .not("latency_ms", "is", null)
@@ -67,7 +68,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: `讀取 AI 解題時間失敗：${error.message}` }, { status: 500 });
   }
 
-  const rows = (data || []).filter((row: any) => Number(row.latency_ms) > 0);
+  const allowed = allowedIds === null ? null : new Set(allowedIds);
+  const rows = (data || []).filter((row: any) => Number(row.latency_ms) > 0 && (!allowed || allowed.has(row.student_id)));
   const groups = new Map<string, { model: string; provider: string; values: number[] }>();
 
   for (const row of rows as any[]) {
