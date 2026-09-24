@@ -336,6 +336,40 @@ function formatOptionAnalysis(text: string) {
     .replace(/^\s*([A-Z])[.、]\s*錯[：:]\s*/gm, "✕ ($1) ");
 }
 
+function ExplanationSteps(props: { text: string; annotations?: Annotation[]; onAnnotationClick?: (annotation: Annotation) => void }) {
+  // Split only outside display math so equations and clickable annotations stay intact.
+  const groups: { label?: string; title?: string; lines: string[] }[] = [{ lines: [] }];
+  let inFormula = false;
+  for (const line of props.text.split("\n")) {
+    const heading = !inFormula && line.trim().replace(/^#{1,6}\s*/, "").replace(/\*\*/g, "").match(/^步驟\s*([一二三四五六七八九十\d]+)\s*[：:.、]\s*(.*)$/);
+    if (heading) groups.push({ label: `步驟 ${heading[1]}`, title: heading[2], lines: [] });
+    else groups[groups.length - 1].lines.push(line);
+    if ((line.match(/\$\$/g) || []).length % 2) inFormula = !inFormula;
+  }
+  if (groups.length === 1) return <ScienceText {...props} />;
+  return <div className="solution-steps">{groups.map((group, index) => group.label ? (
+    <section className="solution-step" key={index}>
+      <div className="solution-step-heading" role="heading" aria-level={4}><span className="solution-step-label">{group.label}</span><ScienceText {...props} text={group.title || ""} /></div>
+      <ScienceText {...props} text={group.lines.join("\n").trim()} />
+    </section>
+  ) : group.lines.join("\n").trim() ? <ScienceText {...props} key={index} text={group.lines.join("\n").trim()} /> : null)}</div>;
+}
+
+function SolveProgress({ accepted, stage, connectionError }: { accepted: boolean; stage?: string; connectionError: string }) {
+  const current = !accepted ? 0 : stage === "saving" ? 3 : ["verifier", "arbiter"].includes(stage || "") ? 2 : 1;
+  const labels = ["送出題目", "分析題目", "核對解法", "儲存解析"];
+  return <div className="solve-progress-card">
+    <p className="solve-progress-title" role="status">{accepted ? "已送出題目，分析題目中" : "正在送出題目，請保持頁面開啟"}</p>
+    <div className="solve-progress-track" role="progressbar" aria-label="解題處理階段" aria-valuetext={`${labels[current]}中`}>
+      {labels.map((label, index) => <span key={label} className={index < current ? "done" : index === current ? "active" : ""} />)}
+    </div>
+    <div className="solve-progress-labels" aria-hidden="true">{labels.map((label, index) => <span key={label} className={index === current ? "active" : ""}>{label}</span>)}</div>
+    <p className="solve-progress-help">{accepted ? <>任務已建立，可以離開頁面。<br />回來後會自動恢復進度。</> : "圖片送出並取得任務編號後，就可以離開頁面。"}</p>
+    <p className="solve-progress-note">依實際處理階段更新，所需時間依題目複雜度而異。</p>
+    {connectionError && <p role="status" className="solve-progress-help">{connectionError}</p>}
+  </div>;
+}
+
 function ScienceText({
   text,
   annotations,
@@ -2455,7 +2489,7 @@ export default function Home() {
             </>
           )}
         </header>
-        {student&&!student.mustChangePin&&solveTask.job&&<aside className="student-job-banner" aria-live="polite"><strong>{solveStages[solveTask.job.stage]||"解題任務"}</strong><p>{solveTask.connectionError||(solveTask.running?"已安全送出，可離開頁面，回來後繼續查看。":solveTask.job.status==="succeeded"?"解析已保存在「我的解題紀錄」。":"可重試原題，或重新上傳圖片。")}</p><div><button type="button" className="hh-button-secondary" onClick={()=>setActiveView("result")}>查看解析進度</button>{solveTask.job.status==="failed"&&<button type="button" className="hh-button-primary" onClick={()=>{void solveTask.retry().then(()=>{setQuestionError("");setSolveData(null);setActiveView("result");}).catch(e=>setQuestionError(e.message));}}>重試原題</button>}{!solveTask.running&&<button type="button" className="hh-button-secondary" onClick={()=>void solveTask.dismiss()}>收起</button>}</div></aside>}
+        {student&&!student.mustChangePin&&solveTask.job&&(activeView !== "result" || solveTask.job.status === "failed")&&<aside className="student-job-banner" aria-live="polite"><strong>{solveStages[solveTask.job.stage]||"解題任務"}</strong><p>{solveTask.connectionError||(solveTask.running?"已安全送出，可離開頁面，回來後繼續查看。":solveTask.job.status==="succeeded"?"解析已保存在「我的解題紀錄」。":"可重試原題，或重新上傳圖片。")}</p><div><button type="button" className="hh-button-secondary" onClick={()=>setActiveView("result")}>查看解析進度</button>{solveTask.job.status==="failed"&&<button type="button" className="hh-button-primary" onClick={()=>{void solveTask.retry().then(()=>{setQuestionError("");setSolveData(null);setActiveView("result");}).catch(e=>setQuestionError(e.message));}}>重試原題</button>}{!solveTask.running&&<button type="button" className="hh-button-secondary" onClick={()=>void solveTask.dismiss()}>收起</button>}</div></aside>}
 
 
         {!student && <section className="student-brand-intro">
@@ -2986,12 +3020,7 @@ export default function Home() {
           )}
 
           {isSolving && (
-            <div className="student-solving-card student-solving-card-v11">
-              <div className="student-solving-ring" aria-hidden="true">
-                <span />
-              </div>
-              <div className="student-solving-title">{solveTask.running?solveStages[solveTask.job?.stage||"queued"]||"正在處理題目":"正在送出題目，請先保持頁面開啟"}</div><p className="student-muted">{solveTask.running?"任務已建立，可以離開頁面；回來後會自動恢復進度。":"圖片送出並取得任務編號後，就可以離開頁面。"}</p>
-            </div>
+            <SolveProgress accepted={solveTask.running} stage={solveTask.job?.stage} connectionError={solveTask.connectionError} />
           )}
 
           {solveData && !isSolving && (
@@ -3013,7 +3042,7 @@ export default function Home() {
                   </div>
                 </div>
                 <div className="student-result-content" data-tour="explanation-content">
-                  <ScienceText text={solveData.explanation} annotations={solveData.annotations} onAnnotationClick={setSelectedAnnotation} />
+                  <ExplanationSteps text={solveData.explanation} annotations={solveData.annotations} onAnnotationClick={setSelectedAnnotation} />
                   <ScienceDiagramView diagram={solveData.diagram} />
                   <ChemicalStructureView structure={solveData.chemicalStructure} />
                 </div>
