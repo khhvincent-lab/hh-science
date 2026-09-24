@@ -2365,7 +2365,7 @@ function StudentsSection(props: {
       </section>
 
       <section className="hh-card admin-panel org-compact-panel class-only">
-        <PanelHeader eyebrow="CLASS OVERVIEW" title="各班級總覽" subtitle="選地區後查看；點欄位即可依學生、活躍、題數或成本排序" />
+        <details className="class-overview-disclosure"><summary><span><small>CLASS OVERVIEW</small><strong>各班級總覽</strong><em>{classOverview.length} 個班級 · 展開後可篩選與排序</em></span><span className="disclosure-open">展開 ＋</span><span className="disclosure-close">收合 −</span></summary><div className="class-overview-body">
         <div className="class-overview-toolbar">
           <select className="hh-select" value={overviewRegion} onChange={(event) => setOverviewRegion(event.target.value)}>
             <option value="">全部地區</option>
@@ -2389,6 +2389,7 @@ function StudentsSection(props: {
             </article>
           ))}
         </div>
+        </div></details>
       </section>
 
       <section className="hh-card admin-panel org-manager class-only">
