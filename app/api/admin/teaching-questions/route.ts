@@ -151,7 +151,7 @@ export async function GET(request: NextRequest) {
     const batchCosts = focus === "highCost" ? await fetchQuestionCosts(batchIds) : null;
     for (const row of batch) {
       const review = reviews.get(String(row.id));
-      const answerState = answerReviewState(row.answer, row.reference_answer, review);
+      const answerState = answerReviewState(row.answer, row.reference_answer, review, row.options);
       const verifierVerdict = String(row.verifier_result?.verdict || "");
       const issue = (review?.verdict === "ai_correct" || review?.verdict === "invalid_question") ? false : answerState.needsReview || review?.verdict === "ai_incorrect" ||
         (!answerState.automaticMatch && (row.dispute_status === "disputed" || Boolean(row.arbitration_trigger) || verifierVerdict === "major_error"));

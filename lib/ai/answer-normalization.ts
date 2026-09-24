@@ -280,9 +280,56 @@ function cleanReferenceFormat(text: string) {
     .trim();
 }
 
-export function referenceAnswersMatch(answer: string, reference: string) {
+// Numbered subquestions are ordered; a single multiple-choice answer remains a set.
+function orderedChoices(text: string) {
+  const source = toHalfWidth(text).trim();
+  const pattern = /(?:\((\d+)\)|(\d+)\.|第\s*([一二三四五六七八九十\d]+)\s*題|例題\s*([一二三四五六七八九十\d]+))\s*(?:是|為|:)?\s*\(?([A-H])\)?/g;
+  const matches = [...source.matchAll(pattern)];
+  if (matches.length < 2) return null;
+  if (source.replace(pattern, "").replace(/[\s,;、；，。]/g, "")) return null;
+  const ordinal = (value: string) => /^\d+$/.test(value) ? Number(value) : "一二三四五六七八九十".indexOf(value) + 1;
+  const labels = matches.map(match => ordinal(match[1] || match[2] || match[3] || match[4]));
+  if (labels.some((value, index) => value <= 0 || (index > 0 && value !== labels[index - 1] + 1))) return null;
+  return { values: matches.map(match => match[5]), labels, examples: Boolean(matches[0][4]) };
+}
+
+function plainChoiceSequence(text: string) {
+  if (!/^\s*\(?[A-H]\)?(?:\s*(?:[,、;；和及與]|\s)\s*\(?[A-H]\)?)+\s*$/.test(text)) return null;
+  return text.match(/[A-H]/g);
+}
+
+/** Resolve only one selected option, never numbers from unrelated options or conditions. */
+function selectedOptionValue(answer: string, options: string) {
+  const choice = answer.match(/^\(?([A-H])\)?$/)?.[1];
+  if (!choice || !options) return null;
+  const text = cleanReferenceFormat(options);
+  const blocks = [...text.matchAll(/\(([A-H])\)\s*([\s\S]*?)(?=\([A-H]\)|$)/g)];
+  if (new Set(blocks.map(block => block[1])).size !== blocks.length) return null;
+  const selected = blocks.filter(block => block[1] === choice);
+  if (selected.length !== 1) return null;
+  const body = selected[0][2].trim();
+  const numeric = "[+-]?(?:\\d+(?:\\.\\d*)?|\\.\\d+)(?:e[+-]?\\d+)?";
+  const unit = "(?:m/s|mL|mol|mmol|kg|mg|g|cm|mm|m|s|L|mmHg|kPa|Pa|atm|kJ|J|%)";
+  const direct = body.match(new RegExp(`^(${numeric}\\s*(?:${unit})?)\\s*[。.]?$`));
+  if (direct) return direct[1];
+  if (!/^對[:：]/.test(body) || /並非|不是|不等於|錯誤|或/.test(body)) return null;
+  const conclusions = [...body.matchAll(new RegExp(`(?:波速|速度|質量|體積|壓力|溫度|週期|頻率|物質的量|莫耳數|濃度)為\\s*(${numeric}\\s*${unit})(?=[\\s,，。；;]|$)`, "g"))];
+  return conclusions.length === 1 ? conclusions[0][1] : null;
+}
+
+export function referenceAnswersMatch(answer: string, reference: string, options = "") {
+  const orderedAnswer = orderedChoices(answer), orderedReference = orderedChoices(reference);
+  if (orderedAnswer || orderedReference) {
+    const actual = orderedAnswer?.values || plainChoiceSequence(toHalfWidth(answer));
+    const expected = orderedReference?.values || plainChoiceSequence(toHalfWidth(reference));
+    if (orderedAnswer && orderedReference && orderedAnswer.examples === orderedReference.examples
+      && orderedAnswer.labels.join() !== orderedReference.labels.join()) return false;
+    return Boolean(actual && expected && actual.length === expected.length && actual.every((value, index) => value === expected[index]));
+  }
   answer = cleanReferenceFormat(answer);
   reference = cleanReferenceFormat(reference);
+  const selectedValue = selectedOptionValue(answer, options);
+  if (selectedValue && referenceAnswersMatch(selectedValue, reference)) return true;
   const formula = (text: string) => text.replace(/[₀-₉]/g, char => String(char.charCodeAt(0) - 0x2080)).replace(/_\{(\d+)\}/g, "$1").replace(/_(\d+)/g, "$1").replace(/\s+/g, "");
   const aFormula = formula(answer), rFormula = formula(reference);
   if (/^(?:[A-Z][a-z]?\d*)+$/.test(aFormula) && /^(?:[A-Z][a-z]?\d*)+$/.test(rFormula)) {
@@ -302,7 +349,7 @@ export function referenceAnswersMatch(answer: string, reference: string) {
       const label = part.match(/^\((\d+)\)\s*/);
       if (label && Number(label[1]) !== index + 1) return null;
       const cleaned = part.replace(/^\(\d+\)\s*/, "");
-      const match = cleaned.match(/^([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?)\s*(kJ\/mol|J\/mol|mol|mmol|g|kg|mg|L|mL|m|cm|mm|s|min|h|K|°C|℃|Pa|kPa|MPa|atm|mmHg|J|kJ|cal|kcal|N|V|A|W|Hz|%|公克|克|公斤|莫耳|毫升|公升)?$/);
+      const match = cleaned.match(/^([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?)\s*(m\/s|kJ\/mol|J\/mol|mol|mmol|g|kg|mg|L|mL|m|cm|mm|s|min|h|K|°C|℃|Pa|kPa|MPa|atm|mmHg|J|kJ|cal|kcal|N|V|A|W|Hz|%|公克|克|公斤|莫耳|毫升|公升)?$/);
       if (!match || !Number.isFinite(Number(match[1]))) return null;
       return { number: Number(match[1]), unit: match[2] || "" };
     });

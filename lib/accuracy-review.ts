@@ -29,9 +29,9 @@ export async function getAccuracyReviews(ids: string[]) {
   return map;
 }
 
-export function answerReviewState(answer: string | null, reference: string | null, review?: AccuracyReview) {
+export function answerReviewState(answer: string | null, reference: string | null, review?: AccuracyReview, options?: string | null) {
   const hasReference = Boolean(reference?.trim());
-  const automaticMatch = hasReference && referenceAnswersMatch(answer || "", reference || "");
+  const automaticMatch = hasReference && referenceAnswersMatch(answer || "", reference || "", options || "");
   const partialMatch = hasReference && !automaticMatch && referencePartiallyMatches(answer || "", reference || "");
   const excluded = review?.verdict === "invalid_question" || (partialMatch && (!review || review.verdict === "unreviewed"));
   return {

@@ -304,7 +304,7 @@ export async function GET(
 
         supabaseAdmin
           .from("solve_history")
-          .select("id,student_id,reference_answer,answer")
+          .select("id,student_id,reference_answer,answer,options")
           .gte("created_at", ranges.monthStart)
           .lt("created_at", ranges.nextMonthStart),
 
@@ -383,7 +383,7 @@ export async function GET(
     monthHistoryResult.data = (monthHistoryResult.data || []).filter((row:any) => allowStudent(row.student_id));
     const referenceRows = monthHistoryResult.data.filter((row) => typeof row.reference_answer === "string" && row.reference_answer.trim().length > 0);
     const accuracyReviews = await getAccuracyReviews(referenceRows.map((row) => String(row.id)));
-    const referenceMatches = referenceRows.filter((row) => answerReviewState(row.answer, row.reference_answer, accuracyReviews.get(String(row.id))).countsCorrect).length;
+    const referenceMatches = referenceRows.filter((row) => answerReviewState(row.answer, row.reference_answer, accuracyReviews.get(String(row.id)), row.options).countsCorrect).length;
     dailyUsageResult.data = (dailyUsageResult.data || []).filter((row:any) => allowStudent(row.student_id));
     studentsResult.data = (studentsResult.data || []).filter((row:any) => allowStudent(row.id));
 
@@ -606,7 +606,7 @@ export async function GET(
       },
 
       month: {
-        referenceCases: referenceRows.filter((row) => !answerReviewState(row.answer, row.reference_answer, accuracyReviews.get(String(row.id))).excluded).length,
+        referenceCases: referenceRows.filter((row) => !answerReviewState(row.answer, row.reference_answer, accuracyReviews.get(String(row.id)), row.options).excluded).length,
         referenceMatches,
         questions:
           (monthHistoryResult.data || []).length,

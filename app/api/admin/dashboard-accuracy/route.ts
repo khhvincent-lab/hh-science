@@ -3,7 +3,7 @@ import { getAccessibleStudentIds, requireAdminSession } from "@/lib/admin-access
 import { answerReviewState, getAccuracyReviews } from "@/lib/accuracy-review";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
-type SolveAnswer = { id: string; answer: string | null; reference_answer: string | null };
+type SolveAnswer = { id: string; answer: string | null; reference_answer: string | null; options: string | null };
 
 function taiwanTodayStart() {
   const parts = new Intl.DateTimeFormat("en-CA", {
@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
     for (const group of groups) {
       for (let offset = 0; ; offset += 1000) {
         let query = supabaseAdmin.from("solve_history")
-          .select("id,answer,reference_answer")
+          .select("id,answer,reference_answer,options")
           .not("reference_answer", "is", null);
         if (group) query = query.in("student_id", group);
         if (since) query = query.gte("created_at", since);
@@ -48,7 +48,7 @@ export async function GET(request: NextRequest) {
         for (const row of rows) {
           if (!row.reference_answer?.trim()) continue;
           const review = reviewMap.get(row.id);
-          const state = answerReviewState(row.answer, row.reference_answer, review);
+          const state = answerReviewState(row.answer, row.reference_answer, review, row.options);
           if (state.needsReview) pendingReview++;
           if (state.excluded) continue;
           referenceCases++;
