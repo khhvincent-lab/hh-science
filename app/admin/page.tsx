@@ -1,5 +1,6 @@
 "use client";
 import AdminPasswordChange from "@/components/admin-password-change";
+import DashboardV211 from "./dashboard-v211";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import katex from "katex";
@@ -1308,9 +1309,8 @@ export default function AdminPage() {
             </div>
           )}
           {activeSection === "dashboard" && (
-            <DashboardSection
+            <DashboardV211
               dashboard={dashboard}
-              solverSettings={solverSettings}
               loading={dashboardLoading}
               error={dashboardError}
               isSuperAdmin={adminUser?.role === "super_admin"}
@@ -11024,4 +11024,3 @@ const adminStyles = `
 
 
 `;
-
