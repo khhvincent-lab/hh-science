@@ -1,17 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyAdminSessionToken } from "@/lib/admin-session";
+import { requireAdminSession } from "@/lib/admin-access";
 import { getAISolverSettings } from "@/lib/ai-settings";
 import { runSolver } from "@/lib/ai/solver";
 import { parseAIJson } from "@/lib/ai/json";
 import { buildTeachingContext } from "@/lib/teaching-engine";
 
-async function requireAdmin(request: NextRequest) {
-  const token = request.cookies.get("hh_science_admin_session")?.value;
-  return token ? verifyAdminSessionToken(token) : null;
-}
 
 export async function POST(request: NextRequest) {
-  if (!(await requireAdmin(request))) {
+  if (!(await requireAdminSession(request))) {
     return NextResponse.json({ error: "未登入管理員。" }, { status: 401 });
   }
 
