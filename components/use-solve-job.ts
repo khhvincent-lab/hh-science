@@ -1,6 +1,6 @@
 "use client";
 import {useEffect,useRef,useState} from 'react';
-export type SolveJob={id:string;status:string;stage:string;result?:any;httpStatus?:number;images?:string[]};
+export type SolveJob={id:string;status:string;stage:string;createdAt?:string;result?:any;httpStatus?:number;images?:string[]};
 export const solveStages:Record<string,string>={uploading:'正在上傳題目',queued:'已排入解題佇列',science_gate:'正在辨識題目與科目',primary:'正在分析與解題',verifier:'正在交叉驗算',arbiter:'正在核對不同解法',saving:'正在儲存解析',complete:'解題已完成',failed:'本次解題未完成'};
 export function useSolveJob(studentId:string|undefined,onComplete:(job:SolveJob)=>void,onFailed:(job:SolveJob)=>void){
  const [job,setJob]=useState<SolveJob|null>(null),[connectionError,setConnectionError]=useState('');

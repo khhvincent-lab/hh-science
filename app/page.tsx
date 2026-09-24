@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import SolveProgress from "@/components/solve-progress";
 import {useSolveJob,solveStages} from "@/components/use-solve-job";
 import { Cropper } from "react-cropper";
 import katex from "katex";
@@ -353,21 +354,6 @@ function ExplanationSteps(props: { text: string; annotations?: Annotation[]; onA
       <ScienceText {...props} text={group.lines.join("\n").trim()} />
     </section>
   ) : group.lines.join("\n").trim() ? <ScienceText {...props} key={index} text={group.lines.join("\n").trim()} /> : null)}</div>;
-}
-
-function SolveProgress({ accepted, stage, connectionError }: { accepted: boolean; stage?: string; connectionError: string }) {
-  const current = !accepted ? 0 : stage === "saving" ? 3 : ["verifier", "arbiter"].includes(stage || "") ? 2 : 1;
-  const labels = ["送出題目", "分析題目", "核對解法", "儲存解析"];
-  return <div className="solve-progress-card">
-    <p className="solve-progress-title" role="status">{accepted ? "已送出題目，分析題目中" : "正在送出題目，請保持頁面開啟"}</p>
-    <div className="solve-progress-track" role="progressbar" aria-label="解題處理階段" aria-valuetext={`${labels[current]}中`}>
-      {labels.map((label, index) => <span key={label} className={index < current ? "done" : index === current ? "active" : ""} />)}
-    </div>
-    <div className="solve-progress-labels" aria-hidden="true">{labels.map((label, index) => <span key={label} className={index === current ? "active" : ""}>{label}</span>)}</div>
-    <p className="solve-progress-help">{accepted ? <>任務已建立，可以離開頁面。<br />回來後會自動恢復進度。</> : "圖片送出並取得任務編號後，就可以離開頁面。"}</p>
-    <p className="solve-progress-note">依實際處理階段更新，所需時間依題目複雜度而異。</p>
-    {connectionError && <p role="status" className="solve-progress-help">{connectionError}</p>}
-  </div>;
 }
 
 function ScienceText({
@@ -3019,8 +3005,8 @@ export default function Home() {
             </div>
           )}
 
-          {isSolving && (
-            <SolveProgress accepted={solveTask.running} stage={solveTask.job?.stage} connectionError={solveTask.connectionError} />
+          {(isSolving || solveData) && (
+            <SolveProgress accepted={solveTask.running} completed={!isSolving && Boolean(solveData)} createdAt={solveTask.running ? solveTask.job?.createdAt : undefined} connectionError={solveTask.connectionError} />
           )}
 
           {solveData && !isSolving && (
@@ -5840,7 +5826,7 @@ export default function Home() {
           padding: 34px 20px;
           border: 1px solid color-mix(in srgb, #b6944b 32%, var(--border));
           background: color-mix(in srgb, var(--surface) 96%, #c8aa68 4%);
-          animation: student-loading-breathe 2.1s ease-in-out infinite;
+          animation: student-loading-breathe 4.8s ease-in-out infinite;
           text-align: center;
           isolation: isolate;
         }
@@ -5862,10 +5848,10 @@ export default function Home() {
             color-mix(in srgb, #d9bd7c 12%, transparent) 60%,
             transparent 100%
           );
-          filter: blur(2px);
+          filter: blur(7px);
           transform: translate3d(-170%, 0, 0) skewX(-12deg);
           will-change: transform;
-          animation: student-loading-shimmer-pass 1.95s linear infinite;
+          animation: student-loading-shimmer-pass 5.6s cubic-bezier(.45, 0, .55, 1) infinite;
           pointer-events: none;
         }
 
@@ -5876,7 +5862,7 @@ export default function Home() {
           border: 3px solid color-mix(in srgb, #b6944b 22%, var(--border));
           border-top-color: #b6944b;
           border-radius: 50%;
-          animation: student-loading-spin .85s linear infinite;
+          animation: student-loading-spin 1.35s linear infinite;
         }
 
         .student-solving-ring span {
@@ -5995,12 +5981,10 @@ export default function Home() {
         }
 
         @keyframes student-loading-shimmer-pass {
-          0% {
-            transform: translate3d(-170%, 0, 0) skewX(-12deg);
-          }
-          100% {
-            transform: translate3d(340%, 0, 0) skewX(-12deg);
-          }
+          0%, 12% { transform: translate3d(-170%, 0, 0) skewX(-12deg); opacity: 0; }
+          30% { opacity: .55; }
+          55% { opacity: .7; }
+          82%, 100% { transform: translate3d(340%, 0, 0) skewX(-12deg); opacity: 0; }
         }
 
         @keyframes student-loading-breathe {

@@ -1040,20 +1040,19 @@ html[data-theme="obsidian"] .student-page .v206-quota-danger{
 }
 
 /* Compact, stage-based solve feedback and readable explanation steps. */
-html[data-theme] .student-page .solve-progress-card {padding:20px 16px;border:1px solid var(--border);border-radius:16px;background:var(--surface);}
+html[data-theme] .student-page .solve-progress-card {padding:24px 18px;border:1px solid var(--border);border-radius:16px;background:var(--surface);gap:0;}
+html[data-theme] .student-page .solve-progress-card .student-solving-ring {margin:2px 0 18px;}
 html[data-theme] .student-page .solve-progress-title {font-size:17px;font-weight:750;margin:0 0 18px;line-height:1.5;}
-.solve-progress-track {display:flex;gap:5px;height:7px;overflow:hidden;border-radius:8px;}
-.solve-progress-track>span {flex:1;background:color-mix(in srgb,var(--text) 12%,transparent);position:relative;overflow:hidden;border-radius:8px;}
-.solve-progress-track>span.done {background:var(--action);}
-.solve-progress-track>span.active {background:color-mix(in srgb,var(--action) 35%,transparent);}
-.solve-progress-track>span.active::after {content:"";position:absolute;inset:0;background:var(--action);animation:solve-stage-pulse 1.6s ease-in-out infinite;}
-.solve-progress-labels {display:flex;gap:5px;margin-top:9px;font-size:11px;color:var(--text-secondary);}
-.solve-progress-labels>span {flex:1;text-align:center;}
-.solve-progress-labels .active {color:var(--text);font-weight:750;}
+.solve-progress-meter {width:100%;max-width:420px;min-width:0;}
+.solve-progress-caption {display:flex;justify-content:space-between;gap:12px;margin-bottom:9px;font-size:12px;line-height:1.4;color:var(--text-secondary);font-variant-numeric:tabular-nums;}
+.solve-progress-track {height:7px;overflow:hidden;border-radius:8px;background:color-mix(in srgb,var(--text) 12%,transparent);}
+.solve-progress-track .solve-progress-fill {display:block;height:100%;width:100%;border-radius:inherit;background:linear-gradient(90deg,var(--action),color-mix(in srgb,var(--action) 65%,white));transform-origin:left center;transition:transform .7s linear;}
 html[data-theme] .student-page .solve-progress-help {font-size:13px;line-height:1.7;color:var(--text-secondary);margin:18px 0 0;}
 html[data-theme] .student-page .solve-progress-note {font-size:11px;line-height:1.6;color:var(--text-secondary);margin:8px 0 0;}
-@keyframes solve-stage-pulse {0%,100%{opacity:.35}50%{opacity:1}}
-@media(prefers-reduced-motion:reduce){.solve-progress-track>span.active::after{animation:none;opacity:.7;}}
+html[data-theme] .student-page .solve-progress-complete {padding:12px 16px;margin-bottom:12px;}
+html[data-theme] .student-page .solve-progress-complete .solve-progress-title {font-size:14px;margin-bottom:8px;}
+.solve-progress-complete .solve-progress-meter {max-width:none;}
+@media(prefers-reduced-motion:reduce){.solve-progress-track .solve-progress-fill{transition:none;}}
 html[data-theme] .student-page .student-result-panel .student-answer-card {padding:12px 16px;}
 html[data-theme] .student-page .student-result-panel .student-result-label {font-size:9px;line-height:1.2;letter-spacing:.1em;}
 html[data-theme] .student-page .student-result-panel .student-answer-row {margin-top:6px;gap:10px;}
