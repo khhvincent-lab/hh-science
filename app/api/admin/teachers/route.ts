@@ -5,7 +5,7 @@ import { requireAdminSession } from "@/lib/admin-access";
 import { canCreateRole,canManageAccounts,institutionGrants,mayManageTarget } from "@/lib/admin-account-policy";
 import type { AdminRole } from "@/lib/admin-session";
 const clean=(v:unknown)=>typeof v==="string"?v.trim():"";
-const roles:AdminRole[]=["super_admin","platform_admin","institution_admin","teacher"];
+const roles:AdminRole[]=["teacher"];
 const unique=(v:unknown)=>Array.isArray(v)?[...new Set(v.map(clean).filter(Boolean))]:[];
 const fail=(msg:string,status=403)=>NextResponse.json({error:msg},{status});
 async function within(actor:{role:AdminRole;userId:string},ids:string[]){
@@ -16,7 +16,6 @@ async function within(actor:{role:AdminRole;userId:string},ids:string[]){
 export async function GET(request:NextRequest){
  const actor=await requireAdminSession(request);
  if(!actor)return fail("未登入。",401);
- if(!canManageAccounts(actor.role))return fail("權限不足。");
  const [{data:users,error:ue},{data:links,error:le},{data:grants,error:ge}]=await Promise.all([
   supabaseAdmin.from("admin_users").select("id,username,display_name,role,active,created_at,last_login_at").is("deleted_at",null).order("display_name"),
   supabaseAdmin.from("admin_user_classes").select("admin_user_id,class_id"),
@@ -32,7 +31,7 @@ export async function GET(request:NextRequest){
  const output=(users??[]).filter((u:any)=>{
   if(!mine)return true;
   if(u.id===actor.userId)return true;
-  if(!canCreateRole(actor.role,u.role))return false;
+  if(u.id!==actor.userId)return false;
   const theirs=(grants??[]).filter((x:any)=>x.admin_user_id===u.id).map((x:any)=>String(x.institution_id));
   return theirs.length>0&&theirs.every((id:string)=>mine.includes(id));
  }).map((u:any)=>({...u,classIds:(links??[]).filter((x:any)=>x.admin_user_id===u.id).map((x:any)=>x.class_id),institutionIds:(grants??[]).filter((x:any)=>x.admin_user_id===u.id).map((x:any)=>x.institution_id)}));
@@ -51,7 +50,6 @@ export async function POST(request:NextRequest){
   if(!displayName||displayName.length>40)return fail("請填寫教師姓名，最多 40 字。",400);
   if(password.length<10||password.length>128)return fail("初始密碼需 10–128 碼。",400);
   if(role!=="super_admin"&&!institutionIds.length)return fail("請勾選至少一間補習班。",400);
-  if(role==="institution_admin"&&institutionIds.length!==1)return fail("補習班管理員只能管理一間補習班。",400);
   if(!(await within(actor,institutionIds)))return fail("不可授權自己管理範圍以外的補習班。",403);
   if(institutionIds.length){
    const {data:institutions,error:ie}=await supabaseAdmin.from("institutions").select("id").in("id",institutionIds);
@@ -88,13 +86,12 @@ export async function PATCH(request:NextRequest){
  if(te||!target)return fail("找不到帳號。",404);
  if(id===actor.userId)return fail("請使用個人密碼設定；不可變更自身權限或停用自己。");
  if(!(await mayManageTarget(actor,target)))return fail("不可修改超出管理範圍的帳號。");
- const role=(b?.role??target.role) as AdminRole;
- if(!roles.includes(role)||!canCreateRole(actor.role,role))return fail("不可指派此角色。");
+ const role:AdminRole="teacher";
+ if(b?.role && b.role!=="teacher")return fail("只可建立與管理教師帳號。");
  const institutionIds=Array.isArray(b?.institutionIds)?unique(b.institutionIds):null;
  
  const effectiveInstitutions=institutionIds??await institutionGrants(id);
  if(role!=="super_admin"&&!effectiveInstitutions.length)return fail("請先選擇補習班。",400);
- if(role==="institution_admin"&&effectiveInstitutions.length!==1)return fail("補習班管理員限一間補習班。",400);
  if(!(await within(actor,effectiveInstitutions)))return fail("不可授權管理範圍以外的補習班。");
  const update:Record<string,unknown>={};
  if(role!==target.role)update.role=role;
