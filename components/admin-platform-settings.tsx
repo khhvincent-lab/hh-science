@@ -30,8 +30,9 @@ export default function AdminPlatformSettings({ actor, onBrandChanged }: { actor
   },[]);
   useEffect(()=>{void load().catch(e=>setAccountLoadError(e instanceof Error?e.message:"讀取設定失敗。"));},[load]);
   const teacherRows=useMemo(()=>teachers.filter(t=>t.id!==actor?.id),[teachers,actor?.id]);
-  const canCreate=(r:string)=>actor?.role==="super_admin"||actor?.role==="platform_admin"&&["institution_admin","teacher"].includes(r)||actor?.role==="institution_admin"&&r==="teacher";
-  const visibleInstitutions=actor?.role==="super_admin"?institutions:institutions.filter(i=>(teachers.find(t=>t.id===actor?.id)?.institutionIds||[]).includes(i.id));
+  const isOwner=actor?.role==="super_admin";
+  const canCreate=(r:string)=>isOwner&&r==="teacher";
+  const visibleInstitutions=isOwner?institutions:institutions.filter(i=>(teachers.find(t=>t.id===actor?.id)?.institutionIds||[]).includes(i.id));
   const institutionLabel=(i:InstitutionRow)=>`${regions.find(r=>r.id===i.region_id)?.name||"未分類"}｜${i.name}`;
   function accountStatus(kind:"error"|"success",text:string){
     setAccountFeedback({kind,text});
@@ -46,7 +47,6 @@ export default function AdminPlatformSettings({ actor, onBrandChanged }: { actor
     if(!name||name.length>40)return accountStatus("error","請填寫教師姓名，最多 40 字。");
     if(password.length<10||password.length>128)return accountStatus("error","請設定 10～128 碼初始密碼。");
     if(role!=="super_admin"&&!institutionIds.length)return accountStatus("error","請先勾選至少一間補習班；教師將自動管理該補習班的所有班級。");
-    if(role==="institution_admin"&&institutionIds.length!==1)return accountStatus("error","補習班管理員只能勾選一間補習班。");
     if(!canCreate(role))return accountStatus("error","目前登入的管理員沒有建立此角色的權限。");
     setBusy(true);
     let created=false;
@@ -98,37 +98,38 @@ export default function AdminPlatformSettings({ actor, onBrandChanged }: { actor
   }
   return <div className="admin-platform-stack">
     {message&&<div className="admin-notice success">{message}</div>}{error&&<div className="admin-notice danger">{error}</div>}
-    {actor?.role==="super_admin"&&<section className="hh-card admin-panel">
+    {<section className="hh-card admin-panel">
       <div className="admin-panel-heading"><div><div className="hh-eyebrow">BRANDING</div><h2 className="hh-display">品牌設定</h2><p>修改網站顯示品牌；主網址維持原本網址，不會自動更換。</p></div></div>
-      <div className="admin-settings-grid">
+      {!isOwner&&<div className="admin-notice">僅總管理員可調整品牌；以下顯示目前設定。</div>}
+      <fieldset disabled={!isOwner} className="admin-readonly-fieldset"><div className="admin-settings-grid">
         <label className="admin-field"><span>品牌名稱</span><input className="hh-input" value={brand.name||""} onChange={e=>setBrand({...brand,name:e.target.value})}/></label>
         <label className="admin-field"><span>英文名稱</span><input className="hh-input" value={brand.english_name||""} onChange={e=>setBrand({...brand,english_name:e.target.value})}/></label>
         <label className="admin-field"><span>管理中心名稱</span><input className="hh-input" value={brand.admin_name||""} onChange={e=>setBrand({...brand,admin_name:e.target.value})}/></label>
         <label className="admin-field"><span>識別色</span><input className="hh-input" type="color" value={brand.primary_color||"#30463B"} onChange={e=>setBrand({...brand,primary_color:e.target.value})}/></label>
-      </div><div className="admin-actions"><button className="hh-button-primary" type="button" onClick={()=>void saveBrand()} disabled={busy}>儲存品牌設定</button></div>
+      </div><div className="admin-actions"><button className="hh-button-primary" type="button" onClick={()=>void saveBrand()} disabled={busy||!isOwner}>儲存品牌設定</button></div></fieldset>
     </section>}
-    {actor?.role==="super_admin"&&<section className="hh-card admin-panel">
+    {<section className="hh-card admin-panel">
       <div className="admin-panel-heading"><div><div className="hh-eyebrow">INSTITUTION BRANDING</div><h2 className="hh-display">各補習班顯示標題</h2><p>每個補習班可使用獨立名稱。留白時沿用上方全站品牌；不會改變網址或其他補習班資料。</p></div></div>
-      <div className="teacher-account-list">{institutions.map(institution=><InstitutionTitleEditor key={institution.id} institution={{...institution,name:institutionLabel(institution)}} disabled={busy} onSave={saveInstitutionTitle}/>)}</div>
+      <div className="teacher-account-list">{institutions.map(institution=><InstitutionTitleEditor key={institution.id} institution={{...institution,name:institutionLabel(institution)}} disabled={busy||!isOwner} onSave={saveInstitutionTitle}/>)}</div>
     </section>}
     <section className="hh-card admin-panel">
-      <div className="admin-panel-heading"><div><div className="hh-eyebrow">TEACHER ACCOUNTS</div><h2 className="hh-display">管理員分級與教師帳號</h2><p>總管理員／跨補習班管理員／補習班管理員／教師，統一採補習班層級授權，教師可查看授權補習班的全部班級與學生。</p></div></div>
+      <div className="admin-panel-heading"><div><div className="hh-eyebrow">TEACHER ACCOUNTS</div><h2 className="hh-display">管理員分級與教師帳號</h2><p>僅保留總管理員與教師兩種身分；由總管理員勾選補習班，教師自動管理授權補習班的全部班級與學生。</p></div></div>
       {accountLoadError&&<div className="admin-notice danger" role="alert">教師名單或補習班讀取異常：{accountLoadError} <button type="button" className="admin-ghost-button" onClick={()=>void load().then(()=>setAccountLoadError("")).catch(e=>setAccountLoadError(e instanceof Error?e.message:"重新讀取失敗"))}>重新整理教師名單</button></div>}
-      <div className="admin-settings-grid">
-        <label className="admin-field"><span>帳號角色</span><select className="hh-input" value={role} onChange={e=>{setRole(e.target.value);setInstitutionIds([]);}}>{[["super_admin","總管理員"],["platform_admin","跨補習班管理員"],["institution_admin","補習班管理員"],["teacher","教師"]].filter(x=>canCreate(x[0])).map(x=><option value={x[0]} key={x[0]}>{x[1]}</option>)}</select></label>
+      {!isOwner&&<div className="admin-notice">教師帳號與授權由總管理員統一管理；此處為唯讀。</div>}
+      <fieldset disabled={!isOwner} className="admin-readonly-fieldset"><div className="admin-settings-grid">
+        <label className="admin-field"><span>帳號角色</span><select className="hh-input" value="teacher" disabled><option value="teacher">教師</option></select></label>
         <label className="admin-field"><span>登入帳號</span><input className="hh-input" value={username} onChange={e=>setUsername(e.target.value)} placeholder="例如 wang.chem"/></label>
         <label className="admin-field"><span>顯示姓名</span><input className="hh-input" value={displayName} onChange={e=>setDisplayName(e.target.value)} placeholder="例如 王老師"/></label>
         <label className="admin-field"><span>初始密碼</span><input className="hh-input" type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="至少 10 碼"/></label>
       </div>
-      {role!=="super_admin"&&<div className="teacher-class-picker"><strong>補習班授權（補習班管理員限一間）</strong><div className="teacher-class-grid">{visibleInstitutions.map(i=><label key={i.id} className="teacher-class-chip"><input type="checkbox" checked={institutionIds.includes(i.id)} onChange={e=>setInstitutionIds(old=>e.target.checked?(role==="institution_admin"?[i.id]:[...old,i.id]):old.filter(x=>x!==i.id))}/><span>{institutionLabel(i)}</span></label>)}</div></div>}
+      {<div className="teacher-class-picker"><strong>補習班授權（可勾選多間）</strong><div className="teacher-class-grid">{visibleInstitutions.map(i=><label key={i.id} className="teacher-class-chip"><input type="checkbox" checked={institutionIds.includes(i.id)} onChange={e=>setInstitutionIds(old=>e.target.checked?[...old,i.id]:old.filter(x=>x!==i.id))}/><span>{institutionLabel(i)}</span></label>)}</div></div>}
       {role==="teacher"&&<p className="v2-scope-tip">教師自動管理所選補習班的全部班級，包含未來新增的班級。</p>}
-      <div className="admin-actions"><button className="hh-button-primary" type="button" onClick={()=>void addTeacher()} disabled={busy}>{busy?"正在建立帳號…":"新增帳號"}</button></div>
+      <div className="admin-actions"><button className="hh-button-primary" type="button" onClick={()=>void addTeacher()} disabled={busy||!isOwner}>{busy?"正在建立帳號…":"新增教師帳號"}</button></div></fieldset>
       <div ref={accountFeedbackRef} aria-live="polite" aria-atomic="true">{accountFeedback&&<div role={accountFeedback.kind==="error"?"alert":"status"} className={`admin-notice ${accountFeedback.kind==="error"?"danger":"success"}`}>{accountFeedback.text}</div>}</div>
-      <div className="teacher-account-list">{teacherRows.map(t=><div key={t.id} className="teacher-account-row" style={{display:"grid",gap:10}}><div><strong>{t.display_name}</strong><small>@{t.username} · {{super_admin:"總管理員",platform_admin:"跨補習班管理員",institution_admin:"補習班管理員",teacher:"教師"}[t.role]||t.role} · {t.active?"啟用":"停用"}</small></div>
-      {actor?.role==="super_admin"&&<label className="admin-field"><span>角色</span><select className="hh-input" value={t.role} onChange={e=>void updateTeacher(t.id,{role:e.target.value})}>{[["super_admin","總管理員"],["platform_admin","跨補習班管理員"],["institution_admin","補習班管理員"],["teacher","教師"]].map(x=><option value={x[0]} key={x[0]}>{x[1]}</option>)}</select></label>}
-      {t.role!=="super_admin"&&<div className="teacher-class-grid compact">{visibleInstitutions.map(i=><label key={i.id} className="teacher-class-chip"><input type="checkbox" checked={(t.institutionIds||[]).includes(i.id)} onChange={e=>{const next=e.target.checked?(t.role==="institution_admin"?[i.id]:[...(t.institutionIds||[]),i.id]):(t.institutionIds||[]).filter(x=>x!==i.id);void updateTeacher(t.id,{institutionIds:next});}}/><span>{institutionLabel(i)}</span></label>)}</div>}
+      <div className="teacher-account-list">{!isOwner&&<p>已授權補習班：{visibleInstitutions.map(institutionLabel).join("、")||"尚未授權"}</p>}{teacherRows.map(t=><div key={t.id} className="teacher-account-row" style={{display:"grid",gap:10}}><div><strong>{t.display_name}</strong><small>@{t.username} · {t.role==="super_admin"?"總管理員":"教師"} · {t.active?"啟用":"停用"}</small></div>
+      {t.role!=="super_admin"&&<div className="teacher-class-grid compact">{visibleInstitutions.map(i=><label key={i.id} className="teacher-class-chip"><input type="checkbox" checked={(t.institutionIds||[]).includes(i.id)} disabled={!isOwner} onChange={e=>{const next=e.target.checked?[...(t.institutionIds||[]),i.id]:(t.institutionIds||[]).filter(x=>x!==i.id);void updateTeacher(t.id,{institutionIds:next});}}/><span>{institutionLabel(i)}</span></label>)}</div>}
       {t.role==="teacher"&&<small>已授權補習班的所有班級</small>}
-      <div className="v2-account-actions"><button type="button" className="admin-ghost-button" onClick={()=>void resetTeacherPassword(t)}>重設密碼</button><button type="button" className="admin-ghost-button" onClick={()=>void updateTeacher(t.id,{active:!t.active})}>{t.active?"停用":"啟用"}</button><button type="button" className="v2-danger-button" disabled={busy} onClick={()=>void deleteTeacher(t)}>刪除帳號</button></div></div>)}</div>
+      <div className="v2-account-actions"><button type="button" disabled={!isOwner} className="admin-ghost-button" onClick={()=>void resetTeacherPassword(t)}>重設密碼</button><button type="button" disabled={!isOwner} className="admin-ghost-button" onClick={()=>void updateTeacher(t.id,{active:!t.active})}>{t.active?"停用":"啟用"}</button><button type="button" className="v2-danger-button" disabled={busy||!isOwner} onClick={()=>void deleteTeacher(t)}>刪除帳號</button></div></div>)}</div>
     </section>
   </div>;
 }
@@ -136,5 +137,5 @@ export default function AdminPlatformSettings({ actor, onBrandChanged }: { actor
 function InstitutionTitleEditor({institution,disabled,onSave}:{institution:InstitutionRow;disabled:boolean;onSave:(id:string,title:string)=>Promise<void>}) {
   const [title,setTitle]=useState(institution.brand_title||"");
   useEffect(()=>{setTitle(institution.brand_title||"");},[institution.brand_title]);
-  return <div className="teacher-account-row"><div><strong>{institution.name}</strong><small>學生端標題</small></div><input className="hh-input" aria-label={`${institution.name} 顯示標題`} value={title} maxLength={80} placeholder="留白 = 全站品牌" onChange={e=>setTitle(e.target.value)}/><button type="button" className="hh-button-secondary" disabled={disabled || title===(institution.brand_title||"")} onClick={()=>void onSave(institution.id,title)}>儲存</button></div>;
+  return <div className="teacher-account-row"><div><strong>{institution.name}</strong><small>學生端標題</small></div><input className="hh-input" aria-label={`${institution.name} 顯示標題`} value={title} disabled={disabled} maxLength={80} placeholder="留白 = 全站品牌" onChange={e=>setTitle(e.target.value)}/><button type="button" className="hh-button-secondary" disabled={disabled || title===(institution.brand_title||"")} onClick={()=>void onSave(institution.id,title)}>儲存</button></div>;
 }
