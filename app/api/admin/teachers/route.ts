@@ -91,7 +91,7 @@ export async function PATCH(request:NextRequest){
  const institutionIds=Array.isArray(b?.institutionIds)?unique(b.institutionIds):null;
  
  const effectiveInstitutions=institutionIds??await institutionGrants(id);
- if(role!=="super_admin"&&!effectiveInstitutions.length)return fail("請先選擇補習班。",400);
+ if(!effectiveInstitutions.length)return fail("請先選擇補習班。",400);
  if(!(await within(actor,effectiveInstitutions)))return fail("不可授權管理範圍以外的補習班。");
  const update:Record<string,unknown>={};
  if(role!==target.role)update.role=role;
