@@ -229,6 +229,9 @@ function escapeHtml(text: string) {
 function looksLikeMathExpression(text: string) {
   const value = stripExportAnnotationCommands(normalizeScienceMarkup(text || "")).trim();
   if (!value) return false;
+  // Undelimited prose must stay wrappable, even when it contains a LaTeX token.
+  // Explicit $...$ formulas are handled separately by ScienceText.
+  if (/[\u3400-\u9fff]/u.test(value)) return false;
   if (/\\[A-Za-z]+/.test(value)) return true;
   if (/[{}_^]/.test(value)) return true;
   if (/^[A-Za-z][A-Za-z0-9]*(?:_[A-Za-z0-9{}()+-]+|\^[A-Za-z0-9{}()+-]+)+$/.test(value)) return true;
@@ -4197,7 +4200,7 @@ export default function Home() {
         .student-solving-orbit { width: 42px; height: 42px; border: 2px solid color-mix(in srgb, var(--student-gold) 30%, transparent); border-top-color: var(--student-gold); border-radius: 50%; animation: studentSpin 900ms linear infinite; }
         .student-solving-orbit span { display: none; }
         @keyframes studentSpin { to { transform: rotate(360deg); } }
-        .student-result-stack { display: grid; gap: 12px; }
+        .student-result-stack { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
         .student-answer-card { padding: 17px 18px; border-radius: 17px; background: linear-gradient(135deg, var(--success-soft), var(--surface)); border: 1px solid color-mix(in srgb, var(--success) 25%, var(--border)); }
         .student-result-label { font: 700 10px/1 var(--font-inter), sans-serif; letter-spacing: .13em; color: var(--success); }
         .student-answer-row { display: flex; align-items: center; gap: 11px; margin-top: 8px; }
@@ -4216,8 +4219,11 @@ export default function Home() {
         .student-save-button { background: var(--student-gold-soft); color: var(--student-gold); border: 1px solid color-mix(in srgb, var(--student-gold) 25%, transparent); }
         .student-save-button:disabled { opacity: .55; }
         .student-save-hint { margin-top: -2px; padding: 10px 12px; border-radius: 11px; background: var(--student-gold-soft); color: var(--student-gold); border: 1px solid color-mix(in srgb, var(--student-gold) 22%, transparent); font-size: 11px; line-height: 1.6; text-align: center; }
-        .student-science-text { display: grid; gap: 3px; }
-        .student-science-text p { margin: 0; line-height: 1.82; }
+        .student-science-text { display: grid; grid-template-columns: minmax(0, 1fr); min-width: 0; max-width: 100%; gap: 3px; }
+        .student-science-text p { min-width: 0; max-width: 100%; margin: 0; line-height: 1.82; white-space: normal; overflow-wrap: anywhere; }
+        .student-result-content, .student-answer-text { min-width: 0; }
+        .student-inline-formula { display: inline-block; max-width: 100%; vertical-align: middle; overflow-x: auto; overflow-y: hidden; }
+        .student-inline-formula .katex { white-space: nowrap; overflow-wrap: normal; }
         .student-text-gap { height: 3px; }
         .student-display-formula { max-width: 100%; overflow-x: auto; overflow-y: hidden; padding: 7px 2px; }
         .student-inline-formula [data-annotation], .student-display-formula [data-annotation] { cursor: pointer; border-radius: 5px; padding: 1px 3px; background: var(--primary-soft); box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--primary) 30%, transparent); }
