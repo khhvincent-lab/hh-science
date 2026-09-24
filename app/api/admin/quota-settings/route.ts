@@ -7,32 +7,12 @@ import {
   supabaseAdmin,
 } from "@/lib/supabase-admin";
 
-import {
-  verifyAdminSessionToken,
-} from "@/lib/admin-session";
+import { requireAdminSession, isSuperAdmin } from "@/lib/admin-access";
 
 import {
   getAISolverSettings,
 } from "@/lib/ai-settings";
 
-
-async function requireAdmin(
-  request:
-    NextRequest,
-) {
-  const token =
-    request.cookies.get(
-      "hh_science_admin_session",
-    )?.value;
-
-  if (!token) {
-    return null;
-  }
-
-  return verifyAdminSessionToken(
-    token,
-  );
-}
 
 
 export async function GET(
@@ -40,7 +20,7 @@ export async function GET(
     NextRequest,
 ) {
   const admin =
-    await requireAdmin(
+    await requireAdminSession(
       request,
     );
 
@@ -72,7 +52,7 @@ export async function POST(
     NextRequest,
 ) {
   const admin =
-    await requireAdmin(
+    await requireAdminSession(
       request,
     );
 
@@ -88,6 +68,8 @@ export async function POST(
       },
     );
   }
+
+  if (!isSuperAdmin(admin)) return NextResponse.json({ error: "此設定僅總管理員可以修改。" }, { status: 403 });
 
   let body: {
     dailyLimit?:
