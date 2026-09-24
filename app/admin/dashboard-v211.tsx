@@ -33,13 +33,13 @@ function Trend({ rows, metric }: { rows: Insights["daily"]; metric: TrendMetric 
   const ceiling = Math.max(step * 4, metric === "questions" ? 4 : 0.04);
   const x = (index: number) => 66 + index * 584 / Math.max(1, rows.length - 1);
   const y = (value: number) => 183 - value / ceiling * 146;
-  const formatTick = (value: number) => metric === "questions" ? number(Math.round(value)) : `NT$${value.toLocaleString("zh-TW", { maximumFractionDigits: 2 })}`;
+  const formatTick = (value: number) => metric === "questions" ? number(Math.round(value)) : value.toLocaleString("zh-TW", { maximumFractionDigits: 2 });
   const ticks = rows.length <= 7 ? rows : rows.filter((_, i) => i % 5 === 0 || i === rows.length - 1);
   return <div className={styles.chart}>
     <svg viewBox="0 0 680 223" role="img" aria-label={`${metric === "questions" ? "每日解題題數" : "每日 AI 成本，台幣"}趨勢圖，左側有數字刻度`}>
       {[4, 3, 2, 1, 0].map((level) => { const yy = y(level * ceiling / 4); return <g key={level}><line x1="66" y1={yy} x2="650" y2={yy} className={styles.gridline} /><text x="57" y={yy + 3} textAnchor="end" className={styles.axisLabel}>{formatTick(level * ceiling / 4)}</text></g>; })}
       {rows.length > 0 && <polyline points={values.map((value, index) => `${x(index)},${y(value)}`).join(" ")} className={metric === "questions" ? styles.questionsLine : styles.costLine} />}
-      {values.map((value, index) => <circle key={rows[index].day} cx={x(index)} cy={y(value)} r={rows.length > 7 ? 2.5 : 4} className={metric === "questions" ? styles.questionPoint : styles.costPoint}><title>{rows[index].day}：{formatTick(value)}{metric === "questions" ? " 題" : ""}</title></circle>)}
+      {values.map((value, index) => <circle key={rows[index].day} cx={x(index)} cy={y(value)} r={rows.length > 7 ? 2.5 : 4} className={metric === "questions" ? styles.questionPoint : styles.costPoint}><title>{rows[index].day}：{metric === "questions" ? `${formatTick(value)} 題` : `NT$${formatTick(value)}`}</title></circle>)}
       {ticks.map((row) => {
         const index = rows.indexOf(row);
         return <text key={row.day} x={x(index)} y="213" textAnchor="middle" className={styles.axisLabel}>{row.day.slice(5)}</text>;
