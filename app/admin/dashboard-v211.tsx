@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import {useUrlState} from "@/components/admin/use-url-state";
 import styles from "./dashboard-v211.module.css";
 
 type Dashboard = {
@@ -23,7 +24,7 @@ const money = (usd: number) => `NT$${(usd * TWD_RATE).toLocaleString("zh-TW", { 
 const number = (value: number) => value.toLocaleString("zh-TW");
 type TrendMetric = "questions" | "costUsd";
 type AccuracyRange = "1" | "7" | "30" | "all";
-type Accuracy = { referenceCases: number; referenceMatches: number; pendingReview: number; reviewedCases: number };
+type Accuracy = { referenceCases: number; referenceMatches: number; pendingReview: number; reviewedCases: number; reviewedCorrect: number; automaticCases: number; automaticMatches: number; invalidCases: number };
 
 function Trend({ rows, metric }: { rows: Insights["daily"]; metric: TrendMetric }) {
   const values = rows.map((row) => metric === "questions" ? row.questions : row.costUsd * TWD_RATE);
@@ -59,9 +60,9 @@ export default function DashboardV211({
   isSuperAdmin: boolean;
   onNavigate: (section: "usage" | "cost" | "teachingQuestions" | "siteQuestions", focus?: "pending") => void;
 }) {
-  const [range, setRange] = useState<7 | 30>(7);
-  const [trendMetric, setTrendMetric] = useState<TrendMetric>("questions");
-  const [accuracyRange, setAccuracyRange] = useState<AccuracyRange>("30");
+  const [range, setRange] = useUrlState<7|30>("trend_days",7,[7,30]);
+  const [trendMetric, setTrendMetric] = useUrlState<TrendMetric>("trend_metric","questions",["questions","costUsd"]);
+  const [accuracyRange, setAccuracyRange] = useUrlState<AccuracyRange>("accuracy_days","30",["1","7","30","all"]);
   const [accuracy, setAccuracy] = useState<Accuracy | null>(null);
   const [accuracyLoading, setAccuracyLoading] = useState(true);
   const [accuracyError, setAccuracyError] = useState("");
@@ -189,7 +190,7 @@ export default function DashboardV211({
         <section className={styles.panel}><div className={styles.panelHead}><div><h3>班級活躍分析</h3><p>最近七天各班的每日解題量，顏色越亮表示題數越多</p></div></div>{ranked.length && lastSeven.length ? <div className={styles.heatmap}><div className={styles.heatHead}><span>班級</span>{lastSeven.map((row) => <span key={row.day}>{row.day.slice(5)}</span>)}</div>{ranked.slice(0, 4).map((row) => <div className={styles.heatRow} key={row.classId}><span title={row.label}>{row.label.split(" · ").slice(-1)[0]}</span>{lastSeven.map(({ day }) => { const count = insights?.heatmap[row.classId]?.[day] ?? 0; return <i key={day} title={`${day}：${count} 題`} style={{ opacity: count === 0 ? .13 : .28 + count / heatMax * .72 }} />; })}</div>)}</div> : <div className={styles.empty}>目前沒有可分析的班級紀錄。</div>}</section>
       </div>
       <div className={styles.secondary}>
-        <section className={`${styles.panel} ${styles.accuracyPanel}`}><div className={styles.panelHead}><div><h3>解題正確率</h3><p>依學生參考答案比對，並納入人工覆核</p></div></div><div className={styles.accuracyRanges} role="group" aria-label="正確率統計期間">{([ ["1", "1 天"], ["7", "7 天"], ["30", "30 天"], ["all", "全部"] ] as const).map(([value, label]) => <button type="button" key={value} className={accuracyRange === value ? styles.selected : ""} aria-pressed={accuracyRange === value} onClick={() => selectAccuracyRange(value)}>{label}</button>)}</div><strong className={styles.accuracyValue}>{accuracyLoading ? "…" : accuracy?.referenceCases ? `${Math.round(accuracy.referenceMatches / accuracy.referenceCases * 100)}%` : "—"}</strong><p className={styles.accuracyDetail}>{accuracyError || (accuracyLoading ? "正在統計…" : accuracy?.referenceCases ? `${number(accuracy.referenceMatches)} 題正確／${number(accuracy.referenceCases)} 題有填參考答案` : "這段期間尚無可比對的題目")}</p>{!accuracyLoading && !accuracyError && Boolean(accuracy?.pendingReview) && <button type="button" className={styles.reviewLink} onClick={() => onNavigate("siteQuestions", "pending")}>{number(accuracy?.pendingReview || 0)} 題答案不一致，前往核對 →</button>}<small className={styles.accuracyNote}>未填參考答案、題目有誤、部分答案待覆核不計入 · 未覆核的不一致題目為暫定結果</small></section>
+        <section className={`${styles.panel} ${styles.accuracyPanel}`}><div className={styles.panelHead}><div><h3>解題正確率</h3><p>可判定題目的比對結果，納入老師覆核</p></div></div><div className={styles.accuracyRanges} role="group" aria-label="正確率統計期間">{([ ["1", "1 天"], ["7", "7 天"], ["30", "30 天"], ["all", "全部"] ] as const).map(([value, label]) => <button type="button" key={value} className={accuracyRange === value ? styles.selected : ""} aria-pressed={accuracyRange === value} onClick={() => selectAccuracyRange(value)}>{label}</button>)}</div><strong className={styles.accuracyValue}>{accuracyLoading ? "…" : accuracy?.referenceCases ? `${Math.round(accuracy.referenceMatches / accuracy.referenceCases * 100)}%` : "—"}</strong><p className={styles.accuracyDetail}>{accuracyError || (accuracyLoading ? "正在統計…" : accuracy?.referenceCases ? `${number(accuracy.referenceMatches)} 題正確／${number(accuracy.referenceCases)} 題可判定` : "這段期間尚無可比對的題目")}</p>{!accuracyLoading && !accuracyError && Boolean(accuracy?.pendingReview) && <button type="button" className={styles.reviewLink} onClick={() => onNavigate("siteQuestions", "pending")}>{number(accuracy?.pendingReview || 0)} 題答案不一致，前往核對 →</button>}{!accuracyLoading && accuracy && <div className={styles.accuracyDetail}><p>參考答案吻合率：{accuracy.automaticCases ? `${Math.round(accuracy.automaticMatches / accuracy.automaticCases * 100)}%（${accuracy.automaticMatches}/${accuracy.automaticCases}）` : "—"}</p><p>老師覆核正確率：{accuracy.reviewedCases ? `${Math.round(accuracy.reviewedCorrect / accuracy.reviewedCases * 100)}%（${accuracy.reviewedCorrect}/${accuracy.reviewedCases}）` : "尚無覆核"}</p><p>題目有誤排除：{accuracy.invalidCases || 0} 題</p></div>}<small className={styles.accuracyNote}>未填參考答案、題目有誤及所有待核對題目均不計入。自動吻合不等於老師已確認。</small></section>
         <section className={styles.panel}><div className={styles.panelHead}><div><h3>智慧提醒</h3><p>依目前可核對的資料顯示</p></div></div><div className={styles.alerts}>{insights && insights.pending > 0 && <button type="button" onClick={() => onNavigate("teachingQuestions")}><i className={styles.amberDot} /><span><strong>{insights.pending} 題等待教師校正</strong><small>其中 {insights.pendingAnswerConflicts} 題標記為答案問題 · 查看題目 →</small></span></button>}{monthlyAlert && <button type="button" onClick={() => onNavigate("cost")}><i className={styles.amberDot} /><span><strong>本月成本達到警示門檻</strong><small>目前 {money(dashboard.month.cost)} · 查看成本明細 →</small></span></button>}{insights && insights.pending === 0 && !monthlyAlert && <p className={styles.empty}>目前沒有需要關注的事項。</p>}</div></section>
       </div>
     </div>

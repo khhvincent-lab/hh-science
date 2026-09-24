@@ -25,6 +25,22 @@ export type AIModelDefinition = {
 };
 
 export const AI_MODELS = {
+  "gpt-6-luna": {
+    id:"gpt-6-luna", provider:"openai", name:"GPT-6 Luna", description:"新版・快速與低成本",
+    inputPrice:0.10, cachedInputPrice:0.01, outputPrice:0.50,
+    reasoningLevels:["none","low","medium","high","xhigh","max"],
+  },
+  "gpt-6-sol": {
+    id:"gpt-6-sol", provider:"openai", name:"GPT-6 Sol", description:"新版・品質與成本均衡",
+    inputPrice:2, cachedInputPrice:0.20, outputPrice:10,
+    reasoningLevels:["none","low","medium","high","xhigh","max"],
+  },
+  "gpt-6-astra": {
+    id:"gpt-6-astra", provider:"openai", name:"GPT-6 Astra", description:"新版・複雜推理與仲裁",
+    inputPrice:10, cachedInputPrice:1, outputPrice:50,
+    reasoningLevels:["low","medium","high","xhigh","max"],
+  },
+
   "gpt-5.6-luna": {
     id: "gpt-5.6-luna",
     provider: "openai",
@@ -172,7 +188,7 @@ export const DEFAULT_FOLLOWUP_MODEL:
 export function isAIModelId(
   value: string
 ): value is AIModelId {
-  return value in AI_MODELS;
+  return Object.prototype.hasOwnProperty.call(AI_MODELS, value);
 }
 
 

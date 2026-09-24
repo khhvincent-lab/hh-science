@@ -151,10 +151,8 @@ function normalizeSlot(
     model,
 
     reasoning:
-      normalizeReasoning(
-        value?.reasoning ??
-          value?.reasoning_effort,
-        fallbackReasoning
+      ((requested: ReasoningEffort) => (definition.reasoningLevels as readonly string[]).includes(requested) ? requested : (definition.reasoningLevels as readonly string[]).includes(fallbackReasoning) ? fallbackReasoning : definition.reasoningLevels[0])(
+        normalizeReasoning(value?.reasoning ?? value?.reasoning_effort, fallbackReasoning)
       ),
   };
 }

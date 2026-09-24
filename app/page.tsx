@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import {useSolveJob,solveStages} from "@/components/use-solve-job";
 import { Cropper } from "react-cropper";
 import katex from "katex";
 import { captureSolutionImage } from "@/lib/solution-image-export";
@@ -744,6 +745,9 @@ export default function Home() {
   const [installPlatform, setInstallPlatform] = useState<FirstUsePlatform>("ios");
 
   const [historyItems, setHistoryItems] = useState<SolveHistoryItem[]>([]);
+  const [historyPage, setHistoryPage] = useState(0);
+  const [historyHasMore, setHistoryHasMore] = useState(false);
+  const [historyAppliedQuery, setHistoryAppliedQuery] = useState("");
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState("");
   const [historySubject, setHistorySubject] = useState("");
@@ -795,6 +799,17 @@ export default function Home() {
   const uploadPanelRef = useRef<HTMLElement | null>(null);
   const exportCardRef = useRef<HTMLDivElement | null>(null);
   const exportQuestionImageRef = useRef<HTMLImageElement | null>(null);
+
+  const solveTask=useSolveJob(student&&!student.mustChangePin?student.id:undefined,(job)=>{
+    const data=job.result||{};
+    setSolveData({answer:data.answer||"",explanation:data.explanation||"",options:data.options||"",annotations:Array.isArray(data.annotations)?data.annotations:[],diagram:data.diagram||null,chemicalStructure:data.chemicalStructure||null,historyId:data.historyId||null});
+    if(job.images?.length)setImages(job.images);
+    setPreparedShareFile(null);setExportQuestionImage("");setFollowups([]);setQuestionError("");setIsSolving(false);setActiveView("result");void loadUsage();
+  },(job)=>{
+    const data=job.result||{};setQuestionError(data.error||"解題未能完成，請重試。");setIsSolving(false);setActiveView("result");void loadUsage();
+    if(data.code==="SUBJECT_MISMATCH"){const option=allSubjectOptions.find(x=>x.value===data.detectedSubject);if(option)setSubjectSuggestion({subject:option.value,label:option.label});}
+  });
+  useEffect(()=>{if(solveTask.running)setIsSolving(true);},[solveTask.running]);
 
   const hasInteractiveAnnotations = Boolean(solveData?.annotations?.length);
   const tutorialSequenceBase = tutorialPhase === "setup"
@@ -1483,20 +1498,25 @@ export default function Home() {
     }
   }
 
-  async function loadHistory() {
+  async function loadHistory(append = false, clear = false) {
     if (!student) return;
 
     setHistoryLoading(true);
     setHistoryError("");
 
     try {
-      const params = new URLSearchParams();
+      const params = new URLSearchParams(append ? historyAppliedQuery : "");
 
+      if (!append && !clear) {
       if (historySubject) params.set("subject", historySubject);
       if (historyFrom) params.set("from", historyFrom);
       if (historyTo) params.set("to", historyTo);
       if (historyKeyword.trim()) params.set("q", historyKeyword.trim());
       if (historyFavoritesOnly) params.set("favorite", "true");
+      }
+      if (!append) setHistoryAppliedQuery(params.toString());
+      const requestedPage = append ? historyPage + 1 : 0;
+      params.set("page", String(requestedPage));
 
       const response = await fetch(
         `/api/history${params.toString() ? `?${params.toString()}` : ""}`,
@@ -1511,10 +1531,13 @@ export default function Home() {
         throw new Error(data.error || "讀取解題紀錄失敗。");
       }
 
-      setHistoryItems(Array.isArray(data.items) ? data.items : []);
+      const nextItems = Array.isArray(data.items) ? data.items : [];
+      setHistoryItems(current => append ? [...current,...nextItems.filter((item:SolveHistoryItem)=>!current.some(old=>old.id===item.id))] : nextItems);
+      setHistoryPage(requestedPage);
+      setHistoryHasMore(Boolean(data.hasMore));
 
       if (
-        selectedHistory &&
+        !append && selectedHistory &&
         !data.items?.some((item: SolveHistoryItem) => item.id === selectedHistory.id)
       ) {
         setSelectedHistory(null);
@@ -1833,6 +1856,7 @@ export default function Home() {
   }
 
   async function handleStartSolve() {
+    if(solveTask.running)return;
     setFirstActionNudge(false);
     setQuestionError("");
     setSubjectSuggestion(null);
@@ -1857,10 +1881,12 @@ export default function Home() {
       const imageQuality = (await Promise.all(images.map((item) => analyzeImageQuality(item))))
         .filter((item): item is ImageQualityMetric => Boolean(item));
 
+      const clientKey=crypto.randomUUID();
       const response = await fetch("/api/solve", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          clientKey,background:true,
           images,
           subject,
           referenceAnswer,
@@ -1888,6 +1914,7 @@ export default function Home() {
         throw new Error(data.error || "AI 解題失敗");
       }
 
+      if(data.job){solveTask.adopt(data.job);return;}
       setSolveData({
         answer: data.answer || "",
         explanation: data.explanation || "",
@@ -2409,6 +2436,8 @@ export default function Home() {
             </>
           )}
         </header>
+        {student&&!student.mustChangePin&&solveTask.job&&<aside className="student-job-banner" aria-live="polite"><strong>{solveStages[solveTask.job.stage]||"解題任務"}</strong><p>{solveTask.connectionError||(solveTask.running?"已安全送出，可離開頁面，回來後繼續查看。":solveTask.job.status==="succeeded"?"解析已保存在「我的解題紀錄」。":"可重試原題，或重新上傳圖片。")}</p><div><button type="button" className="hh-button-secondary" onClick={()=>setActiveView("result")}>查看解析進度</button>{solveTask.job.status==="failed"&&<button type="button" className="hh-button-primary" onClick={()=>{void solveTask.retry().then(()=>{setQuestionError("");setSolveData(null);setActiveView("result");}).catch(e=>setQuestionError(e.message));}}>重試原題</button>}{!solveTask.running&&<button type="button" className="hh-button-secondary" onClick={()=>void solveTask.dismiss()}>收起</button>}</div></aside>}
+
 
         {!student && <section className="student-brand-intro">
           <div className="hh-eyebrow">{brand.englishName}</div>
@@ -2942,7 +2971,7 @@ export default function Home() {
               <div className="student-solving-ring" aria-hidden="true">
                 <span />
               </div>
-              <div className="student-solving-title">分析題目中</div>
+              <div className="student-solving-title">{solveTask.running?solveStages[solveTask.job?.stage||"queued"]||"正在處理題目":"正在送出題目，請先保持頁面開啟"}</div><p className="student-muted">{solveTask.running?"任務已建立，可以離開頁面；回來後會自動恢復進度。":"圖片送出並取得任務編號後，就可以離開頁面。"}</p>
             </div>
           )}
 
@@ -3205,7 +3234,7 @@ export default function Home() {
                   className="hh-button-secondary"
                   onClick={() => {
                     clearHistoryFilters();
-                    setTimeout(() => void loadHistory(), 0);
+                    void loadHistory(false,true);
                   }}
                 >
                   清除條件
@@ -3429,6 +3458,7 @@ export default function Home() {
           </section>
         )}
 
+        {activeView === "history" && !selectedHistory && historyHasMore && <button type="button" className="hh-button-secondary" disabled={historyLoading} onClick={()=>void loadHistory(true)}>{historyLoading ? "載入中…" : "載入更多紀錄"}</button>}
         {student && !student.mustChangePin && <nav className="v2-student-bottom-nav" aria-label="學生頁面導覽">
           <button type="button" aria-current={activeView==="solve"?"page":undefined} onClick={()=>{setActiveView("solve");window.scrollTo({top:0,behavior:"smooth"});}}><span aria-hidden="true">⌂</span>首頁</button>
           <button type="button" aria-current={activeView==="result"?"page":undefined} disabled={!solveData&&!isSolving} onClick={()=>{setActiveView("result");window.scrollTo({top:0,behavior:"smooth"});}}><span aria-hidden="true">✧</span>解析</button>
@@ -3436,7 +3466,7 @@ export default function Home() {
         </nav>}
         <footer className="student-footer">
           <div className="hh-eyebrow">{brand.englishName}</div>
-          <div>{brand.name} v2.3.0</div>
+          <div>{brand.name} v2.4.0</div>
         </footer>
       </div>
 
@@ -4093,7 +4123,7 @@ export default function Home() {
         .student-panel { padding: 24px 26px; margin-bottom: 14px; transition: opacity 160ms ease; }
         .student-panel-upload { background: var(--surface); }
         .student-panel-info { background: var(--surface); }
-        .student-result-panel { background: var(--surface); }
+        .student-job-banner{padding:16px;margin:14px 0;border:1px solid var(--border);border-radius:16px;background:var(--surface)}.student-job-banner p{font-size:13px;line-height:1.6;color:var(--text-secondary)}.student-job-banner>div{display:flex;flex-wrap:wrap;gap:8px}.student-result-panel { background: var(--surface); }
         .student-panel-disabled { pointer-events: none; opacity: .42; filter: saturate(.65); }
         .student-step-header { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; }
         .student-step-title { margin: 0; font-size: 22px; }

@@ -111,6 +111,7 @@ export async function GET(
     settings,
     models:
       getPublicModels(),
+    previous: (await supabaseAdmin.from("app_settings").select("value").eq("id","ai_solver_previous").maybeSingle()).data?.value || null,
   });
 }
 
@@ -202,6 +203,8 @@ export async function POST(
         ),
       );
 
+    if (![confidenceThreshold,dailyLimit,maxPerQuestion].every(Number.isFinite)) throw new Error("數值設定格式錯誤。");
+
     const value = {
       mode:
         body?.mode === "single"
@@ -230,23 +233,7 @@ export async function POST(
       dailyLimit,
     };
 
-    const {
-      error,
-    } =
-      await supabaseAdmin
-        .from("app_settings")
-        .upsert(
-          {
-            id:
-              "ai_solver",
-
-            value,
-          },
-          {
-            onConflict:
-              "id",
-          },
-        );
+    const { error } = await supabaseAdmin.rpc("save_ai_solver_configuration", { p_value: value });
 
     if (error) {
       throw new Error(

@@ -82,3 +82,5 @@ html[data-theme="gold"] .admin-content.admin-workspace{--accent-teal:#6caa8e;--a
 .workspace-teaching .workspace-destinations.many{display:none}
 .admin-content.workspace-classes .org-column-block{padding:13px!important}
 }
+
+.upgrade-actions{display:flex;flex-wrap:wrap;gap:10px;margin:16px 0}.upgrade-actions>*{max-width:100%;min-width:0}.upgrade-compact{padding:16px;border:1px solid var(--border-color,#7896aa44);border-radius:16px;margin:12px 0}.upgrade-checkbox{display:inline-flex;gap:8px;align-items:center}.upgrade-work-items{display:grid;gap:10px;list-style:none;padding:0}.upgrade-work-items a{display:block;padding:14px;border:1px solid #7896aa44;border-radius:12px;text-decoration:none}.upgrade-work-items small{display:block;opacity:.75;margin-top:6px}

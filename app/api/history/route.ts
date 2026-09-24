@@ -142,6 +142,9 @@ export async function GET(
     );
   }
 
+  const { data: account } = await supabaseAdmin.from("students").select("active,must_change_pin").eq("id",session.studentId).maybeSingle();
+  if (!account?.active || account.must_change_pin) return NextResponse.json({error:"請重新登入並完成密碼設定。"},{status:403});
+
   const searchParams =
     request.nextUrl
       .searchParams;
@@ -176,6 +179,9 @@ export async function GET(
     ) === "true";
 
 
+  const pageValue = Number(searchParams.get("page") || "0");
+  const page = Number.isInteger(pageValue) && pageValue >= 0 ? Math.min(pageValue, 100000) : 0;
+  const pageSize = 20;
   let query =
     supabaseAdmin
       .from(
@@ -212,9 +218,8 @@ export async function GET(
             false,
         },
       )
-      .limit(
-        200,
-      );
+      .order("id", { ascending: false })
+      .range(page * pageSize, page * pageSize + pageSize);
 
 
   if (subject) {
@@ -267,6 +272,13 @@ export async function GET(
   }
 
 
+  if (keyword.trim()) {
+    // Quoted PostgREST literal: user punctuation cannot introduce another filter.
+    const escaped = keyword.trim().slice(0,200).replace(/[\\%_]/g, char => "\\" + char);
+    const pattern = JSON.stringify("%" + escaped + "%");
+    query = query.or(["answer","reference_answer","question_note","explanation","options"].map(column => `${column}.ilike.${pattern}`).join(","));
+  }
+
   const {
     data,
     error,
@@ -288,52 +300,8 @@ export async function GET(
   }
 
 
-  const normalizedKeyword =
-    keyword.toLocaleLowerCase(
-      "zh-Hant",
-    );
-
-
-  const filtered =
-    (
-      data ||
-      []
-    ).filter(
-      (row) => {
-
-        if (
-          !normalizedKeyword
-        ) {
-          return true;
-        }
-
-        const haystack = [
-          row.answer,
-          row.reference_answer,
-          row.question_note,
-          row.explanation,
-          row.options,
-        ]
-          .map(
-            (value) =>
-              String(
-                value ||
-                "",
-              ),
-          )
-          .join(
-            "\n",
-          )
-          .toLocaleLowerCase(
-            "zh-Hant",
-          );
-
-        return haystack.includes(
-          normalizedKeyword,
-        );
-      },
-    );
-
+  const hasMore = (data || []).length > pageSize;
+  const filtered = (data || []).slice(0, pageSize);
 
   const items =
     await Promise.all(
@@ -435,6 +403,8 @@ export async function GET(
 
   return NextResponse.json({
     items,
+    hasMore,
+    page,
     count:
       items.length,
   });

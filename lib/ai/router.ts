@@ -1,3 +1,4 @@
+import {solveJobContext} from "@/lib/solve-job-context";
 import { normalizeScienceDiagram, SCIENCE_TEMPLATE_PROMPT, type LibraryImageRef } from "@/lib/science/diagram-engine";
 import { retrieveTeachingImages } from "@/lib/teaching-images";
 import {
@@ -498,6 +499,7 @@ async function callAndLog({
     >;
 }) {
 
+  await solveJobContext.getStore()?.onStage(role);
   const response:
     SolverResponse =
     await runSolver({
@@ -583,7 +585,7 @@ export async function runScienceGate(
   }
 
   const settings =
-    await getAISolverSettings();
+    solveJobContext.getStore()?.settings || await getAISolverSettings();
 
   const gateResponse =
     await callAndLog({
@@ -655,7 +657,7 @@ export async function runAIRouter(
   }
 
   const settings =
-    await getAISolverSettings();
+    solveJobContext.getStore()?.settings || await getAISolverSettings();
 
   const gateCheck =
     precheckedGate ||

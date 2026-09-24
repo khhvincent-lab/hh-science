@@ -1,4 +1,7 @@
 "use client";
+import {useUrlState} from "@/components/admin/use-url-state";
+import WorkQueue from "@/components/admin/work-queue";
+import { ModelConfigurationTools } from "@/components/admin/model-configuration-tools";
 import TeachingImageLibrary from "@/components/admin/teaching-image-library";
 import AdminPasswordChange from "@/components/admin-password-change";
 import DashboardV211 from "./dashboard-v211";
@@ -293,6 +296,7 @@ type LatencyData = {
 };
 
 function modelDisplayName(model: string) {
+  if (model.startsWith("gpt-6-")) return "GPT-6 " + model.slice(6).replace(/^./,x=>x.toUpperCase());
   if (model === "gpt-5.6-luna") return "GPT-5.6 Luna";
   if (model === "gpt-5.6-terra") return "GPT-5.6 Terra";
   if (model === "gpt-5.6-sol") return "GPT-5.6 Sol";
@@ -492,9 +496,9 @@ export default function AdminPage() {
   const [loginError, setLoginError] = useState("");
   const [loginLoading, setLoginLoading] = useState(false);
 
-  const [activeSection, setActiveSection] = useState<AdminSection>("dashboard");
+  const [activeSection, setActiveSection] = useUrlState<AdminSection>("section","dashboard",["dashboard","siteQuestions","usage","students","classes","pin","ai","analytics","cost","teachingOverview","teachingQuestions","teachingExamples","teachingRuleLibrary","teachingCoach","teachingTraining","teachingImages","teachingSettings","platform"],true);
   const [siteQuestionInitialFocus, setSiteQuestionInitialFocus] = useState<"all" | "pending">("all");
-  const [calibrationTargetId, setCalibrationTargetId] = useState<string | null>(null);
+  const [calibrationTargetId, setCalibrationTargetId] = useUrlState<string>("calibration","");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [openNavGroup, setOpenNavGroup] = useState<"classes" | "ai" | "teaching" | null>(null);
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
@@ -1297,10 +1301,11 @@ export default function AdminPage() {
               loading={dashboardLoading}
               error={dashboardError}
               isSuperAdmin={adminUser?.role === "super_admin"}
-              onNavigate={(section, focus) => { if (section === "siteQuestions") setSiteQuestionInitialFocus(focus || "all"); setActiveSection(section); setMobileMenuOpen(false); }}
+              onNavigate={(section, focus) => { if (section === "siteQuestions") {setSiteQuestionInitialFocus(focus || "all");const u=new URL(window.location.href);u.searchParams.set("sq_focus",focus||"all");u.searchParams.set("sq_range",focus==="pending"?"all":"today");u.searchParams.set("sq_page","0");u.searchParams.delete("question");window.history.replaceState(null,"",u);} setActiveSection(section); setMobileMenuOpen(false); }}
             />
           )}
 
+          {activeSection === "dashboard" && <WorkQueue/>}
           {activeSection === "siteQuestions" && (
             <SiteQuestionsSection initialFocus={siteQuestionInitialFocus} canReview={adminUser?.role === "super_admin"} onCalibrate={(historyId) => { setCalibrationTargetId(historyId); setActiveSection("teachingQuestions"); setOpenNavGroup("teaching"); }} />
           )}
@@ -1412,7 +1417,7 @@ export default function AdminPage() {
           )}
 
           {activeSection === "teachingQuestions" && (
-            <TeachingQuestionsSection initialHistoryId={calibrationTargetId} onInitialHistoryHandled={() => setCalibrationTargetId(null)} canEdit={adminUser?.role==="super_admin"} canSaveGlobalRules={adminUser?.role==="super_admin"} />
+            <TeachingQuestionsSection initialHistoryId={calibrationTargetId} onInitialHistoryHandled={() => setCalibrationTargetId("")} canEdit={adminUser?.role==="super_admin"} canSaveGlobalRules={adminUser?.role==="super_admin"} />
           )}
 
           {activeSection === "teachingExamples" && (
@@ -3356,6 +3361,7 @@ function AISection(props: {
 
   return (
     <fieldset disabled={!props.canEdit} className="admin-stack admin-readonly-fieldset ai-settings-workspace">
+      <ModelConfigurationTools settings={settings} onChange={props.setSettings} saving={props.saving}/>
       <section className="hh-card admin-panel ai-quota-panel">
         <PanelHeader
           eyebrow="DAILY QUOTA"
@@ -3913,12 +3919,14 @@ function SiteQuestionsSection({onCalibrate,initialFocus="all",canReview=false}:{
   const [selected,setSelected]=useState<TeachingQuestionRow|null>(null);
   const [loading,setLoading]=useState(true);
   const [message,setMessage]=useState("");
-  const [q,setQ]=useState("");
-  const [subject,setSubject]=useState("");
-  const [range,setRange]=useState<"today"|"all">(initialFocus==="pending"?"all":"today");
+  const [q,setQ]=useUrlState<string>("sq_q","");
+  const [subject,setSubject]=useUrlState<string>("sq_subject","",["","physics","chemistry","biology","earth"]);
+  const [range,setRange]=useUrlState<"today"|"all">("sq_range",initialFocus==="pending"?"all":"today",["today","all"]);
   const [filtersOpen,setFiltersOpen]=useState(false);
-  const [focus,setFocus]=useState<"all"|"followup"|"issue"|"pending"|"reviewed"|"verifier"|"arbiter"|"highCost">(initialFocus);
-  const [page,setPage]=useState(0);
+  const [focus,setFocus]=useUrlState<"all"|"followup"|"issue"|"pending"|"reviewed"|"verifier"|"arbiter"|"highCost">("sq_focus",initialFocus,["all","followup","issue","pending","reviewed","verifier","arbiter","highCost"]);
+  const [page,setPage]=useUrlState<number>("sq_page",0);
+  const [selectedId,setSelectedId]=useUrlState<string>("question", "",undefined,true);
+  useEffect(()=>{if(!selectedId){setSelected(null);return;}let alive=true;fetch(`/api/admin/teaching-questions?historyId=${encodeURIComponent(selectedId)}&range=all`).then(async r=>{if(!r.ok)throw Error();return r.json()}).then(d=>{if(alive){if(d.items?.[0]){setSelected(d.items[0]);setReviewNote(d.items[0].review?.note||"");}else setMessage("找不到這題，或目前無權查看。");}}).catch(()=>{if(alive)setMessage("讀取題目失敗。");});return()=>{alive=false;};},[selectedId]);
   const [hasMore,setHasMore]=useState(false);
   const [reviewNote,setReviewNote]=useState("");
   const [reviewBusy,setReviewBusy]=useState(false);
@@ -3963,7 +3971,7 @@ function SiteQuestionsSection({onCalibrate,initialFocus="all",canReview=false}:{
   if(selected){
     return <div className="admin-stack site-question-detail-v21">
       <div className="site-question-detail-actions">
-        <button type="button" className="student-history-back" onClick={()=>setSelected(null)}>← 返回全站題目</button>
+        <button type="button" className="student-history-back" onClick={()=>{setSelected(null);setSelectedId("");}}>← 返回全站題目</button>
         <button type="button" className="hh-button-primary" onClick={()=>onCalibrate(selected.id)}>教師校正 →</button>
       </div>
       <section className="hh-card admin-panel site-question-identity-card">
@@ -3997,7 +4005,7 @@ function SiteQuestionsSection({onCalibrate,initialFocus="all",canReview=false}:{
       {filtersOpen&&<div className="site-focus-filters site-extra-filters" role="group" aria-label="其他題目篩選">{([ ["followup","有追問"],["verifier","Verifier"],["arbiter","Arbiter"],["highCost","高成本"] ] as const).map(([key,label])=><button key={key} type="button" className={focus===key?"active":""} aria-pressed={focus===key} onClick={()=>{setFocus(key);setPage(0);}}>{label}</button>)}</div>}
     </section>
     {message&&<div className="admin-notice danger">{message}</div>}
-    <section className="site-question-list">{loading?<div className="hh-card admin-panel admin-empty">正在讀取題目…</div>:visibleItems.length===0?<div className="hh-card admin-panel admin-empty">這一頁沒有符合條件的題目；可以切換期間或查看下一頁。</div>:visibleItems.map(item=><button type="button" className="hh-card site-question-row site-question-row-v214" key={item.id} onClick={()=>{setSelected(item);setReviewNote(item.review?.note||"");setReviewMessage("");}}>
+    <section className="site-question-list">{loading?<div className="hh-card admin-panel admin-empty">正在讀取題目…</div>:visibleItems.length===0?<div className="hh-card admin-panel admin-empty">這一頁沒有符合條件的題目；可以切換期間或查看下一頁。</div>:visibleItems.map(item=><button type="button" className="hh-card site-question-row site-question-row-v214" key={item.id} onClick={()=>{setSelected(item);setSelectedId(item.id);setReviewNote(item.review?.note||"");setReviewMessage("");}}>
       <span className="site-question-thumb">{item.imageUrls?.[0]?<img src={item.imageUrls[0]} alt="題目縮圖"/>:<span>SCI</span>}</span>
       <span className="site-question-copy"><span className="site-question-topline"><b>{new Date(item.createdAt).toLocaleString("zh-TW",{month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"})}</b><em className={`teaching-subject-chip teaching-subject-${item.subject}`}>{adminSubjectLabel(item.subject)}</em><span className={`site-review-status ${reviewTone(item)}`}>{reviewLabel(item)}</span>{(item.followups?.length||0)>0&&<i className="info">追問 {item.followups.length}</i>}</span><strong>{item.studentName}<small>{[item.regionName,item.institutionName,item.className].filter(Boolean).join(" · ")||item.campus}</small></strong><p>{item.questionNote||item.explanation||"點開查看題目圖片與 AI 詳解"}</p><span className="site-row-answers"><span><small>學生參考答案</small><b>{item.referenceAnswer||"未填"}</b></span><span><small>AI 最終答案</small><b className="admin-answer-preview"><AdminScienceText text={item.answer||"—"}/></b></span></span><span className="site-row-foot"><span>本題成本 {item.cost?.hasCostRecord?formatQuestionCostTwd(item.cost.totalCostUsd):"未記錄"}</span><span>查看題目 →</span></span></span>
     </button>)}</section>

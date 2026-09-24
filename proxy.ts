@@ -19,9 +19,9 @@ export async function proxy(request:NextRequest){
   "/api/admin/dashboard-insights","/api/admin/dashboard-accuracy","/api/admin/cost-alert-settings",
   "/api/admin/teaching-settings","/api/admin/input-guard",
   "/api/admin/teaching-knowledge","/api/admin/teaching-questions","/api/admin/teaching-images",
-  "/api/admin/quota-settings",
+  "/api/admin/quota-settings","/api/admin/work-queue",
  ]);
- const allowed=exact.has(path)||/^\/api\/admin\/students\/[^/]+\/history$/.test(path)
+ const allowed=(request.method==="GET"&&/^\/api\/admin\/teaching-images\/[^/]+\/references$/.test(path))||exact.has(path)||/^\/api\/admin\/students\/[^/]+\/history$/.test(path)
   ||(request.method==="GET"&&readOnly.has(path));
  if(!allowed)return NextResponse.json({error:"此功能尚未完成跨補習班資料隔離，已限制非總管理員存取。"},{status:403});
  return NextResponse.next();

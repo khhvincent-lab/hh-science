@@ -31,7 +31,15 @@ export async function POST(request:NextRequest){
 }
 export async function PATCH(request:NextRequest){
  const actor=await requireAdminSession(request);if(!actor)return NextResponse.json({error:'請先登入。'},{status:401});if(!isSuperAdmin(actor))return NextResponse.json({error:'無法修改共用圖庫。'},{status:403});
- try{const body=await request.json();if(!validImageId(String(body.id||'')))throw new Error('圖片 ID 格式錯誤。');
+ try{const body=await request.json();
+ if(Array.isArray(body.ids)){
+  const ids=[...new Set(body.ids)] as string[];
+  if(!ids.length||ids.length>50||ids.some(id=>!validImageId(String(id))))throw new Error('每批請選擇 1～50 張圖片。');
+  if(!['archive','toggle'].includes(body.action)||body.action==='toggle'&&typeof body.enabled!=='boolean')throw new Error('批次操作格式錯誤。');
+  const patch=body.action==='archive'?{deleted_at:new Date().toISOString(),enabled:false}:{enabled:body.enabled};
+  const {data,error}=await supabaseAdmin.from('teaching_images').update({...patch,updated_at:new Date().toISOString()}).in('id',ids).is('deleted_at',null).select('id');if(error)throw new Error('批次儲存失敗。');return NextResponse.json({ok:true,updated:data?.length||0});
+ }
+ if(!validImageId(String(body.id||'')))throw new Error('圖片 ID 格式錯誤。');
  const patch=body.action==='archive'?{deleted_at:new Date().toISOString(),enabled:false}:body.action==='toggle'?(typeof body.enabled==='boolean'?{enabled:body.enabled}:null):metadata(body);
  if(!patch)throw new Error('啟用狀態格式錯誤。');
  const {data,error}=await supabaseAdmin.from('teaching_images').update({...patch,updated_at:new Date().toISOString()}).eq('id',body.id).is('deleted_at',null).select('id').maybeSingle();if(error)throw new Error('儲存失敗。');if(!data)return NextResponse.json({error:'找不到圖片。'},{status:404});return NextResponse.json({ok:true});

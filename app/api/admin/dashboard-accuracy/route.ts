@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
     }
 
     const studentIds = await getAccessibleStudentIds(request, admin);
-    if (studentIds?.length === 0) return NextResponse.json({ referenceCases: 0, referenceMatches: 0, pendingReview: 0, reviewedCases: 0 });
+    if (studentIds?.length === 0) return NextResponse.json({ referenceCases: 0, referenceMatches: 0, pendingReview: 0, reviewedCases: 0, reviewedCorrect: 0, automaticCases: 0, automaticMatches: 0, invalidCases: 0 });
     const days = range === "all" ? null : Number(range);
     const since = days === null ? null : new Date(taiwanTodayStart().getTime() - (days - 1) * 86_400_000).toISOString();
     const groups = studentIds === null ? [null] : Array.from(
@@ -34,6 +34,10 @@ export async function GET(request: NextRequest) {
     let referenceMatches = 0;
     let pendingReview = 0;
     let reviewedCases = 0;
+    let reviewedCorrect = 0;
+    let automaticCases = 0;
+    let automaticMatches = 0;
+    let invalidCases = 0;
     for (const group of groups) {
       for (let offset = 0; ; offset += 1000) {
         let query = supabaseAdmin.from("solve_history")
@@ -41,7 +45,7 @@ export async function GET(request: NextRequest) {
           .not("reference_answer", "is", null);
         if (group) query = query.in("student_id", group);
         if (since) query = query.gte("created_at", since);
-        const { data, error } = await query.order("created_at", { ascending: false }).range(offset, offset + 999);
+        const { data, error } = await query.order("created_at", { ascending: false }).order("id", { ascending: false }).range(offset, offset + 999);
         if (error) throw error;
         const rows = (data || []) as SolveAnswer[];
         const reviewMap = await getAccuracyReviews(rows.map((row) => row.id));
@@ -49,6 +53,9 @@ export async function GET(request: NextRequest) {
           if (!row.reference_answer?.trim()) continue;
           const review = reviewMap.get(row.id);
           const state = answerReviewState(row.answer, row.reference_answer, review, row.options);
+          if (review?.verdict === "invalid_question") invalidCases++;
+          else { automaticCases++; if (state.automaticMatch) automaticMatches++; }
+          if (review?.verdict === "ai_correct") reviewedCorrect++;
           if (state.needsReview) pendingReview++;
           if (state.excluded) continue;
           referenceCases++;
@@ -59,7 +66,7 @@ export async function GET(request: NextRequest) {
         if (rows.length < 1000) break;
       }
     }
-    return NextResponse.json({ referenceCases, referenceMatches, pendingReview, reviewedCases });
+    return NextResponse.json({ referenceCases, referenceMatches, pendingReview, reviewedCases, reviewedCorrect, automaticCases, automaticMatches, invalidCases });
   } catch (error) {
     console.error("Dashboard accuracy error:", error);
     return NextResponse.json({ error: "讀取解題正確率失敗。" }, { status: 500 });

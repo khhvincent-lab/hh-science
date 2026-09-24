@@ -1,6 +1,6 @@
 {
   "name": "hh-science",
-  "version": "2.3.0",
+  "version": "2.4.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -21,7 +21,8 @@
     "react": "^19.2.3",
     "react-cropper": "^2.3.3",
     "react-dom": "^19.2.3",
-    "react-katex": "^3.1.0"
+    "react-katex": "^3.1.0",
+    "workflow": "4.8.9"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

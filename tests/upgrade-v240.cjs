@@ -1,0 +1,22 @@
+const ts=require('typescript'),fs=require('fs'),vm=require('vm'),assert=require('assert/strict');
+function load(path,mocks={}){const exports={};vm.runInNewContext(ts.transpileModule(fs.readFileSync(path,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,{exports,Buffer,URL,URLSearchParams,Date,console,require:id=>id in mocks?mocks[id]:require(id)});return exports;}
+const normalization=load('lib/ai/answer-normalization.ts');const {answerReviewState:state}=load('lib/accuracy-review.ts',{'@/lib/ai/answer-normalization':normalization,'@/lib/supabase-admin':{supabaseAdmin:{}}});
+assert.equal(state('12','10').excluded,true);assert.equal(state('12','10').needsReview,true);assert.equal(state('12','10',{verdict:'ai_correct'}).countsCorrect,true);assert.equal(state('12','10',{verdict:'ai_incorrect'}).excluded,false);assert.equal(state('12','10',{verdict:'invalid_question'}).excluded,true);assert.equal(state('12','').countsCorrect,false);
+const imageLib=load('lib/teaching-images.ts',{'@/lib/supabase-admin':{supabaseAdmin:{}},'@/lib/teaching-engine':{}});
+let active=true,pin=false;const student={id:'student1',name:'Student',campus:'Test',class_id:'class'};
+const db={from(table){const q={select(){return q},eq(){return q},maybeSingle:async()=>({data:table==='students'?{...student,active,must_change_pin:pin}:{allowed_subjects:['chemistry']}})};return q}};
+const jobs=load('lib/solve-jobs.ts',{'./supabase-admin':{supabaseAdmin:db},'./session':{verifySessionToken:t=>t?{studentId:student.id}:null},'./teaching-images':imageLib,'next/server':{}});
+const png='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLbtAAAAABJRU5ErkJggg==';
+assert.equal(jobs.validateSolveInput({images:[png],subject:'chemistry'}).images.length,1);assert.throws(()=>jobs.validateSolveInput({images:[png],subject:'history'}));assert.throws(()=>jobs.validateSolveInput({images:['https://example.com/image'],subject:'chemistry'}));assert.throws(()=>jobs.validateSolveInput({images:[png.replace('image/png','image/jpeg')],subject:'chemistry'}));assert.throws(()=>jobs.validateSolveInput({images:Array(6).fill(png),subject:'chemistry'}));
+let results=[],scoped=[];const historyDb={from(table){const q={select(){return q},eq(k,v){scoped.push([k,v]);return q},order(){return q},range(a,b){q.from=a;q.to=b;return q},gte(){return q},lte(){return q},or(x){q.filter=x;return q},maybeSingle:async()=>({data:{active:true,must_change_pin:false}}),then(resolve){if(q.filter){assert.ok(q.filter.includes('answer.ilike."%'));assert.ok(q.filter.includes('explanation.ilike.'));}resolve({data:results.slice(q.from,q.to+1),error:null})}};return q},storage:{from(){return {createSignedUrl:async()=>({data:{signedUrl:'signed'}})}}}};
+const response={NextResponse:{json:(body,options)=>({body,status:options?.status||200})}};
+const history=load('app/api/history/route.ts',{'next/server':response,'@/lib/supabase-admin':{supabaseAdmin:historyDb},'@/lib/session':{verifySessionToken:()=>({studentId:'owner'})}});
+(async()=>{
+ assert.equal((await jobs.jobStudent({cookies:{get:()=>({value:'valid'})}})).id,student.id);active=false;await assert.rejects(jobs.jobStudent({cookies:{get:()=>({value:'valid'})}}));active=true;pin=true;await assert.rejects(jobs.jobStudent({cookies:{get:()=>({value:'valid'})}}));await assert.rejects(jobs.checkSubject({class_id:'class'},'physics'));await jobs.checkSubject({class_id:'class'},'chemistry');
+ results=Array.from({length:25},(_,i)=>({id:String(i),image_paths:[],created_at:'2026-09-24',answer:'older matched answer'}));
+ const req=q=>({cookies:{get:()=>({value:'valid'})},nextUrl:new URL('https://test/api/history?'+q)});
+ let r=await history.GET(req('page=0&q=%E8%92%B8%E9%A4%BE'));assert.equal(r.body.items.length,20);assert.equal(r.body.hasMore,true);r=await history.GET(req('page=1'));assert.equal(r.body.items.length,5);assert.equal(r.body.hasMore,false);assert.ok(scoped.some(([k,v])=>k==='student_id'&&v==='owner'));
+ r=await history.GET(req('q='+encodeURIComponent('a,b)"%_\\')));assert.equal(r.status,200);
+ const models=load('lib/ai-models.ts');assert.equal(models.isAIModelId('toString'),false);for(const id of ['gpt-6-luna','gpt-6-sol','gpt-6-astra'])assert.equal(models.isAIModelId(id),true);
+ console.log('PASS v2.4: pending denominators, manual verdict precedence, input/subject/auth validation, paginated scoped history, literal search, model whitelist');
+})().catch(e=>{console.error(e);process.exitCode=1});

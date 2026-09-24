@@ -24,6 +24,8 @@ function getClient() {
 
   return new OpenAI({
     apiKey,
+    timeout: 180000,
+    maxRetries: 0,
   });
 }
 
@@ -86,30 +88,33 @@ function calculateUsage(
         cacheWriteTokens
     );
 
+  const longContext = modelId.startsWith("gpt-6-") && inputTokens > 272000;
+  const inputMultiplier = longContext ? 2 : 1;
+  const outputMultiplier = longContext ? 1.5 : 1;
   const estimatedCostUsd =
     (
       regularInputTokens /
       1_000_000
     ) *
-      model.inputPrice +
+      model.inputPrice * inputMultiplier +
     (
       cachedInputTokens /
       1_000_000
     ) *
-      model.cachedInputPrice +
+      model.cachedInputPrice * inputMultiplier +
     (
       cacheWriteTokens /
       1_000_000
     ) *
       (
-        model.inputPrice *
+        model.inputPrice * inputMultiplier *
         1.25
       ) +
     (
       outputTokens /
       1_000_000
     ) *
-      model.outputPrice;
+      model.outputPrice * outputMultiplier;
 
   return {
     inputTokens,
