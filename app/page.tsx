@@ -5826,7 +5826,7 @@ export default function Home() {
           padding: 34px 20px;
           border: 1px solid color-mix(in srgb, #b6944b 32%, var(--border));
           background: color-mix(in srgb, var(--surface) 96%, #c8aa68 4%);
-          animation: student-loading-breathe 4.8s ease-in-out infinite;
+          animation: student-loading-breathe 6.4s ease-in-out infinite;
           text-align: center;
           isolation: isolate;
         }
@@ -5834,24 +5834,25 @@ export default function Home() {
         .student-solving-card-v11::before {
           content: "";
           position: absolute;
-          top: -12%;
-          bottom: -12%;
+          top: -24%;
+          bottom: -24%;
           left: 0;
           z-index: -1;
-          width: 42%;
-          background: linear-gradient(
-            105deg,
-            transparent 0%,
-            color-mix(in srgb, #d9bd7c 5%, transparent) 24%,
-            color-mix(in srgb, #d9bd7c 16%, transparent) 48%,
-            color-mix(in srgb, #f0ddb0 24%, transparent) 52%,
-            color-mix(in srgb, #d9bd7c 12%, transparent) 60%,
-            transparent 100%
-          );
-          filter: blur(7px);
-          transform: translate3d(-170%, 0, 0) skewX(-12deg);
-          will-change: transform;
-          animation: student-loading-shimmer-pass 5.6s cubic-bezier(.45, 0, .55, 1) infinite;
+          width: 92%;
+          background:
+            radial-gradient(ellipse at 50% 45%, rgba(240, 221, 176, .12), transparent 70%),
+            linear-gradient(105deg,
+              transparent 0%,
+              rgba(217, 189, 124, .03) 15%,
+              rgba(217, 189, 124, .10) 32%,
+              rgba(240, 221, 176, .19) 48%,
+              rgba(240, 221, 176, .16) 58%,
+              rgba(217, 189, 124, .06) 78%,
+              transparent 100%);
+          filter: blur(14px);
+          transform: translate3d(-125%, 0, 0) skewX(-10deg);
+          will-change: transform, opacity;
+          animation: student-loading-shimmer-pass 6.4s cubic-bezier(.4, 0, .2, 1) infinite;
           pointer-events: none;
         }
 
@@ -5981,10 +5982,11 @@ export default function Home() {
         }
 
         @keyframes student-loading-shimmer-pass {
-          0%, 12% { transform: translate3d(-170%, 0, 0) skewX(-12deg); opacity: 0; }
-          30% { opacity: .55; }
-          55% { opacity: .7; }
-          82%, 100% { transform: translate3d(340%, 0, 0) skewX(-12deg); opacity: 0; }
+          0%, 8% { transform: translate3d(-125%, 0, 0) skewX(-10deg); opacity: 0; }
+          28% { opacity: .65; }
+          48% { opacity: .9; }
+          72% { opacity: .45; }
+          90%, 100% { transform: translate3d(145%, 0, 0) skewX(-10deg); opacity: 0; }
         }
 
         @keyframes student-loading-breathe {
