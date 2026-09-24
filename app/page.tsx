@@ -5,6 +5,7 @@ import {useSolveJob,solveStages} from "@/components/use-solve-job";
 import { Cropper } from "react-cropper";
 import katex from "katex";
 import { captureSolutionImage } from "@/lib/solution-image-export";
+import { ExportHeader, ExportSection } from "@/components/solution-export-layout";
 import SolutionImageDownload from "@/components/solution-image-download";
 import TeacherHandoffPrepare from "@/components/teacher-handoff-prepare";
 import ThemeToggle from "@/components/theme-toggle";
@@ -392,7 +393,7 @@ function ScienceText({
           return (
             <p
               key={`${blockIndex}-${lineIndex}`}
-              className={optionLine ? "student-option-line" : undefined}
+              className={[optionLine ? "student-option-line" : "", stripAnnotations && /^步驟\s*[一二三四五六七八九十\d]+/.test(line.trim()) ? "export-step-label" : ""].filter(Boolean).join(" ") || undefined}
             >
               {pieces.map((piece, pieceIndex) => {
                 if (piece.startsWith("$") && piece.endsWith("$")) {
@@ -403,7 +404,7 @@ function ScienceText({
                       dangerouslySetInnerHTML={{
                         __html: renderKatex(
                           stripAnnotations
-                            ? stripExportAnnotationCommands(piece.slice(1, -1))
+                            ? stripExportAnnotationCommands(piece.slice(1, -1)).replace(/\\frac\b/g, "\\dfrac")
                             : piece.slice(1, -1),
                           false,
                         ),
@@ -2192,7 +2193,7 @@ export default function Home() {
   async function buildSolutionImageFile() {
     if (!exportCardRef.current || !solveData) throw new Error("目前沒有可匯出的解析內容");
     const safeStudent = (student?.name || "學生").replace(/[\\/:*?"<>|]/g, "");
-    return captureSolutionImage(exportCardRef.current, `HH-Science-${safeStudent}-${Date.now()}.png`, "#f8f7f2");
+    return captureSolutionImage(exportCardRef.current, `HH-Science-${safeStudent}-${Date.now()}.png`, "#ffffff");
   }
 
   function downloadPreparedFile(file: File) {
@@ -3265,14 +3266,16 @@ export default function Home() {
                 </button>
 
                 <SolutionImageDownload key={selectedHistory.id} title={`${selectedHistory.createdAt.slice(0,10)}-${selectedHistory.id.slice(0,8)}`}>
-                  <h2>{brand.name} · 解題紀錄</h2><p>{historySubjectLabel(selectedHistory.subject)} · {formatHistoryDate(selectedHistory.createdAt)}</p>
-                  {selectedHistory.imagePaths.map((item,index)=>item.url?<img key={item.path||index} src={item.url} alt={`題目 ${index+1}`}/>:null)}
-                  {selectedHistory.questionNote&&<><h3>題目補充</h3><p>{selectedHistory.questionNote}</p></>}
-                  <h3>AI 最終答案</h3><ScienceText text={selectedHistory.answer||"—"} stripAnnotations/>
-                  <h3>觀念詳解</h3><ScienceText text={selectedHistory.explanation||""} stripAnnotations/>
-                  {selectedHistory.options&&<><h3>選項解析</h3><ScienceText text={selectedHistory.options} stripAnnotations/></>}
-                  {selectedHistory.diagram&&<ScienceDiagramView diagram={selectedHistory.diagram}/>}
-                  {selectedHistory.chemicalStructure&&<ChemicalStructureView structure={selectedHistory.chemicalStructure}/>}
+                  <ExportHeader brand={brand.name} meta={`${historySubjectLabel(selectedHistory.subject)} · ${formatHistoryDate(selectedHistory.createdAt)}`} />
+                  <ExportSection kind="question" title="原始題目">
+                    {selectedHistory.imagePaths.map((item,index)=>item.url?<img key={item.path||index} src={item.url} alt={`題目 ${index+1}`}/>:null)}
+                    {selectedHistory.questionNote&&<p>{selectedHistory.questionNote}</p>}
+                  </ExportSection>
+                  <ExportSection kind="answer" title="AI 最終答案"><ScienceText text={selectedHistory.answer||"—"} stripAnnotations/></ExportSection>
+                  <ExportSection kind="concept" title="觀念詳解"><ScienceText text={selectedHistory.explanation||""} stripAnnotations/></ExportSection>
+                  {selectedHistory.options&&<ExportSection kind="options" title="選項解析"><ScienceText text={selectedHistory.options} stripAnnotations/></ExportSection>}
+                  {(selectedHistory.diagram||selectedHistory.chemicalStructure)&&<ExportSection kind="diagram" title="圖解與整理"><ScienceDiagramView diagram={selectedHistory.diagram}/><ChemicalStructureView structure={selectedHistory.chemicalStructure}/></ExportSection>}
+                  <footer className="export-footer">理解每一步，學會解下一題 · 解題實驗室</footer>
                 </SolutionImageDownload>
                 <article className="hh-card student-history-detail">
                   <div className="student-history-detail-head">
@@ -3476,64 +3479,15 @@ export default function Home() {
       </div>
 
       {solveData && image && (
-        <div aria-hidden="true" style={{ position: "fixed", left: "-12000px", top: 0, width: "860px", zIndex: -1000 }}>
-          <div
-            ref={exportCardRef}
-            className="history-export-paper"
-            style={{
-              width: "860px",
-              background: "#f8f7f2",
-              color: "#27332d",
-              padding: "44px",
-              fontFamily: '"Source Han Serif TC", "Noto Serif TC", "Songti TC", "PMingLiU", serif',
-            }}
-          >
-            <div style={{ borderBottom: "2px solid #dce0da", paddingBottom: "18px", marginBottom: "24px" }}>
-              <div style={{ fontFamily: '"Source Han Serif TC", "Noto Serif TC", "Songti TC", "PMingLiU", serif', fontSize: "32px", fontWeight: 700, color: "#30463b" }}>{brand.englishName} {brand.name}</div>
-              <div style={{ marginTop: "6px", fontSize: "14px", color: "#747c77" }}>拆解步驟，訂正錯誤，清晰脈絡，梳理思路</div>
-              {student && <div style={{ marginTop: "10px", fontSize: "13px", color: "#747c77" }}>{student.campus} ｜ {student.name}</div>}
-            </div>
-
-            <div style={{ marginBottom: "22px" }}>
-              <div style={{ fontWeight: 700, fontSize: "17px", color: "#30463b", marginBottom: "10px" }}>題目</div>
-              <div style={{ padding: "12px", background: "#fff", border: "1px solid #dde1db", borderRadius: "14px" }}>
-                <img
-                  ref={exportQuestionImageRef}
-                  src={image}
-                  alt="題目"
-                  style={{
-                    display: "block",
-                    width: "100%",
-                    height: "auto",
-                    maxHeight: "680px",
-                    objectFit: "contain",
-                    margin: "0 auto",
-                  }}
-                />
-              </div>
-            </div>
-
-            <div style={{ background: "#e8ece8", border: "1px solid #c8d3ca", borderRadius: "14px", padding: "14px 18px", marginBottom: "14px" }}>
-              <div style={{ fontWeight: 700, color: "#30463b" }}>正確答案</div>
-              <div style={{ marginTop: "6px" }}><ScienceText text={solveData.answer} stripAnnotations /></div>
-            </div>
-
-            <div style={{ background: "#fff", border: "1px solid #dde1db", borderRadius: "14px", padding: "18px", marginBottom: "14px" }}>
-              <div style={{ fontFamily: '"Source Han Serif TC", "Noto Serif TC", "Songti TC", "PMingLiU", serif', fontWeight: 700, fontSize: "18px", color: "#30463b", marginBottom: "8px" }}>觀念詳解</div>
-              <ScienceText text={solveData.explanation} stripAnnotations />
-            </div>
-
-            <ScienceDiagramView diagram={solveData.diagram} />
-            <ChemicalStructureView structure={solveData.chemicalStructure} />
-
-            {solveData.options && (
-              <div style={{ background: "#fff", border: "1px solid #eadbd8", borderRadius: "14px", padding: "18px" }}>
-                <div style={{ fontFamily: '"Source Han Serif TC", "Noto Serif TC", "Songti TC", "PMingLiU", serif', fontWeight: 700, fontSize: "18px", color: "#8e5752", marginBottom: "8px" }}>選項解析</div>
-                <ScienceText text={solveData.options} stripAnnotations />
-              </div>
-            )}
-
-            <div style={{ marginTop: "24px", paddingTop: "14px", borderTop: "1px solid #dde1db", textAlign: "center", fontSize: "12px", color: "#959c97" }}>{brand.englishName} {brand.name}</div>
+        <div aria-hidden="true" style={{ position: "fixed", left: "-12000px", top: 0, width: "680px", zIndex: -1000, pointerEvents: "none" }}>
+          <div ref={exportCardRef} className="history-export-paper">
+            <ExportHeader brand={brand.name} meta={student ? `${student.campus} ｜ ${student.name}` : "完整解題紀錄"} />
+            <ExportSection kind="question" title="原始題目"><img ref={exportQuestionImageRef} src={image} alt="題目" /></ExportSection>
+            <ExportSection kind="answer" title="AI 最終答案"><ScienceText text={solveData.answer} stripAnnotations /></ExportSection>
+            <ExportSection kind="concept" title="觀念詳解"><ScienceText text={solveData.explanation} stripAnnotations /></ExportSection>
+            {solveData.options && <ExportSection kind="options" title="選項解析"><ScienceText text={solveData.options} stripAnnotations /></ExportSection>}
+            {(solveData.diagram || solveData.chemicalStructure) && <ExportSection kind="diagram" title="圖解與整理"><ScienceDiagramView diagram={solveData.diagram} /><ChemicalStructureView structure={solveData.chemicalStructure} /></ExportSection>}
+            <footer className="export-footer">理解每一步，學會解下一題 · 解題實驗室</footer>
           </div>
         </div>
       )}

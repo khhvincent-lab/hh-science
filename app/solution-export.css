@@ -1,0 +1,58 @@
+/* Fixed, phone-readable composition shared by current and historical solutions. */
+.history-export-paper {
+  --text: #223449; --text-secondary: #41566b; --text-muted: #41566b;
+  --primary: #246474; --surface: #fff; --surface-soft: #edf3f7; --border: #bfcddb;
+  box-sizing: border-box; width: 680px; padding: 28px; background: #fff; color: #223449;
+  font-family: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif;
+  font-size: 30px; line-height: 1.75; font-weight: 500;
+}
+.history-export-paper * { box-sizing: border-box; }
+.history-export-paper .export-heading { border-top: 8px solid #173b5b; padding: 22px 0 24px; margin-bottom: 20px; border-bottom: 2px solid #d7e1e9; }
+.history-export-paper .export-eyebrow { font-size: 22px; color: #42617c; font-weight: 750; letter-spacing: 2px; }
+.history-export-paper .export-heading h2 { font-size: 38px; line-height: 1.35; color: #173b5b; margin: 10px 0; font-weight: 850; overflow-wrap: anywhere; }
+.history-export-paper .export-heading p { font-size: 23px; color: #41566b; margin: 0; line-height: 1.65; }
+.history-export-paper .export-section { border: 2px solid #cad7e2; border-radius: 16px; margin: 0 0 26px; background: #fff; }
+.history-export-paper .export-section h3 { font-size: 31px; line-height: 1.4; margin: 0; padding: 15px 20px; font-weight: 850; border-radius: 13px 13px 0 0; color: #173b5b; background: #edf3f8; }
+.history-export-paper .export-section-body { padding: 20px; min-width: 0; }
+.history-export-paper .export-section-question { border-color: #c4cfda; }
+.history-export-paper .export-section-question h3 { background: #edf1f5; border-bottom: 2px solid #c4cfda; }
+.history-export-paper .export-section-answer { background: #ecf7f3; border-color: #39816f; }
+.history-export-paper .export-section-answer h3 { color: #fff; background: #246653; }
+.history-export-paper .export-section-answer .student-science-text { font-size: 36px !important; font-weight: 800; }
+.history-export-paper .export-section-concept { border-color: #326788; }
+.history-export-paper .export-section-concept h3 { color: #fff; background: #214e70; }
+.history-export-paper .export-section-options { border-color: #b77a35; }
+.history-export-paper .export-section-options h3 { color: #774811; background: #fff0d6; border-bottom: 2px solid #b77a35; }
+.history-export-paper .export-section-diagram { border-color: #8b83aa; }
+.history-export-paper .export-section-diagram h3 { color: #51446e; background: #eeebf7; }
+.history-export-paper .student-science-text { color: #223449 !important; font-size: 30px !important; line-height: 1.75; gap: 10px; }
+.history-export-paper .student-science-text p { margin: 0; line-height: 1.75; overflow-wrap: anywhere; }
+.history-export-paper .student-text-gap { height: 7px; }
+.history-export-paper .student-display-formula { font-size: 30px !important; padding: 12px 4px !important; margin: 6px 0; overflow: visible !important; background: #f1f5f9; border-radius: 10px; }
+.history-export-paper .student-inline-formula { font-size: inherit !important; overflow: visible !important; }
+.history-export-paper .katex { font-size: 1.05em !important; color: #223449 !important; }
+.history-export-paper .katex-display { margin: .35em 0 !important; }
+.history-export-paper .katex-display > .katex { white-space: normal; }
+.history-export-paper .katex-display > .katex > .katex-html { white-space: normal; }
+.history-export-paper img { display: block; width: 100%; height: auto; max-height: none; object-fit: contain; margin: 0; }
+.history-export-paper img + img { margin-top: 18px; }
+.history-export-paper .science-diagram-card { margin: 0; padding: 0; border: 0; border-radius: 0; background: #fff; overflow: visible; }
+.history-export-paper .science-diagram-heading strong { font-size: 27px; line-height: 1.5; }
+.history-export-paper .science-diagram-heading span, .history-export-paper .science-diagram-heading small { display: none; }
+.history-export-paper .science-table-scroll { overflow: visible; margin: 16px 0; }
+.history-export-paper .science-table-scroll table { table-layout: fixed; width: 100%; font-size: 24px; line-height: 1.55; }
+.history-export-paper .science-table-scroll th, .history-export-paper .science-table-scroll td { min-width: 0; padding: 12px 8px; overflow-wrap: anywhere; color: #223449; border: 2px solid #c5d2de; }
+.history-export-paper .science-table-scroll th { background: #eaf0f6; font-weight: 800; }
+.history-export-paper .science-diagram-card figcaption { font-size: 23px; line-height: 1.65; color: #41566b; }
+.history-export-paper .science-diagram-svg { max-height: none; aspect-ratio: 1; }
+.history-export-paper .science-library-figure strong { font-size: 25px; }
+.history-export-paper .science-library-figure p { font-size: 23px; }
+.history-export-paper .export-footer { margin-top: 10px; padding-top: 18px; border-top: 2px solid #d7e1e9; color: #41566b; font-size: 21px; text-align: center; }
+
+.history-export-paper .student-science-text p.export-step-label { margin: 12px 0 4px; padding: 10px 14px; border-left: 6px solid #326788; background: #edf3f8; color: #214e70; font-weight: 800; }
+
+.history-export-paper .chemical-structure-card { margin: 18px 0 0; padding: 0; border: 0; background: #fff; }
+.history-export-paper .chemical-structure-heading strong { font-size: 27px; }
+.history-export-paper .chemical-structure-heading span, .history-export-paper .chemical-structure-heading small { display: none; }
+.history-export-paper .chemical-structure-svg { max-height: none; }
+.history-export-paper .chemical-structure-card figcaption { font-size: 23px; line-height: 1.65; }
