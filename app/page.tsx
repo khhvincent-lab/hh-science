@@ -6,6 +6,7 @@ import { Cropper } from "react-cropper";
 import katex from "katex";
 import { captureSolutionImage } from "@/lib/solution-image-export";
 import SolutionImageDownload from "@/components/solution-image-download";
+import TeacherHandoffPrepare from "@/components/teacher-handoff-prepare";
 import ThemeToggle from "@/components/theme-toggle";
 import AdaptiveBrandLogo from "@/components/adaptive-brand-logo";
 import { getOfficialLineChatUrl, getOfficialLineProfileUrl } from "@/lib/official-line";
@@ -3106,12 +3107,13 @@ export default function Home() {
               </div>
               {teacherHelpOpen && <div role="dialog" aria-modal="true" aria-label="詢問真人導師" className="hh-card" style={{ padding: 20, marginTop: 14, display: "grid", gap: 12 }}>
                 <h3 style={{ margin: 0 }}>向盧澔化學真人老師詢問</h3>
-                <p style={{ margin: 0 }}>系統已整理原始題目與 AI 詳解圖片。請填寫疑問，再完成以下兩步；圖片不會自動附加至 LINE。</p>
                 <label htmlFor="teacher-help-question">想請教老師什麼問題？（選填）</label>
                 <textarea id="teacher-help-question" className="hh-input" rows={3} maxLength={1000} value={teacherHelpQuestion} onChange={(event) => setTeacherHelpQuestion(event.target.value)} placeholder="例如：我不懂第三個選項為什麼錯誤…" />
+                <TeacherHandoffPrepare file={preparedShareFile} historyId={solveData.historyId} question={teacherHelpQuestion} />
+                <details><summary>其他分享方式</summary>
                 <button type="button" className="hh-button-secondary" onClick={() => void shareTeacherHelpImage()} disabled={!preparedShareFile}>① 分享完整題目＋AI 詳解圖片</button>
                 <button type="button" className="hh-button-primary" onClick={openOfficialTeacherChat}>② 開啟盧澔化學 LINE（預填文字）</button>
-                <p style={{ margin: 0, fontSize: 13 }}>請在 LINE 確認文字、附上圖片並按送出；網站無法確認老師已收到訊息。</p>
+                <p style={{ margin: 0, fontSize: 13 }}>請在 LINE 確認文字、附上圖片並按送出；網站無法確認老師已收到訊息。</p></details>
                 <button type="button" className="hh-button-secondary" onClick={() => setTeacherHelpOpen(false)}>關閉</button>
               </div>}
               {lineShareNotice && <div role="status" className="student-save-hint v207-line-share-notice">
