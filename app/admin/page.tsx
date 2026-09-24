@@ -1429,7 +1429,7 @@ export default function AdminPage() {
           )}
 
           {activeSection === "teachingQuestions" && (
-            <TeachingQuestionsSection initialHistoryId={calibrationTargetId} onInitialHistoryHandled={() => setCalibrationTargetId(null)} />
+            <TeachingQuestionsSection initialHistoryId={calibrationTargetId} onInitialHistoryHandled={() => setCalibrationTargetId(null)} canSaveGlobalRules={adminUser?.role==="super_admin"} />
           )}
 
           {activeSection === "teachingExamples" && (
@@ -1656,7 +1656,7 @@ function DashboardSection({
           <button type="button" className="v206-admin-attention-item" onClick={() => onNavigate("usage")}>
             <span>班務管理</span><strong>查看今日班級參與</strong><small>按班級查看活躍學生與解題量 →</small>
           </button>
-          {isSuperAdmin && (
+          {(
             <button type="button" className="v206-admin-attention-item" onClick={() => onNavigate("teachingQuestions")}>
               <span>教學品質</span><strong>前往教師校正</strong><small>核對需教師介入的題目 →</small>
             </button>
@@ -3971,7 +3971,7 @@ function SiteQuestionsSection({onCalibrate}:{onCalibrate:(historyId:string)=>voi
   </div>
 }
 
-function TeachingQuestionsSection({initialHistoryId,onInitialHistoryHandled}:{initialHistoryId?:string|null;onInitialHistoryHandled?:()=>void} = {}) {
+function TeachingQuestionsSection({initialHistoryId,onInitialHistoryHandled,canSaveGlobalRules=true}:{initialHistoryId?:string|null;onInitialHistoryHandled?:()=>void;canSaveGlobalRules?:boolean} = {}) {
   type TeacherAnnotation = { id:string; display:string; label:string; meaning:string; source:string; usage:string };
   type RuleSuggestion = { title:string; content:string; scope:"global"|"subject"|"topic"; topic?:string; keywords?:string[]; priority?:number; selected?:boolean };
   type CoachMessage = { role:"user"|"assistant"; content:string };
@@ -4192,7 +4192,7 @@ function TeachingQuestionsSection({initialHistoryId,onInitialHistoryHandled}:{in
     if(!selected||!teacherExplanation.trim()) return;
     setSaving(true); setMessage("");
     try{
-      const response=await fetch("/api/admin/teaching-knowledge",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"saveCalibration",solveHistoryId:selected.id,studentId:selected.studentId,subject:selected.subject,issueType,teacherAnswer,teacherExplanation,teacherOptions,teacherStrategy,teacherNote,topic,keywords,questionSignature,annotations:teacherAnnotations,applyScope,updateCurrentAnswer:true,rules:suggestedRules.filter(r=>r.selected)})});
+      const response=await fetch("/api/admin/teaching-knowledge",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"saveCalibration",solveHistoryId:selected.id,studentId:selected.studentId,subject:selected.subject,issueType,teacherAnswer,teacherExplanation,teacherOptions,teacherStrategy,teacherNote,topic,keywords,questionSignature,annotations:teacherAnnotations,applyScope,updateCurrentAnswer:true,rules:canSaveGlobalRules?suggestedRules.filter(r=>r.selected):[]})});
       const data=await response.json();
       if(!response.ok)throw new Error(data.error||"儲存教師校正失敗。");
       setSelected({...selected,answer:teacherAnswer||selected.answer,explanation:teacherExplanation,options:teacherOptions,annotations:teacherAnnotations});
@@ -4240,11 +4240,11 @@ function TeachingQuestionsSection({initialHistoryId,onInitialHistoryHandled}:{in
       <div className="teacher-knowledge-meta-grid"><label><span>主題／單元</span><input className="hh-input" value={topic} onChange={e=>setTopic(e.target.value)} placeholder="例如：限制試劑"/></label><label><span>關鍵詞</span><input className="hh-input" value={keywords.join("、")} onChange={e=>setKeywords(e.target.value.split(/[、,，]/).map(v=>v.trim()).filter(Boolean))} placeholder="莫耳、係數比、限制試劑"/></label><label className="wide"><span>題目特徵摘要</span><input className="hh-input" value={questionSignature} onChange={e=>setQuestionSignature(e.target.value)} placeholder="供同題與相似題檢索，不需要寫答案"/></label></div>
     </section>
 
-    {suggestedRules.length>0&&<section className="hh-card admin-panel"><PanelHeader eyebrow="RULE SUGGESTIONS" title="AI 建議保存的教學規則" subtitle="預設全部不勾選；只有你確認值得跨題重用的規則才會寫入規則庫。"/><div className="teacher-rule-suggestion-list">{suggestedRules.map((r,index)=><label key={index}><input type="checkbox" checked={Boolean(r.selected)} onChange={e=>setSuggestedRules(v=>v.map((x,i)=>i===index?{...x,selected:e.target.checked}:x))}/><span><strong>{r.title||"教學規則"}</strong><p>{r.content}</p><small>{r.scope==="global"?"全站":r.scope==="subject"?adminSubjectLabel(selected.subject):`${adminSubjectLabel(selected.subject)} · ${r.topic||topic||"主題"}`}</small></span></label>)}</div></section>}
+    {suggestedRules.length>0&&canSaveGlobalRules&&<section className="hh-card admin-panel"><PanelHeader eyebrow="RULE SUGGESTIONS" title="AI 建議保存的教學規則" subtitle="預設全部不勾選；只有你確認值得跨題重用的規則才會寫入規則庫。"/><div className="teacher-rule-suggestion-list">{suggestedRules.map((r,index)=><label key={index}><input type="checkbox" checked={Boolean(r.selected)} onChange={e=>setSuggestedRules(v=>v.map((x,i)=>i===index?{...x,selected:e.target.checked}:x))}/><span><strong>{r.title||"教學規則"}</strong><p>{r.content}</p><small>{r.scope==="global"?"全站":r.scope==="subject"?adminSubjectLabel(selected.subject):`${adminSubjectLabel(selected.subject)} · ${r.topic||topic||"主題"}`}</small></span></label>)}</div></section>}
 
     <section className="hh-card admin-panel teacher-inline-coach"><button type="button" className="teacher-inline-coach-toggle" onClick={()=>setCoachOpen(v=>!v)}><span><strong>AI 教練</strong><small>直接告訴 AI「你希望它怎麼想、怎麼教」</small></span><b>{coachOpen?"收合":"展開 ＋"}</b></button>{coachOpen&&<div className="teacher-inline-coach-body"><div className="teacher-inline-chat">{coachMessages.length===0&&<div className="admin-empty">例如：「這題不要先套公式，我會先讓學生判斷比例關係。」</div>}{coachMessages.map((m,i)=><article key={i} className={m.role}><span>{m.role==="user"?"老師":"AI 教練"}</span><p>{m.content}</p></article>)}{coachBusy&&<article className="assistant"><span>AI 教練</span><p>正在整理你的教學偏好…</p></article>}</div><div className="teacher-coach-image-bar"><span>{coachReferenceImages.length?`已附 ${coachReferenceImages.length} 張詳解圖片`:"可附上你的詳解圖片讓 AI 一起看"}</span><label>＋ 附圖<input type="file" accept="image/*" multiple onChange={async e=>{try{setCoachReferenceImages(await adminTeachingFilesToDataUrls(e.target.files));}catch(err){setMessage(err instanceof Error?err.message:"讀取圖片失敗。");}e.currentTarget.value="";}}/></label>{coachReferenceImages.length>0&&<button type="button" onClick={()=>setCoachReferenceImages([])}>清除</button>}</div><div className="teacher-inline-compose"><textarea className="hh-input" value={coachInput} onChange={e=>setCoachInput(e.target.value)} placeholder="說明你會怎麼教、哪個步驟應該先做…"/><button className="hh-button-primary" onClick={()=>void sendCoach()} disabled={coachBusy||(!coachInput.trim()&&!coachReferenceImages.length)}>送出</button></div></div>}</section>
 
-    <section className="hh-card admin-panel teacher-save-panel"><div><strong>確認後儲存教師校正</strong><span>會更新本題、建立教師範例，並只新增你有勾選的規則。</span></div><button type="button" className="hh-button-primary teacher-save-button" onClick={()=>void saveTeacherSolution()} disabled={saving||!teacherExplanation.trim()}>{saving?"儲存中…":"儲存並套用"}</button></section>
+    <section className="hh-card admin-panel teacher-save-panel"><div><strong>確認後儲存教師校正</strong><span>{canSaveGlobalRules?"會更新本題、建立教師範例，並只新增你有勾選的規則。":"會更新本題並建立教師範例；全站教學規則由總管理員統一維護。"}</span></div><button type="button" className="hh-button-primary teacher-save-button" onClick={()=>void saveTeacherSolution()} disabled={saving||!teacherExplanation.trim()}>{saving?"儲存中…":"儲存並套用"}</button></section>
 
     <section className="hh-card admin-panel teaching-question-cost-panel"><PanelHeader eyebrow="QUESTION COST" title="本題總成本" subtitle="只統計 Science Gate／Primary／Verifier／Arbiter，不包含學生後續追問。" />
       {selected.cost?.hasCostRecord ? <><div className="teaching-question-cost-total"><span>本題解題成本</span><strong>{formatQuestionCostTwd(selected.cost.totalCostUsd)}</strong><small>{formatInteger(selected.cost.totalCalls)} 次模型呼叫</small></div><div className="teaching-question-cost-grid">{TEACHING_COST_ROLE_ORDER.map((role) => {const entries = (selected.cost.roles || []).filter((entry) => entry.role === role);return <article key={role}><div className="teaching-question-cost-role"><strong>{teachingCostRoleLabel(role)}</strong><span>{entries.length ? `${entries.reduce((sum, entry) => sum + entry.calls, 0)} 次` : "未啟動"}</span></div>{entries.length ? entries.map((entry, index) => <div className="teaching-question-cost-model" key={`${role}-${entry.provider}-${entry.model}-${index}`}><span><b>{modelDisplayName(entry.model)}</b><small>{providerLabel(entry.provider)}</small></span><strong>{formatQuestionCostTwd(entry.costUsd)}</strong></div>) : <div className="teaching-question-cost-empty">這題沒有啟動此角色</div>}</article>;})}</div></> : <div className="admin-notice teaching-cost-missing">這筆舊題目沒有可連結的 api_usage 成本紀錄，因此不以 NT$0.00 顯示，也不會納入每題平均成本。</div>}
