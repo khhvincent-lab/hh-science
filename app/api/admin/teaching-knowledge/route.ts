@@ -183,6 +183,11 @@ export async function POST(request: NextRequest) {
       const solveHistoryId = String(body.solveHistoryId || "").trim();
       if (!solveHistoryId) return NextResponse.json({ error: "缺少題目紀錄 ID。" }, { status: 400 });
       if(!mayViewHistory(allowed,solveHistoryId))return NextResponse.json({error:"無權校正此題目。"},{status:403});
+      const studentId = String(body.studentId || "").trim();
+      if (studentId) {
+        const { data: historyStudent, error: historyError } = await supabaseAdmin.from("solve_history").select("student_id").eq("id",solveHistoryId).maybeSingle();
+        if(historyError || historyStudent?.student_id!==studentId)return NextResponse.json({error:"題目與學生不一致。"},{status:400});
+      }
       const teacherAnswer = String(body.teacherAnswer || "").trim();
       const teacherExplanation = String(body.teacherExplanation || "").trim();
       if (!teacherExplanation) return NextResponse.json({ error: "請先填寫老師版詳解。" }, { status: 400 });
@@ -223,10 +228,7 @@ export async function POST(request: NextRequest) {
         if (solveError) throw solveError;
       }
 
-      const studentId = String(body.studentId || "").trim();
       if (studentId) {
-        const {data:historyStudent}=await supabaseAdmin.from("solve_history").select("student_id").eq("id",solveHistoryId).maybeSingle();
-        if(historyStudent?.student_id!==studentId)return NextResponse.json({error:"題目與學生不一致。"},{status:400});
         const { data: correction, error: correctionError } = await supabaseAdmin.from("teacher_correction_queue").upsert({
           solve_history_id: solveHistoryId,
           student_id: studentId,
