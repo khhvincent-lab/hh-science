@@ -9,10 +9,7 @@ import {
   supabaseAdmin,
 } from "@/lib/supabase-admin";
 
-import {
-  ADMIN_SESSION_COOKIE,
-  verifyAdminSessionToken,
-} from "@/lib/admin-session";
+import { requireAdminSession, isSuperAdmin } from "@/lib/admin-access";
 
 import {
   AI_MODELS,
@@ -23,25 +20,6 @@ import {
 /* =========================================================
    Admin check
 ========================================================= */
-
-function isAdmin(
-  request: NextRequest
-) {
-  const token =
-    request.cookies.get(
-      ADMIN_SESSION_COOKIE
-    )?.value;
-
-  if (!token) {
-    return false;
-  }
-
-  return Boolean(
-    verifyAdminSessionToken(
-      token
-    )
-  );
-}
 
 
 /* =========================================================
@@ -169,9 +147,7 @@ export async function GET(
   try {
 
     if (
-      !isAdmin(
-        request
-      )
+      !(await requireAdminSession(request))
     ) {
       return NextResponse.json(
         {
@@ -360,9 +336,7 @@ export async function POST(
   try {
 
     if (
-      !isAdmin(
-        request
-      )
+      !(await requireAdminSession(request))
     ) {
       return NextResponse.json(
         {
@@ -376,6 +350,11 @@ export async function POST(
       );
     }
 
+
+    const actor = await requireAdminSession(request);
+    if (!isSuperAdmin(actor)) return NextResponse.json(
+      { error: "此設定僅總管理員可以修改。" }, { status: 403 }
+    );
 
     const body =
       await request.json();
