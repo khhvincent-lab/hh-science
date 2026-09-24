@@ -717,6 +717,19 @@ export default function Home() {
   const [name, setName] = useState("");
   const [pin, setPin] = useState("");
   const [student, setStudent] = useState<StudentSession | null>(null);
+  // Resolve identity from the authenticated student's class, never from the
+  // independently selected login dropdowns (which default to another region).
+  const exportClass = loginClasses.find(item => item.id === student?.classId);
+  const exportInstitution = loginInstitutions.find(item => item.id === exportClass?.institution_id);
+  const exportRegion = loginRegions.find(item => item.id === exportInstitution?.region_id);
+  const exportStudent = student ? {
+    region: exportRegion?.name || student.campus || "地區資料未取得",
+    institution: exportInstitution?.name || "補習班資料未取得",
+    className: exportClass?.name || (student.classId ? "班級資料未取得" : "尚未設定班級"),
+    name: student.name,
+  } : null;
+  const exportStudentKey = JSON.stringify(exportStudent);
+
   const [authLoading, setAuthLoading] = useState(true);
   const [loginLoading, setLoginLoading] = useState(false);
   const [loginError, setLoginError] = useState("");
@@ -2217,7 +2230,8 @@ export default function Home() {
   // Prepare the image when the answer appears, so on iOS the first tap can
   // synchronously open the native share sheet without losing user activation.
   useEffect(() => {
-    if (!solveData || !image || isSolving) return;
+    if (!solveData || !image || isSolving || loginOptionsLoading) return;
+    setPreparedShareFile(null);
     let cancelled = false;
     const job = (async () => {
       await waitForNextPaint();
@@ -2234,7 +2248,7 @@ export default function Home() {
       cancelled = true;
       if (imagePreparationRef.current === job) imagePreparationRef.current = null;
     };
-  }, [solveData, image, isSolving]);
+  }, [solveData, image, isSolving, loginOptionsLoading, exportStudentKey]);
 
   async function handleSaveImage() {
     if (!exportCardRef.current || !solveData || isSaving) return;
@@ -3265,8 +3279,8 @@ export default function Home() {
                   ← 返回解題紀錄
                 </button>
 
-                <SolutionImageDownload key={selectedHistory.id} title={`${selectedHistory.createdAt.slice(0,10)}-${selectedHistory.id.slice(0,8)}`}>
-                  <ExportHeader brand={brand.name} meta={`${historySubjectLabel(selectedHistory.subject)} · ${formatHistoryDate(selectedHistory.createdAt)}`} />
+                <SolutionImageDownload key={`${selectedHistory.id}-${exportStudentKey}`} title={`${selectedHistory.createdAt.slice(0,10)}-${selectedHistory.id.slice(0,8)}`}>
+                  <ExportHeader brand={brand.name} meta={`${historySubjectLabel(selectedHistory.subject)} · ${formatHistoryDate(selectedHistory.createdAt)}`} student={exportStudent} />
                   <ExportSection kind="question" title="原始題目">
                     {selectedHistory.imagePaths.map((item,index)=>item.url?<img key={item.path||index} src={item.url} alt={`題目 ${index+1}`}/>:null)}
                     {selectedHistory.questionNote&&<p>{selectedHistory.questionNote}</p>}
@@ -3479,9 +3493,9 @@ export default function Home() {
       </div>
 
       {solveData && image && (
-        <div aria-hidden="true" style={{ position: "fixed", left: "-12000px", top: 0, width: "680px", zIndex: -1000, pointerEvents: "none" }}>
+        <div aria-hidden="true" style={{ position: "fixed", left: "-12000px", top: 0, width: "760px", zIndex: -1000, pointerEvents: "none" }}>
           <div ref={exportCardRef} className="history-export-paper">
-            <ExportHeader brand={brand.name} meta={student ? `${student.campus} ｜ ${student.name}` : "完整解題紀錄"} />
+            <ExportHeader brand={brand.name} meta="完整解題紀錄" student={exportStudent} />
             <ExportSection kind="question" title="原始題目"><img ref={exportQuestionImageRef} src={image} alt="題目" /></ExportSection>
             <ExportSection kind="answer" title="AI 最終答案"><ScienceText text={solveData.answer} stripAnnotations /></ExportSection>
             <ExportSection kind="concept" title="觀念詳解"><ScienceText text={solveData.explanation} stripAnnotations /></ExportSection>

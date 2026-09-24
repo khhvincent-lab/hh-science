@@ -2,7 +2,7 @@
 .history-export-paper {
   --text: #223449; --text-secondary: #41566b; --text-muted: #41566b;
   --primary: #246474; --surface: #fff; --surface-soft: #edf3f7; --border: #bfcddb;
-  box-sizing: border-box; width: 680px; padding: 28px; background: #fff; color: #223449;
+  box-sizing: border-box; width: 760px; padding: 28px; background: #fff; color: #223449;
   font-family: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif;
   font-size: 30px; line-height: 1.75; font-weight: 500;
 }
@@ -56,3 +56,8 @@
 .history-export-paper .chemical-structure-heading span, .history-export-paper .chemical-structure-heading small { display: none; }
 .history-export-paper .chemical-structure-svg { max-height: none; }
 .history-export-paper .chemical-structure-card figcaption { font-size: 23px; line-height: 1.65; }
+
+.history-export-paper .export-student { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 20px; margin: 18px 0 0; padding: 18px 20px; background: #edf3f8; border: 2px solid #c5d5e3; border-radius: 12px; }
+.history-export-paper .export-student > div { display: grid; grid-template-columns: 78px minmax(0, 1fr); gap: 8px; align-items: baseline; }
+.history-export-paper .export-student dt { font-size: 22px; color: #48647b; font-weight: 650; }
+.history-export-paper .export-student dd { margin: 0; font-size: 26px; line-height: 1.5; color: #173b5b; font-weight: 800; overflow-wrap: anywhere; }
