@@ -8,6 +8,7 @@ import {
 } from "@/lib/supabase-admin";
 
 import { requireAdminSession, getAccessibleStudentIds } from "@/lib/admin-access";
+import { answersMatch } from "@/lib/ai/answer-normalization";
 
 import {
   getAISettings,
@@ -303,7 +304,7 @@ export async function GET(
 
         supabaseAdmin
           .from("solve_history")
-          .select("id,student_id")
+          .select("id,student_id,reference_answer,answer")
           .gte("created_at", ranges.monthStart)
           .lt("created_at", ranges.nextMonthStart),
 
@@ -380,6 +381,8 @@ export async function GET(
     monthRows.splice(0, monthRows.length, ...monthRows.filter((row:any) => allowStudent(row.student_id)));
     todayHistoryResult.data = (todayHistoryResult.data || []).filter((row:any) => allowStudent(row.student_id));
     monthHistoryResult.data = (monthHistoryResult.data || []).filter((row:any) => allowStudent(row.student_id));
+    const referenceRows = monthHistoryResult.data.filter((row) => typeof row.reference_answer === "string" && row.reference_answer.trim().length > 0);
+    const referenceMatches = referenceRows.filter((row) => answersMatch(row.answer || "", row.reference_answer || "")).length;
     dailyUsageResult.data = (dailyUsageResult.data || []).filter((row:any) => allowStudent(row.student_id));
     studentsResult.data = (studentsResult.data || []).filter((row:any) => allowStudent(row.id));
 
@@ -602,6 +605,8 @@ export async function GET(
       },
 
       month: {
+        referenceCases: referenceRows.length,
+        referenceMatches,
         questions:
           (monthHistoryResult.data || []).length,
 

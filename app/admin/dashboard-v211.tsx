@@ -5,7 +5,7 @@ import styles from "./dashboard-v211.module.css";
 
 type Dashboard = {
   today: { questions: number; students: number; cost: number; averageCost: number };
-  month: { questions: number; cost: number };
+  month: { questions: number; cost: number; referenceCases: number; referenceMatches: number };
 };
 type ClassRow = {
   classId: string; label: string; students: number; todayActive: number;
@@ -143,11 +143,12 @@ export default function DashboardV211({
   if (error && !dashboard) return <div className="admin-notice danger">{error}</div>;
   if (!dashboard) return null;
   return <div className={styles.dashboard}>
-    <div className={styles.intro}><div><div className={styles.eyebrow}>OPERATIONS OVERVIEW / V2.1.1</div><h2>今天的解題實驗室</h2><p>掌握解題使用、班級動態與 AI 成本。所有數字依目前登入權限顯示。</p></div><span className={styles.live}>台灣時間 · 即時資料</span></div>
+    <div className={styles.intro}><div><div className={styles.eyebrow}>OPERATIONS OVERVIEW / V2.1.2</div><h2>今天的解題實驗室</h2><p>掌握解題使用、班級動態與 AI 成本。所有數字依目前登入權限顯示。</p></div><span className={styles.live}>台灣時間 · 即時資料</span></div>
     {error && <div className="admin-notice danger">{error}</div>}
     <div className={styles.kpis}>
       <article className={styles.kpi}><span>今日解題</span><strong>{number(dashboard.today.questions)} <small>題</small></strong><em>本月 {number(dashboard.month.questions)} 題</em></article>
       <article className={styles.kpi}><span>今日使用學生</span><strong>{number(dashboard.today.students)} <small>人</small></strong><em>{insights ? `授權班級共 ${number(totalStudents)} 人` : "正在讀取班級人數"}</em></article>
+      <article className={styles.kpi}><span>解題正確率</span><strong>{dashboard.month.referenceCases ? `${Math.round(dashboard.month.referenceMatches / dashboard.month.referenceCases * 100)}%` : "—"}</strong><em>本月有填參考答案 {number(dashboard.month.referenceCases || 0)} 題；未填不計</em></article>
       <article className={styles.kpi}><span>待處理題目</span><strong>{insights ? number(insights.pending) : "—"} <small>題</small></strong><em>教師校正佇列中的待處理題目</em></article>
       <article className={styles.kpi}><span>今日 AI 成本</span><strong>{money(dashboard.today.cost)}</strong><em>平均每題 {money(dashboard.today.averageCost)}</em></article>
     </div>

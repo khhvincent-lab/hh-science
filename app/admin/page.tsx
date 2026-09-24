@@ -56,6 +56,8 @@ type DashboardData = {
     questions: number;
     cost: number;
     averageCost: number;
+    referenceCases: number;
+    referenceMatches: number;
   };
   campuses: {
     campus: string;
@@ -1237,7 +1239,7 @@ export default function AdminPage() {
             ]}
           />
           </>)}
-          {adminUser && (
+          {adminUser?.role === "super_admin" && (
             <NavButton active={activeSection === "platform"} icon="06" label="系統與教師" onClick={() => { setActiveSection("platform"); setMobileMenuOpen(false); }} />
           )}
         </nav>
@@ -1425,15 +1427,15 @@ export default function AdminPage() {
           )}
 
           {activeSection === "teachingOverview" && (
-            <TeachingOverviewSection onNavigate={(section) => setActiveSection(section as AdminSection)} />
+            <TeachingOverviewSection onNavigate={(section) => setActiveSection(section as AdminSection)} canEdit={adminUser?.role==="super_admin"} />
           )}
 
           {activeSection === "teachingQuestions" && (
-            <TeachingQuestionsSection initialHistoryId={calibrationTargetId} onInitialHistoryHandled={() => setCalibrationTargetId(null)} canSaveGlobalRules={adminUser?.role==="super_admin"} />
+            <TeachingQuestionsSection initialHistoryId={calibrationTargetId} onInitialHistoryHandled={() => setCalibrationTargetId(null)} canEdit={adminUser?.role==="super_admin"} canSaveGlobalRules={adminUser?.role==="super_admin"} />
           )}
 
           {activeSection === "teachingExamples" && (
-            <TeachingExamplesSection />
+            <TeachingExamplesSection canEdit={adminUser?.role==="super_admin"} />
           )}
 
           {activeSection === "teachingRuleLibrary" && (
@@ -1441,18 +1443,18 @@ export default function AdminPage() {
           )}
 
           {activeSection === "teachingCoach" && (
-            <TeachingCoachSection canSaveGlobalRules={adminUser?.role==="super_admin"} />
+            <TeachingCoachSection canEdit={adminUser?.role==="super_admin"} canSaveGlobalRules={adminUser?.role==="super_admin"} />
           )}
 
           {activeSection === "teachingTraining" && (
-            <TeachingTrainingSection />
+            <TeachingTrainingSection canEdit={adminUser?.role==="super_admin"} />
           )}
 
           {activeSection === "teachingSettings" && (
             <TeachingRulesSection canEdit={adminUser?.role==="super_admin"} />
           )}
 
-          {activeSection === "platform" && (
+          {activeSection === "platform" && adminUser?.role === "super_admin" && (
             <AdminPlatformSettings actor={adminUser} onBrandChanged={() => void loadAdminIdentity()} />
           )}
 
@@ -3362,7 +3364,6 @@ function AISection(props: {
 
   return (
     <fieldset disabled={!props.canEdit} className="admin-stack admin-readonly-fieldset">
-      {!props.canEdit && <div className="admin-notice">教師可檢視目前模型配置與額度；調整與儲存僅限總管理員。</div>}
       <section className="hh-card admin-panel">
         <PanelHeader
           eyebrow="DAILY QUOTA"
@@ -3971,7 +3972,7 @@ function SiteQuestionsSection({onCalibrate}:{onCalibrate:(historyId:string)=>voi
   </div>
 }
 
-function TeachingQuestionsSection({initialHistoryId,onInitialHistoryHandled,canSaveGlobalRules=true}:{initialHistoryId?:string|null;onInitialHistoryHandled?:()=>void;canSaveGlobalRules?:boolean} = {}) {
+function TeachingQuestionsSection({initialHistoryId,onInitialHistoryHandled,canEdit=true,canSaveGlobalRules=true}:{initialHistoryId?:string|null;onInitialHistoryHandled?:()=>void;canEdit?:boolean;canSaveGlobalRules?:boolean} = {}) {
   type TeacherAnnotation = { id:string; display:string; label:string; meaning:string; source:string; usage:string };
   type RuleSuggestion = { title:string; content:string; scope:"global"|"subject"|"topic"; topic?:string; keywords?:string[]; priority?:number; selected?:boolean };
   type CoachMessage = { role:"user"|"assistant"; content:string };
@@ -4203,6 +4204,16 @@ function TeachingQuestionsSection({initialHistoryId,onInitialHistoryHandled,canS
     finally{setSaving(false);}
   }
 
+  if(selected&&!canEdit) return <div className="admin-stack teaching-question-detail teacher-calibration-v2">
+    <button type="button" className="student-history-back" onClick={()=>setSelected(null)}>← 返回題目列表</button>
+    <section className="hh-card admin-panel"><div className="teaching-detail-head"><div><div className="hh-eyebrow">QUESTION DETAIL</div><h2 className="hh-display">{selected.studentName} · {adminSubjectLabel(selected.subject)}</h2><p>{[selected.regionName,selected.institutionName,selected.className].filter(Boolean).join(" · ") || selected.campus} · {new Date(selected.createdAt).toLocaleString("zh-TW")}</p></div></div>
+      {selected.imageUrls?.length > 0 && <div className="teaching-question-image-grid">{selected.imageUrls.map((url,index)=><img key={url} src={url} alt={`題目圖片 ${index+1}`} />)}</div>}
+      <div className="teaching-context-strip"><span>學生補充敘述</span><p>{selected.questionNote||"學生沒有另外補充敘述。"}</p></div>
+      <div className="teaching-answer-grid"><div><span>參考答案</span><strong>{selected.referenceAnswer||"未提供"}</strong></div><div><span>AI 答案</span><div className="admin-formula-value"><AdminScienceText text={selected.answer||"—"} /></div></div></div>
+    </section>
+    <section className="hh-card admin-panel teacher-original-panel"><PanelHeader eyebrow="AI SOLUTION" title="AI 解法" subtitle="題目詳解與選項分析" /><div className="teaching-ai-block"><h3>觀念解析</h3><AdminScienceText text={selected.explanation}/></div><ScienceDiagramView diagram={selected.diagram} compact /><ChemicalStructureView structure={selected.chemicalStructure} compact />{selected.options&&<div className="teaching-ai-block"><h3>選項分析</h3><AdminScienceText text={formatAdminOptions(selected.options)}/></div>}</section>
+  </div>;
+
   if(selected){return <div className="admin-stack teaching-question-detail teacher-calibration-v2">
     <button type="button" className="student-history-back" onClick={()=>setSelected(null)}>← 返回教師校正</button>
     {message && <div className={`admin-notice ${message.startsWith("已")?"success":"danger"}`}>{message}</div>}
@@ -4253,7 +4264,7 @@ function TeachingQuestionsSection({initialHistoryId,onInitialHistoryHandled,canS
 
   return <div className="admin-stack">
     <section className="hh-card admin-panel teaching-toolbar">
-      <div className="teaching-toolbar-head"><div><div className="hh-eyebrow">TEACHER CALIBRATION</div><h2 className="hh-display">教師校正</h2><p>直接檢視學生真實題目與 AI 回答；點進去可修改答案、詳解、選項分析、互動重點，並決定要不要讓相似題學習。</p></div><button type="button" className="hh-button-secondary teaching-filter-toggle" onClick={()=>setFiltersOpen(v=>!v)}>{filtersOpen?"收合搜尋與篩選":"搜尋與篩選"}</button></div>
+      <div className="teaching-toolbar-head"><div><div className="hh-eyebrow">TEACHER CALIBRATION</div><h2 className="hh-display">{canEdit?"教師校正":"題目瀏覽"}</h2><p>{canEdit?"直接檢視學生真實題目與 AI 回答；點進去可修改答案、詳解、選項分析、互動重點，並決定要不要讓相似題學習。":"查看學生題目、參考答案與 AI 詳解。"}</p></div><button type="button" className="hh-button-secondary teaching-filter-toggle" onClick={()=>setFiltersOpen(v=>!v)}>{filtersOpen?"收合搜尋與篩選":"搜尋與篩選"}</button></div>
       {activeFilterCount>0&&<div className="teaching-active-filter-note">目前套用 {activeFilterCount} 個篩選條件</div>}
       {filtersOpen&&<div className="teaching-filter-row"><div className="teaching-range-switch"><button type="button" className={range==="today"?"active":""} onClick={()=>setRange("today")}>今天</button><button type="button" className={range==="all"?"active":""} onClick={()=>setRange("all")}>全部</button></div><input className="hh-input" placeholder="搜尋學生、答案或解析內容…" value={q} onChange={e=>setQ(e.target.value)}/><select className="hh-select" value={subject} onChange={e=>setSubject(e.target.value)}><option value="">全部科目</option><option value="physics">物理</option><option value="chemistry">化學</option><option value="biology">生物</option><option value="earth">地球科學</option></select><label className="teaching-issue-filter"><input type="checkbox" checked={issues} onChange={e=>setIssues(e.target.checked)}/> 只看異常題</label></div>}
     </section>
@@ -4261,7 +4272,7 @@ function TeachingQuestionsSection({initialHistoryId,onInitialHistoryHandled,canS
     <section className="teaching-question-list">{loading?<div className="hh-card admin-panel admin-empty">正在讀取題目…</div>:items.length===0?<div className="hh-card admin-panel admin-empty">目前沒有符合條件的題目。</div>:items.map(item=><button type="button" className="hh-card teaching-question-row teaching-question-row-v134" key={item.id} onClick={()=>void open(item)}>
       <span className="teaching-question-media">{item.imageUrls?.[0]?<img src={item.imageUrls[0]} alt="題目縮圖"/>:<span className="teaching-thumb-empty">SCI</span>}</span>
       <span className="teaching-question-main"><span className="teaching-row-topline"><span>{new Date(item.createdAt).toLocaleString("zh-TW", { month:"2-digit", day:"2-digit", hour:"2-digit", minute:"2-digit" })}</span><span className={`teaching-subject-chip teaching-subject-${item.subject}`}>{adminSubjectLabel(item.subject)}</span>{item.issue&&<em className="teaching-inline-issue">異常</em>}</span><strong>{item.studentName}</strong><small>{[item.regionName,item.institutionName,item.className].filter(Boolean).join(" · ")||item.campus}</small><span className="teaching-question-preview">{item.questionNote||item.explanation||"尚無題目摘要"}</span></span>
-      <span className="teaching-row-answer"><small>AI 答案</small><span className="admin-answer-preview"><AdminScienceText text={item.answer||"—"} /></span><span className="teaching-row-cost-label">本題成本</span><strong className={`teaching-row-cost ${item.cost?.hasCostRecord?"":"missing"}`}>{item.cost?.hasCostRecord?formatQuestionCostTwd(item.cost.totalCostUsd):"—"}</strong><span className="teaching-calibrate-link">教師校正 →</span></span>
+      <span className="teaching-row-answer"><small>AI 答案</small><span className="admin-answer-preview"><AdminScienceText text={item.answer||"—"} /></span><span className="teaching-row-cost-label">本題成本</span><strong className={`teaching-row-cost ${item.cost?.hasCostRecord?"":"missing"}`}>{item.cost?.hasCostRecord?formatQuestionCostTwd(item.cost.totalCostUsd):"—"}</strong><span className="teaching-calibrate-link">{canEdit?"教師校正 →":"查看 →"}</span></span>
     </button>)}</section>
   </div>;
 }
@@ -4313,7 +4324,6 @@ function TeachingRulesSection({canEdit=true}:{canEdit?:boolean}){
   const activeSubjectLabel=subjects.find(([key])=>key===activeSubject)?.[1]||"物理";
   return <div className="admin-stack teaching-rules-page">
     <section className="hh-card admin-panel teaching-settings-clarifier"><div className="hh-eyebrow">GLOBAL BASELINE</div><h2 className="hh-display">這裡是「全站預設」</h2><p><b>全站預設</b>＝每題固定先遵守的系統底線；<b>教學規則庫</b>＝老師針對特定科目／單元累積、符合條件才檢索的教法。兩者不再混在同一層。</p></section>
-    {!canEdit&&<div className="admin-notice">全站預設與圖片阻擋規則由總管理員統一管理；教師可切換科目查看設定。</div>}
     {message&&<div className={`admin-notice ${message.includes("已更新")?"success":"danger"}`}>{message}</div>}
     <section className="hh-card admin-panel"><PanelHeader eyebrow="TEACHING MODE" title="解題模式" subtitle="設定整個解題實驗室預設的教學深度。"/><div className="teaching-mode-list">{modes.map(m=><button key={m.key} type="button" className={settings.mode===m.key?"active":""} disabled={!canEdit} onClick={()=>setSettings({...settings,mode:m.key})}><span className="teaching-mode-radio"/><strong>{m.name}</strong><span>{m.desc}</span></button>)}</div><div className="teaching-mode-current">目前模式：<strong>{activeMode.name}</strong> · {activeMode.desc}</div></section>
     <section className="hh-card admin-panel"><PanelHeader eyebrow="GLOBAL DEFAULTS" title="全站解題預設" subtitle="這裡是所有題目固定套用的基礎開關與互動重點密度，不是老師從個別題目教給 AI 的知識。跨題教法請放在「教學規則庫」。"/><div className="teaching-rule-checks">{general.map(([key,label])=><label key={key}><input type="checkbox" disabled={!canEdit} checked={Boolean(settings.general[key])} onChange={e=>setSettings({...settings,general:{...settings.general,[key]:e.target.checked}})}/><span>{label}</span></label>)}</div><div className="teaching-annotation-density"><div><strong>互動式詳解密度</strong><span>控制新解題預設要標多少個真正有教學價值的數值、變數、單位或公式片段；教師校正仍可逐題覆寫。</span></div><select className="hh-select" disabled={!canEdit} value={settings.general.annotationDensity||"rich"} onChange={e=>setSettings({...settings,general:{...settings.general,annotationDensity:e.target.value}})}><option value="light">精簡 · 約 1～2 個</option><option value="standard">標準 · 約 2～4 個</option><option value="rich">豐富 · 約 4～8 個</option></select></div><div className="teaching-annotation-density"><div><strong>Science Diagram Engine</strong><span>自動判斷物理、地科與少數實驗題是否需要精確 SVG 圖解。關閉後所有新題都只輸出文字詳解。</span></div><select className="hh-select" disabled={!canEdit} value={settings.general.diagramMode||"auto"} onChange={e=>setSettings({...settings,general:{...settings.general,diagramMode:e.target.value}})}><option value="auto">自動 · 需要時才畫</option><option value="off">關閉 · 不產生圖解</option></select></div></section>
