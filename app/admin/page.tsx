@@ -1723,7 +1723,7 @@ function DashboardSection({
                 max="3000000"
                 step="10"
                 value={costAlertThreshold}
-                disabled={costAlertLoading || costAlertSaving}
+                disabled={!isSuperAdmin || costAlertLoading || costAlertSaving}
                 onChange={(event) => setCostAlertThreshold(event.target.value)}
               />
             </label>
@@ -1731,7 +1731,7 @@ function DashboardSection({
             <button
               type="button"
               className="hh-button-secondary"
-              disabled={costAlertLoading || costAlertSaving}
+              disabled={!isSuperAdmin || costAlertLoading || costAlertSaving}
               onClick={() => void saveCostAlertSetting()}
             >
               {costAlertSaving ? "儲存中…" : "設定警示"}
@@ -2705,6 +2705,7 @@ function StudentsSection(props: {
         <PinSection
           initialPin={props.initialPin}
           setInitialPin={props.setInitialPin}
+          canEdit={props.canManageOrganization}
           loading={props.studentAuthLoading}
           saving={props.studentAuthSaving}
           onSave={props.saveInitialPin}
@@ -3737,6 +3738,7 @@ function reasoningLabel(value: string) {
 
 
 function PinSection(props: {
+  canEdit: boolean;
   initialPin: string;
   setInitialPin: (value: string) => void;
   loading: boolean;
@@ -3776,7 +3778,7 @@ function PinSection(props: {
               inputMode="numeric"
               maxLength={6}
               value={props.initialPin}
-              disabled={props.loading || props.saving}
+              disabled={!props.canEdit || props.loading || props.saving}
               onChange={(event) =>
                 props.setInitialPin(
                   event.target.value.replace(/\D/g, "").slice(0, 6),
@@ -3788,7 +3790,7 @@ function PinSection(props: {
             <button
               type="button"
               className="hh-button-primary"
-              disabled={props.loading || props.saving}
+              disabled={!props.canEdit || props.loading || props.saving}
               onClick={() => void props.onSave()}
             >
               {props.saving ? "儲存中…" : "儲存初始密碼"}
@@ -4264,7 +4266,7 @@ function TeachingQuestionsSection({initialHistoryId,onInitialHistoryHandled}:{in
   </div>;
 }
 
-function TeachingRulesSection(){
+function TeachingRulesSection({canEdit=true}:{canEdit?:boolean}){
   const [settings,setSettings]=useState<any>(null);
   const [guard,setGuard]=useState<any>(null);
   const [loading,setLoading]=useState(true);
@@ -4311,11 +4313,12 @@ function TeachingRulesSection(){
   const activeSubjectLabel=subjects.find(([key])=>key===activeSubject)?.[1]||"物理";
   return <div className="admin-stack teaching-rules-page">
     <section className="hh-card admin-panel teaching-settings-clarifier"><div className="hh-eyebrow">GLOBAL BASELINE</div><h2 className="hh-display">這裡是「全站預設」</h2><p><b>全站預設</b>＝每題固定先遵守的系統底線；<b>教學規則庫</b>＝老師針對特定科目／單元累積、符合條件才檢索的教法。兩者不再混在同一層。</p></section>
+    {!canEdit&&<div className="admin-notice">全站預設與圖片阻擋規則由總管理員統一管理；教師可切換科目查看設定。</div>}
     {message&&<div className={`admin-notice ${message.includes("已更新")?"success":"danger"}`}>{message}</div>}
-    <section className="hh-card admin-panel"><PanelHeader eyebrow="TEACHING MODE" title="解題模式" subtitle="設定整個解題實驗室預設的教學深度。"/><div className="teaching-mode-list">{modes.map(m=><button key={m.key} type="button" className={settings.mode===m.key?"active":""} onClick={()=>setSettings({...settings,mode:m.key})}><span className="teaching-mode-radio"/><strong>{m.name}</strong><span>{m.desc}</span></button>)}</div><div className="teaching-mode-current">目前模式：<strong>{activeMode.name}</strong> · {activeMode.desc}</div></section>
-    <section className="hh-card admin-panel"><PanelHeader eyebrow="GLOBAL DEFAULTS" title="全站解題預設" subtitle="這裡是所有題目固定套用的基礎開關與互動重點密度，不是老師從個別題目教給 AI 的知識。跨題教法請放在「教學規則庫」。"/><div className="teaching-rule-checks">{general.map(([key,label])=><label key={key}><input type="checkbox" checked={Boolean(settings.general[key])} onChange={e=>setSettings({...settings,general:{...settings.general,[key]:e.target.checked}})}/><span>{label}</span></label>)}</div><div className="teaching-annotation-density"><div><strong>互動式詳解密度</strong><span>控制新解題預設要標多少個真正有教學價值的數值、變數、單位或公式片段；教師校正仍可逐題覆寫。</span></div><select className="hh-select" value={settings.general.annotationDensity||"rich"} onChange={e=>setSettings({...settings,general:{...settings.general,annotationDensity:e.target.value}})}><option value="light">精簡 · 約 1～2 個</option><option value="standard">標準 · 約 2～4 個</option><option value="rich">豐富 · 約 4～8 個</option></select></div><div className="teaching-annotation-density"><div><strong>Science Diagram Engine</strong><span>自動判斷物理、地科與少數實驗題是否需要精確 SVG 圖解。關閉後所有新題都只輸出文字詳解。</span></div><select className="hh-select" value={settings.general.diagramMode||"auto"} onChange={e=>setSettings({...settings,general:{...settings.general,diagramMode:e.target.value}})}><option value="auto">自動 · 需要時才畫</option><option value="off">關閉 · 不產生圖解</option></select></div></section>
-    <section className="hh-card admin-panel input-guard-panel"><PanelHeader eyebrow="INPUT GUARD" title="圖片有效性與阻擋規則" subtitle="先擋無效圖片，再做自然科判斷。被擋的圖片不扣題數，也不會進入正式 Primary／Verifier／Arbiter 解題。"/><label className="input-guard-master"><input type="checkbox" checked={Boolean(guard.enabled)} onChange={e=>setGuard({...guard,enabled:e.target.checked})}/><span><strong>啟用輸入阻擋</strong><small>建議保持開啟</small></span></label><div className="teaching-rule-checks input-guard-checks">{guardRules.map(([key,label])=><label key={key}><input type="checkbox" checked={Boolean(guard[key])} onChange={e=>setGuard({...guard,[key]:e.target.checked})}/><span>{label}</span></label>)}</div><label className="teaching-subject-editor"><span>老師自訂阻擋規則</span><small>每行一條。也可以在「全站題目」個別題目中按「加入阻擋規則」。</small><textarea className="hh-input" value={(guard.customRules||[]).join("\n")} onChange={e=>setGuard({...guard,customRules:e.target.value.split("\n").map((v:string)=>v.trim()).filter(Boolean)})} placeholder={'例如：圖片只有黑底沒有題目內容時直接阻擋\n例如：學生上傳與自然科題目無關的聊天截圖時直接阻擋'}/></label></section>
-    <section className="hh-card admin-panel"><PanelHeader eyebrow="SUBJECT BASELINE" title="各科基礎指示" subtitle="這裡放每一題都要遵守的科目級底線；若是特定單元或題型的教法，請改放「教學規則庫」。"/><div className="teaching-subject-tabs">{subjects.map(([key,label])=><button key={key} type="button" className={activeSubject===key?"active":""} onClick={()=>setActiveSubject(key)}>{label}</button>)}</div><label className="teaching-subject-editor"><span>{activeSubjectLabel}基礎指示</span><textarea className="hh-input" value={settings.subjects[activeSubject]||""} onChange={e=>setSettings({...settings,subjects:{...settings.subjects,[activeSubject]:e.target.value}})}/></label><button type="button" className="hh-button-primary teaching-rules-save" onClick={()=>void save()} disabled={saving}>{saving?"儲存中…":"儲存全部規則"}</button></section>
+    <section className="hh-card admin-panel"><PanelHeader eyebrow="TEACHING MODE" title="解題模式" subtitle="設定整個解題實驗室預設的教學深度。"/><div className="teaching-mode-list">{modes.map(m=><button key={m.key} type="button" className={settings.mode===m.key?"active":""} disabled={!canEdit} onClick={()=>setSettings({...settings,mode:m.key})}><span className="teaching-mode-radio"/><strong>{m.name}</strong><span>{m.desc}</span></button>)}</div><div className="teaching-mode-current">目前模式：<strong>{activeMode.name}</strong> · {activeMode.desc}</div></section>
+    <section className="hh-card admin-panel"><PanelHeader eyebrow="GLOBAL DEFAULTS" title="全站解題預設" subtitle="這裡是所有題目固定套用的基礎開關與互動重點密度，不是老師從個別題目教給 AI 的知識。跨題教法請放在「教學規則庫」。"/><div className="teaching-rule-checks">{general.map(([key,label])=><label key={key}><input type="checkbox" disabled={!canEdit} checked={Boolean(settings.general[key])} onChange={e=>setSettings({...settings,general:{...settings.general,[key]:e.target.checked}})}/><span>{label}</span></label>)}</div><div className="teaching-annotation-density"><div><strong>互動式詳解密度</strong><span>控制新解題預設要標多少個真正有教學價值的數值、變數、單位或公式片段；教師校正仍可逐題覆寫。</span></div><select className="hh-select" disabled={!canEdit} value={settings.general.annotationDensity||"rich"} onChange={e=>setSettings({...settings,general:{...settings.general,annotationDensity:e.target.value}})}><option value="light">精簡 · 約 1～2 個</option><option value="standard">標準 · 約 2～4 個</option><option value="rich">豐富 · 約 4～8 個</option></select></div><div className="teaching-annotation-density"><div><strong>Science Diagram Engine</strong><span>自動判斷物理、地科與少數實驗題是否需要精確 SVG 圖解。關閉後所有新題都只輸出文字詳解。</span></div><select className="hh-select" disabled={!canEdit} value={settings.general.diagramMode||"auto"} onChange={e=>setSettings({...settings,general:{...settings.general,diagramMode:e.target.value}})}><option value="auto">自動 · 需要時才畫</option><option value="off">關閉 · 不產生圖解</option></select></div></section>
+    <section className="hh-card admin-panel input-guard-panel"><PanelHeader eyebrow="INPUT GUARD" title="圖片有效性與阻擋規則" subtitle="先擋無效圖片，再做自然科判斷。被擋的圖片不扣題數，也不會進入正式 Primary／Verifier／Arbiter 解題。"/><label className="input-guard-master"><input type="checkbox" disabled={!canEdit} checked={Boolean(guard.enabled)} onChange={e=>setGuard({...guard,enabled:e.target.checked})}/><span><strong>啟用輸入阻擋</strong><small>建議保持開啟</small></span></label><div className="teaching-rule-checks input-guard-checks">{guardRules.map(([key,label])=><label key={key}><input type="checkbox" disabled={!canEdit} checked={Boolean(guard[key])} onChange={e=>setGuard({...guard,[key]:e.target.checked})}/><span>{label}</span></label>)}</div><label className="teaching-subject-editor"><span>老師自訂阻擋規則</span><small>每行一條。也可以在「全站題目」個別題目中按「加入阻擋規則」。</small><textarea className="hh-input" disabled={!canEdit} value={(guard.customRules||[]).join("\n")} onChange={e=>setGuard({...guard,customRules:e.target.value.split("\n").map((v:string)=>v.trim()).filter(Boolean)})} placeholder={'例如：圖片只有黑底沒有題目內容時直接阻擋\n例如：學生上傳與自然科題目無關的聊天截圖時直接阻擋'}/></label></section>
+    <section className="hh-card admin-panel"><PanelHeader eyebrow="SUBJECT BASELINE" title="各科基礎指示" subtitle="這裡放每一題都要遵守的科目級底線；若是特定單元或題型的教法，請改放「教學規則庫」。"/><div className="teaching-subject-tabs">{subjects.map(([key,label])=><button key={key} type="button" className={activeSubject===key?"active":""} onClick={()=>setActiveSubject(key)}>{label}</button>)}</div><label className="teaching-subject-editor"><span>{activeSubjectLabel}基礎指示</span><textarea className="hh-input" disabled={!canEdit} value={settings.subjects[activeSubject]||""} onChange={e=>setSettings({...settings,subjects:{...settings.subjects,[activeSubject]:e.target.value}})}/></label><button type="button" className="hh-button-primary teaching-rules-save" onClick={()=>void save()} disabled={!canEdit||saving}>{saving?"儲存中…":"儲存全部規則"}</button></section>
   </div>;
 }
 
@@ -4945,6 +4948,8 @@ function sectionTitle(section: AdminSection) {
 
 
 const adminStyles = `
+  .admin-readonly-fieldset { border:0; padding:0; margin:0; min-width:0; }
+  .admin-readonly-fieldset :disabled { cursor:not-allowed; opacity:.68; }
   .management-tabs { display:inline-flex; gap:4px; padding:4px; border:1px solid var(--border); background:var(--surface-soft); border-radius:12px; margin-bottom:4px; }
   .management-tabs button { border:0; background:transparent; color:var(--text-secondary); min-height:34px; padding:0 16px; border-radius:9px; font-weight:850; }
   .management-tabs button.active { background:var(--surface); color:var(--text); box-shadow:0 0 0 1px var(--border); }
