@@ -3493,7 +3493,7 @@ export default function Home() {
       </div>
 
       {solveData && image && (
-        <div aria-hidden="true" style={{ position: "fixed", left: "-12000px", top: 0, width: "760px", zIndex: -1000, pointerEvents: "none" }}>
+        <div aria-hidden="true" style={{ position: "fixed", left: "-12000px", top: 0, width: "820px", zIndex: -1000, pointerEvents: "none" }}>
           <div ref={exportCardRef} className="history-export-paper">
             <ExportHeader brand={brand.name} meta="完整解題紀錄" student={exportStudent} />
             <ExportSection kind="question" title="原始題目"><img ref={exportQuestionImageRef} src={image} alt="題目" /></ExportSection>
