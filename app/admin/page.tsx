@@ -1866,7 +1866,8 @@ function StudentsSection(props: {
   const [bulkResult, setBulkResult] = useState<BulkResult | null>(null);
   const [bulkBusy, setBulkBusy] = useState(false);
   const [bulkInputKey, setBulkInputKey] = useState(0);
-  useEffect(() => { setBulkPreview(null); setBulkResult(null); }, [regionId, institutionId, classId, bulkMode, bulkNames]);
+  useEffect(() => { setBulkPreview(null); setBulkResult(null); }, [regionId, institutionId, classId, bulkMode]);
+  useEffect(() => { setBulkPreview(null); }, [bulkNames]);
   type ClassOverviewRow = {
     classId: string; label: string; regionId?: string; regionName?: string; institutionName?: string; className?: string; academicYear?: number;
     students: number; todayActive: number; todayQuestions: number; monthQuestions: number; monthCostTwd: number;
@@ -2517,7 +2518,7 @@ function StudentsSection(props: {
           <strong>{classId ? `${regions.find((item) => item.id === regionId)?.name || "地區"} · ${institutions.find((item) => item.id === institutionId)?.name || "合作單位"} · ${classes.find((item) => item.id === classId) ? compactClassLabel(classes.find((item) => item.id === classId)!) : "班級"}` : "請先選擇班級"}</strong>
         </div>
         <div className="bulk-entry-tabs" aria-label="名單輸入方式"><button type="button" disabled={bulkBusy} aria-pressed={bulkMode==="text"} onClick={()=>setBulkMode("text")}>換行輸入姓名</button><button type="button" disabled={bulkBusy} aria-pressed={bulkMode==="file"} onClick={()=>setBulkMode("file")}>CSV / Excel</button></div>
-        {bulkMode==="text"&&<label className="bulk-manual-entry"><span>學生姓名 · 每行一位 · 最多 500 位</span><textarea className="hh-input" rows={7} maxLength={25000} disabled={bulkBusy} value={bulkNames} onChange={event=>setBulkNames(event.target.value)} placeholder={"王小明\n陳小華\n林小美"}/><small>已輸入 {bulkNames.split(/\r\n?|\n/).filter(name=>name.trim()).length} 位；空白行會自動略過。</small></label>}
+        {bulkMode==="text"&&<label className="bulk-manual-entry"><span>學生姓名 · 每行一位 · 最多 500 位</span><textarea className="hh-input" rows={7} maxLength={25000} disabled={bulkBusy} value={bulkNames} onChange={event=>{setBulkNames(event.target.value);setBulkResult(null);}} placeholder={"王小明\n陳小華\n林小美"}/><small>已輸入 {bulkNames.split(/\r\n?|\n/).filter(name=>name.trim()).length} 位；空白行會自動略過。</small></label>}
         <div className="bulk-import-controls">
           {bulkMode==="file"&&<label className="bulk-file-picker">
             <input
