@@ -1,22 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyAdminSessionToken } from "@/lib/admin-session";
+import { requireAdminSession } from "@/lib/admin-access";
+import { getAllowedHistoryIds, mayViewHistory } from "@/lib/admin-history-access";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
-async function requireAdmin(request: NextRequest) {
-  const token = request.cookies.get("hh_science_admin_session")?.value;
-  return token ? verifyAdminSessionToken(token) : null;
-}
 
 export async function GET(request: NextRequest) {
-  if (!(await requireAdmin(request))) return NextResponse.json({ error: "未登入管理員。" }, { status: 401 });
+  const admin=await requireAdminSession(request);
+  if(!admin)return NextResponse.json({error:"未登入管理員。"},{status:401});
+  const allowed=await getAllowedHistoryIds(request,admin);
   const { data, error } = await supabaseAdmin
     .from("teacher_examples")
-    .select("subject,topic,keywords,question_signature,teacher_answer,teacher_explanation,teacher_options,teacher_strategy,teacher_note,annotations")
+    .select("solve_history_id,subject,topic,keywords,question_signature,teacher_answer,teacher_explanation,teacher_options,teacher_strategy,teacher_note,annotations")
     .eq("enabled", true)
     .order("updated_at", { ascending: false });
   if (error) return NextResponse.json({ error: `匯出訓練資料失敗：${error.message}` }, { status: 500 });
 
-  const lines = (data || []).map((row: any) => JSON.stringify({
+  const lines = (data || []).filter(row=>mayViewHistory(allowed,row.solve_history_id)).map((row: any) => JSON.stringify({
     input: {
       subject: row.subject || "",
       topic: row.topic || "",
