@@ -7,9 +7,7 @@ import {
   supabaseAdmin,
 } from "@/lib/supabase-admin";
 
-import {
-  verifyAdminSessionToken,
-} from "@/lib/admin-session";
+import { requireAdminSession, isSuperAdmin } from "@/lib/admin-access";
 
 import {
   AI_MODELS,
@@ -23,21 +21,6 @@ import {
   type ReasoningEffort,
 } from "@/lib/ai-settings";
 
-
-async function requireAdmin(
-  request: NextRequest,
-) {
-  const token =
-    request.cookies.get(
-      "hh_science_admin_session",
-    )?.value;
-
-  if (!token) {
-    return null;
-  }
-
-  return verifyAdminSessionToken(token);
-}
 
 
 function getPublicModels() {
@@ -112,7 +95,7 @@ export async function GET(
   request: NextRequest,
 ) {
   const admin =
-    await requireAdmin(request);
+    await requireAdminSession(request);
 
   if (!admin) {
     return NextResponse.json(
@@ -136,7 +119,7 @@ export async function POST(
   request: NextRequest,
 ) {
   const admin =
-    await requireAdmin(request);
+    await requireAdminSession(request);
 
   if (!admin) {
     return NextResponse.json(
@@ -144,6 +127,8 @@ export async function POST(
       { status: 401 },
     );
   }
+
+  if (!isSuperAdmin(admin)) return NextResponse.json({ error: "此設定僅總管理員可以修改。" }, { status: 403 });
 
   let body: any;
 
