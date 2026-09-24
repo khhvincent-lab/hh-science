@@ -1,3 +1,5 @@
+import { normalizeScienceDiagram, SCIENCE_TEMPLATE_PROMPT, type LibraryImageRef } from "@/lib/science/diagram-engine";
+import { retrieveTeachingImages } from "@/lib/teaching-images";
 import {
   randomUUID,
 } from "crypto";
@@ -164,66 +166,7 @@ export type RouterResult = {
 
 
 
-function clampDiagramNumber(value: unknown) {
-  const n = Number(value);
-  if (!Number.isFinite(n)) return undefined;
-  return Math.max(0, Math.min(100, n));
-}
-
-function normalizeScienceDiagram(value: any): ScienceDiagram | null {
-  if (!value || typeof value !== "object") return null;
-
-  const allowedTypes = new Set([
-    "force", "incline", "circular_motion", "spring", "pulley", "optics", "circuit",
-    "earth_layers", "fault", "plate_boundary", "sun_angle", "earth_moon_sun",
-    "atmosphere", "ocean_circulation", "chemistry_apparatus",
-    "motion_graph", "coordinate_graph", "wave", "vector", "phase_diagram", "generic",
-  ]);
-  const type = String(value.type || "generic");
-  const rawConfidence = Number(value.confidence ?? 0);
-  const confidence = Number.isFinite(rawConfidence) ? Math.max(0, Math.min(100, rawConfidence)) : 0;
-  if (!allowedTypes.has(type) || confidence < 55 || !Array.isArray(value.primitives)) return null;
-
-  const allowedKinds = new Set(["line", "arrow", "circle", "rect", "label", "polyline", "arc"]);
-  const allowedRoles = new Set(["primary", "secondary", "accent", "muted"]);
-
-  const primitives = value.primitives.slice(0, 24).flatMap((item: any) => {
-    if (!item || typeof item !== "object") return [];
-    const kind = String(item.kind || "");
-    if (!allowedKinds.has(kind)) return [];
-    const primitive: any = { kind };
-    for (const key of ["x1","y1","x2","y2","x","y","cx","cy","r","width","height"] as const) {
-      const n = clampDiagramNumber(item[key]);
-      if (n !== undefined) primitive[key] = n;
-    }
-    if (Array.isArray(item.points)) {
-      primitive.points = item.points.slice(0, 16).map((point: any) => ({
-        x: clampDiagramNumber(point?.x) ?? 0,
-        y: clampDiagramNumber(point?.y) ?? 0,
-      }));
-    }
-    const startAngle = Number(item.startAngle);
-    const endAngle = Number(item.endAngle);
-    if (Number.isFinite(startAngle)) primitive.startAngle = Math.max(-360, Math.min(360, startAngle));
-    if (Number.isFinite(endAngle)) primitive.endAngle = Math.max(-360, Math.min(360, endAngle));
-    if (item.text != null) primitive.text = String(item.text).slice(0, 48);
-    if (item.note != null) primitive.note = String(item.note).slice(0, 180);
-    const role = String(item.role || "primary");
-    primitive.role = allowedRoles.has(role) ? role : "primary";
-    primitive.dashed = Boolean(item.dashed);
-    return [primitive];
-  });
-
-  if (primitives.length < 2) return null;
-
-  return {
-    type: type as ScienceDiagram["type"],
-    title: String(value.title || "圖解").slice(0, 36),
-    caption: String(value.caption || "").slice(0, 160),
-    confidence,
-    primitives,
-  };
-}
+function clampDiagramNumber(value: unknown) { const n=Number(value); return Number.isFinite(n)?Math.max(0,Math.min(100,n)):undefined; }
 
 function normalizeChemicalStructure(value: any): ChemicalStructure | null {
   if (!value || typeof value !== "object") return null;
@@ -273,7 +216,8 @@ function normalizeChemicalStructure(value: any): ChemicalStructure | null {
 
 function normalizeSolveResult(
   value:
-    any
+    any,
+  imageRefs: LibraryImageRef[] = []
 ): SolveResult {
 
   const annotations:
@@ -357,7 +301,7 @@ function normalizeSolveResult(
 
     diagram:
       normalizeScienceDiagram(
-        value?.diagram
+        value?.diagram, imageRefs
       ),
 
     chemicalStructure:
@@ -736,13 +680,17 @@ export async function runAIRouter(
     ? String(gate.category)
     : input.subject;
 
-  const teachingContext = await buildTeachingContext(teachingSubject, {
+  const teachingBase = await buildTeachingContext(teachingSubject, {
     topic: gate.topic,
     keywords: gate.keywords,
     questionSignature: gate.questionSignature,
     referenceAnswer: input.referenceAnswer,
     questionNote: input.questionNote,
   });
+
+  const imageContext = gate.allowed ? await retrieveTeachingImages(teachingSubject, [gate.topic, ...(gate.keywords || []), gate.questionSignature, input.questionNote].filter(Boolean).join(" "), input.images.length) : {refs:[],images:[],prompt:""};
+  const teachingContext = teachingBase + "\n" + SCIENCE_TEMPLATE_PROMPT + imageContext.prompt;
+  const solveImages = [...input.images, ...imageContext.images];
 
   if (
     !gate.allowed
@@ -818,7 +766,7 @@ export async function runAIRouter(
           teachingContext,
         }),
       images:
-        input.images,
+        solveImages,
       expectJson:
         true,
       metadata: {
@@ -830,7 +778,7 @@ export async function runAIRouter(
     normalizeSolveResult(
       parseAIJson(
         primaryResponse.text
-      )
+      ), imageContext.refs
     );
 
   if (
@@ -1024,7 +972,7 @@ export async function runAIRouter(
             teachingContext,
           }),
         images:
-          input.images,
+          solveImages,
         expectJson:
           true,
         metadata: {
@@ -1040,7 +988,7 @@ export async function runAIRouter(
       normalizeSolveResult(
         parseAIJson(
           arbiterResponse.text
-        )
+        ), imageContext.refs
       );
 
     const arbiterMatchesReference =
@@ -1155,7 +1103,7 @@ export async function runAIRouter(
           teachingContext,
         }),
       images:
-        input.images,
+        solveImages,
       expectJson:
         true,
       metadata: {
@@ -1286,7 +1234,7 @@ export async function runAIRouter(
           teachingContext,
         }),
       images:
-        input.images,
+        solveImages,
       expectJson:
         true,
       metadata: {
@@ -1307,7 +1255,7 @@ export async function runAIRouter(
     normalizeSolveResult(
       parseAIJson(
         arbiterResponse.text
-      )
+      ), imageContext.refs
     );
 
   return {

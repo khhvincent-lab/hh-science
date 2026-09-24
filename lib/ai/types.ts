@@ -87,6 +87,8 @@ export type ScienceDiagram = {
   caption: string;
   confidence: number;
   primitives: ScienceDiagramPrimitive[];
+  table?: { headers:string[]; rows:string[][] };
+  libraryImages?: Array<{id:string;title:string;description:string}>;
 };
 
 

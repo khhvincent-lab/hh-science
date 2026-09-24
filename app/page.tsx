@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Cropper } from "react-cropper";
 import katex from "katex";
-import { toPng } from "html-to-image";
+import { captureSolutionImage } from "@/lib/solution-image-export";
 import SolutionImageDownload from "@/components/solution-image-download";
 import ThemeToggle from "@/components/theme-toggle";
 import AdaptiveBrandLogo from "@/components/adaptive-brand-logo";
@@ -2159,135 +2159,9 @@ export default function Home() {
   }
 
   async function buildSolutionImageFile() {
-    if (!exportCardRef.current || !exportQuestionImageRef.current || !solveData) {
-      throw new Error("目前沒有可匯出的解析內容");
-    }
-
-    if ("fonts" in document) {
-      await document.fonts.ready;
-    }
-
-    // 先把原始題目圖轉成標準 PNG。
-    const normalizedQuestionImage = await normalizeQuestionImageForExport(image);
-
-    // 題目圖在 html-to-image / Safari clone 時可能會變成空白，
-    // 因此這一版不再要求匯出引擎負責畫題目圖。
-    // html-to-image 只負責「文字＋版面」，最後再用原生 Canvas
-    // 把題目圖直接合成到正確位置，避開 Safari 的 DOM 圖片 clone 問題。
-    const card = exportCardRef.current;
-    const questionElement = exportQuestionImageRef.current;
-
-    const cardRect = card.getBoundingClientRect();
-    const questionRect = questionElement.getBoundingClientRect();
-
-    if (
-      cardRect.width <= 0 ||
-      cardRect.height <= 0 ||
-      questionRect.width <= 0 ||
-      questionRect.height <= 0
-    ) {
-      throw new Error("無法取得解析圖片版面尺寸");
-    }
-
-    const isIOS =
-      /iPhone|iPad|iPod/i.test(navigator.userAgent) ||
-      (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
-
-    const pixelRatio = isIOS ? 1.35 : 1.8;
-
-    // 先暫時讓題目 img 本身透明，保留它佔用的版面位置。
-    // 這樣 html-to-image 產生的底圖只會留下乾淨的白色題目框。
-    const previousOpacity = questionElement.style.opacity;
-    questionElement.style.opacity = "0";
-
-    let baseDataUrl: string;
-
-    try {
-      await waitForNextPaint();
-
-      baseDataUrl = await toPng(card, {
-        backgroundColor: "#f8f7f2",
-        pixelRatio,
-        cacheBust: true,
-        skipAutoScale: true,
-        style: {
-          background: "#f8f7f2",
-          color: "#27332d",
-        },
-      });
-    } finally {
-      questionElement.style.opacity = previousOpacity;
-    }
-
-    const baseImage = await loadCanvasImage(baseDataUrl);
-    const questionImage = await loadCanvasImage(normalizedQuestionImage);
-
-    const finalCanvas = document.createElement("canvas");
-    finalCanvas.width = baseImage.naturalWidth;
-    finalCanvas.height = baseImage.naturalHeight;
-
-    const context = finalCanvas.getContext("2d");
-    if (!context) {
-      throw new Error("無法建立最終解析圖片");
-    }
-
-    // 先畫 html-to-image 產生的完整文字與版面。
-    context.drawImage(baseImage, 0, 0);
-
-    // 由實際輸出尺寸反推 DOM → PNG 的縮放比例，
-    // 不依賴 pixelRatio 猜測，因此桌機 / iPhone 都能對準。
-    const scaleX = baseImage.naturalWidth / cardRect.width;
-    const scaleY = baseImage.naturalHeight / cardRect.height;
-
-    const targetX = (questionRect.left - cardRect.left) * scaleX;
-    const targetY = (questionRect.top - cardRect.top) * scaleY;
-    const targetWidth = questionRect.width * scaleX;
-    const targetHeight = questionRect.height * scaleY;
-
-    const sourceWidth = questionImage.naturalWidth;
-    const sourceHeight = questionImage.naturalHeight;
-
-    if (sourceWidth <= 0 || sourceHeight <= 0) {
-      throw new Error("原題目圖片尺寸異常");
-    }
-
-    // 等比例 contain，完整顯示題目，不裁切。
-    const containScale = Math.min(
-      targetWidth / sourceWidth,
-      targetHeight / sourceHeight,
-    );
-
-    const drawWidth = sourceWidth * containScale;
-    const drawHeight = sourceHeight * containScale;
-    const drawX = targetX + (targetWidth - drawWidth) / 2;
-    const drawY = targetY + (targetHeight - drawHeight) / 2;
-
-    context.drawImage(
-      questionImage,
-      drawX,
-      drawY,
-      drawWidth,
-      drawHeight,
-    );
-
-    const blob: Blob | null = await new Promise((resolve) => {
-      finalCanvas.toBlob(resolve, "image/png", 1);
-    });
-
-    if (!blob || blob.size === 0) {
-      throw new Error("解析圖片建立失敗");
-    }
-
-    const safeStudent = student
-      ? student.name.replace(/[\\/:*?"<>|]/g, "")
-      : "學生";
-
-    const fileName = `HH-Science-${safeStudent}-${Date.now()}.png`;
-
-    return new File([blob], fileName, {
-      type: "image/png",
-      lastModified: Date.now(),
-    });
+    if (!exportCardRef.current || !solveData) throw new Error("目前沒有可匯出的解析內容");
+    const safeStudent = (student?.name || "學生").replace(/[\\/:*?"<>|]/g, "");
+    return captureSolutionImage(exportCardRef.current, `HH-Science-${safeStudent}-${Date.now()}.png`, "#f8f7f2");
   }
 
   function downloadPreparedFile(file: File) {
@@ -3562,7 +3436,7 @@ export default function Home() {
         </nav>}
         <footer className="student-footer">
           <div className="hh-eyebrow">{brand.englishName}</div>
-          <div>{brand.name} v2.2.0</div>
+          <div>{brand.name} v2.3.0</div>
         </footer>
       </div>
 
@@ -3570,6 +3444,7 @@ export default function Home() {
         <div aria-hidden="true" style={{ position: "fixed", left: "-12000px", top: 0, width: "860px", zIndex: -1000 }}>
           <div
             ref={exportCardRef}
+            className="history-export-paper"
             style={{
               width: "860px",
               background: "#f8f7f2",
@@ -3612,6 +3487,9 @@ export default function Home() {
               <div style={{ fontFamily: '"Source Han Serif TC", "Noto Serif TC", "Songti TC", "PMingLiU", serif', fontWeight: 700, fontSize: "18px", color: "#30463b", marginBottom: "8px" }}>觀念詳解</div>
               <ScienceText text={solveData.explanation} stripAnnotations />
             </div>
+
+            <ScienceDiagramView diagram={solveData.diagram} />
+            <ChemicalStructureView structure={solveData.chemicalStructure} />
 
             {solveData.options && (
               <div style={{ background: "#fff", border: "1px solid #eadbd8", borderRadius: "14px", padding: "18px" }}>

@@ -18,7 +18,7 @@ export async function proxy(request:NextRequest){
   "/api/admin/ai-settings","/api/admin/analytics","/api/admin/latency-analytics",
   "/api/admin/dashboard-insights","/api/admin/dashboard-accuracy","/api/admin/cost-alert-settings",
   "/api/admin/teaching-settings","/api/admin/input-guard",
-  "/api/admin/teaching-knowledge","/api/admin/teaching-questions",
+  "/api/admin/teaching-knowledge","/api/admin/teaching-questions","/api/admin/teaching-images",
   "/api/admin/quota-settings",
  ]);
  const allowed=exact.has(path)||/^\/api\/admin\/students\/[^/]+\/history$/.test(path)

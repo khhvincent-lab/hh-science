@@ -1,0 +1,33 @@
+const fs=require('node:fs'),vm=require('node:vm'),ts=require('typescript'),assert=require('node:assert/strict');
+function load(path,mocks={}){const exports={};vm.runInNewContext(ts.transpileModule(fs.readFileSync(path,'utf8'),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText,{exports,Buffer,File,Date,console,require:id=>id in mocks?mocks[id]:require(id)});return exports;}
+const {normalizeScienceDiagram:n}=load('lib/science/diagram-engine.ts');
+const diagram=template=>n({template,confidence:100});
+const force=diagram({kind:'force',forces:[{label:'N',angle:90,magnitude:10},{label:'mg',angle:270,magnitude:5}]});
+const arrows=force.primitives.filter(p=>p.kind==='arrow');assert.equal(arrows[0].y2,20);assert.equal(arrows[1].y2,65);assert.equal(diagram({kind:'force',forces:[{label:'bad',angle:0,magnitude:0}]}),null);
+const grid=diagram({kind:'grid',rows:3,columns:3});assert.equal(grid.primitives.length,8);assert.equal(grid.primitives.filter(p=>p.x1===p.x2).length,4);
+assert.equal(diagram({kind:'grid',rows:0,columns:3}),null);
+const plot=diagram({kind:'plot',xRange:[0,4],yRange:[0,8],points:[{x:0,y:0},{x:4,y:8}]});const pts=plot.primitives.at(-1).points;assert.equal(pts[0].x,16);assert.equal(pts[1].y,20);assert.equal(plot.primitives.filter(p=>p.kind==='label').length,12);
+assert.equal(diagram({kind:'plot',xRange:[0,4],yRange:[0,8],points:[{x:0,y:0},{x:5,y:8}]}),null);
+assert.equal(diagram({kind:'table',headers:['a','b'],rows:[['1']]}),null);assert.equal(diagram({kind:'table',headers:['a','b'],rows:[['1','2']]}).table.rows[0][1],'2');
+for(const scene of ['filtration','titration','distillation'])assert.ok(diagram({kind:'apparatus',scene}).primitives.length>8);
+assert.equal(diagram({kind:'apparatus',scene:'guess'}),null);
+const asset={id:'12345678-1234-4234-8234-123456789abc',title:'test',description:'usage'};
+assert.equal(n({confidence:100,libraryImageIds:['https://bad.test/a']}),null);
+assert.equal(n({confidence:100,libraryImageIds:[asset.id]},[asset]).libraryImages[0].id,asset.id);
+assert.equal(n({confidence:50,libraryImageIds:[asset.id]},[asset]),null);
+assert.equal(n({confidence:100,primitives:[{kind:'line',x1:NaN,y1:0,x2:4,y2:4}]}),null);
+let actor={role:'super_admin',userId:asset.id},student=null,active=true,owned=false,stored=[],uploads=0;
+const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLbtAAAAABJRU5ErkJggg==','base64');
+const db={from(table){const q={select(){return q},eq(){return q},is(){return q},order(){return q},limit(){return q},contains(key,val){assert.equal(key,'diagram');assert.equal(val.libraryImages[0].id,asset.id);return q},insert(row){stored.push(row);return q},update(row){stored.push(row);return q},maybeSingle:async()=>({data:table==='students'?{active,must_change_pin:false}:{...asset,storage_path:'image.png',mime_type:'image/png'},error:null}),then(resolve){resolve({data:table==='solve_history'||table==='solve_followups'?(owned?[{id:'history'}]:[]):[],count:0,error:null})}};return q},storage:{from(){return {upload:async()=>{uploads++;return {error:null}},remove:async()=>({error:null}),download:async()=>({data:new Blob([png]),error:null})}}}};
+const imageLib=load('lib/teaching-images.ts',{'@/lib/supabase-admin':{supabaseAdmin:db},'@/lib/teaching-engine':{getTeachingEngineSettings:async()=>({general:{diagramMode:'auto'}})}});
+assert.equal(imageLib.imageMime(png),'image/png');assert.equal(imageLib.imageMime(Buffer.from('<svg>not allowed</svg>')),null);assert.ok(imageLib.imageMatchScore({title:'裝置',keywords:['蒸餾']},'分析蒸餾過程')>0);assert.equal(imageLib.imageMatchScore({title:'裝置',keywords:['蒸餾']},'受力平衡'),0);
+const mocks={'next/server':{NextResponse:class extends Response{static json(body,opts){return {body,status:opts?.status||200}}}},'@/lib/admin-access':{requireAdminSession:async()=>actor,isSuperAdmin:a=>a?.role==='super_admin'},'@/lib/supabase-admin':{supabaseAdmin:db},'@/lib/teaching-images':imageLib,'@/lib/session':{verifySessionToken:()=>student}};
+const admin=load('app/api/admin/teaching-images/route.ts',mocks),media=load('app/api/teaching-images/[id]/route.ts',mocks);
+function request(file=png){const form=new FormData();form.set('file',new File([file],'demo.png'));for(const [k,v]of Object.entries({title:'蒸餾',subject:'chemistry',keywords:'蒸餾,冷凝管',description:'簡易蒸餾示意'}))form.set(k,v);return {headers:new Headers(),formData:async()=>form,cookies:{get:()=>({value:'token'})}}}
+(async()=>{let r=await admin.POST(request());assert.equal(r.status,200);assert.equal(stored[0].enabled,false);assert.equal(uploads,1);
+actor={role:'teacher'};assert.equal((await admin.POST(request())).status,403);assert.equal((await admin.PATCH({json:async()=>({id:asset.id,action:'toggle',enabled:true})})).status,403);assert.equal((await admin.GET(request())).body.canEdit,false);assert.equal(uploads,1);
+actor=null;assert.equal((await admin.POST(request())).status,401);assert.equal((await media.GET(request(),{params:Promise.resolve({id:asset.id})})).status,401);
+student={studentId:'owner'};assert.equal((await media.GET(request(),{params:Promise.resolve({id:asset.id})})).status,403);owned=true;let image=await media.GET(request(),{params:Promise.resolve({id:asset.id})});assert.equal(image.status,200);assert.equal(image.headers.get('cache-control'),'private, no-store');assert.equal((await image.arrayBuffer()).byteLength,png.length);active=false;assert.equal((await media.GET(request(),{params:Promise.resolve({id:asset.id})})).status,403);
+actor={role:'super_admin',userId:asset.id};assert.equal((await admin.POST(request(Buffer.from('<svg>invalid-image</svg>')))).status,400);assert.equal((await admin.POST(request(Buffer.alloc(3*1024*1024+1)))).status,400);
+assert.equal((await admin.PATCH({json:async()=>({id:asset.id,action:'archive'})})).status,200);assert.equal(stored.at(-1).enabled,false);assert.ok(stored.at(-1).deleted_at);
+console.log('Science templates, image matching, upload validation, teacher permissions, owner-only media and archive checks passed');})().catch(e=>{console.error(e);process.exitCode=1});

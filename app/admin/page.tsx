@@ -1,4 +1,5 @@
 "use client";
+import TeachingImageLibrary from "@/components/admin/teaching-image-library";
 import AdminPasswordChange from "@/components/admin-password-change";
 import DashboardV211 from "./dashboard-v211";
 import WorkspaceNavigation, {workspaceFor} from "@/components/admin/workspace-navigation";
@@ -45,7 +46,7 @@ async function adminTeachingFilesToDataUrls(files: FileList | null) {
   })));
 }
 
-type AdminSection = "dashboard" | "siteQuestions" | "usage" | "classes" | "students" | "ai" | "pin" | "analytics" | "cost" | "platform" | "teachingOverview" | "teachingQuestions" | "teachingExamples" | "teachingRuleLibrary" | "teachingCoach" | "teachingTraining" | "teachingSettings" | "teachingQueue" | "teachingRules";
+type AdminSection = "dashboard" | "siteQuestions" | "usage" | "classes" | "students" | "ai" | "pin" | "analytics" | "cost" | "platform" | "teachingOverview" | "teachingQuestions" | "teachingExamples" | "teachingRuleLibrary" | "teachingCoach" | "teachingTraining" | "teachingImages" | "teachingSettings" | "teachingQueue" | "teachingRules";
 
 type DashboardData = {
   today: {
@@ -1229,7 +1230,7 @@ export default function AdminPage() {
             icon="05"
             label="教學引擎"
             open={openNavGroup === "teaching"}
-            active={["teachingOverview","teachingQuestions","teachingExamples","teachingRuleLibrary","teachingCoach","teachingTraining","teachingSettings"].includes(activeSection)}
+            active={["teachingOverview","teachingQuestions","teachingExamples","teachingRuleLibrary","teachingCoach","teachingTraining","teachingImages","teachingSettings"].includes(activeSection)}
             onToggle={() => setOpenNavGroup((current) => current === "teaching" ? null : "teaching")}
             items={[
               { label: "教學總覽", active: activeSection === "teachingOverview", onClick: () => { setActiveSection("teachingOverview"); setMobileMenuOpen(false); } },
@@ -1237,6 +1238,7 @@ export default function AdminPage() {
               { label: "解題範例庫", active: activeSection === "teachingExamples", onClick: () => { setActiveSection("teachingExamples"); setMobileMenuOpen(false); } },
               { label: "教學規則庫", active: activeSection === "teachingRuleLibrary", onClick: () => { setActiveSection("teachingRuleLibrary"); setMobileMenuOpen(false); } },
               { label: "AI 教練", active: activeSection === "teachingCoach", onClick: () => { setActiveSection("teachingCoach"); setMobileMenuOpen(false); } },
+              { label: "教學圖庫", active: activeSection === "teachingImages", onClick: () => { setActiveSection("teachingImages"); setMobileMenuOpen(false); } },
               { label: "訓練資料", active: activeSection === "teachingTraining", onClick: () => { setActiveSection("teachingTraining"); setMobileMenuOpen(false); } },
               { label: "全站預設", active: activeSection === "teachingSettings", onClick: () => { setActiveSection("teachingSettings"); setMobileMenuOpen(false); } },
             ]}
@@ -1425,6 +1427,7 @@ export default function AdminPage() {
             <TeachingCoachSection canEdit={adminUser?.role==="super_admin"} canSaveGlobalRules={adminUser?.role==="super_admin"} />
           )}
 
+          {activeSection === "teachingImages" && <TeachingImageLibrary canEdit={adminUser?.role === "super_admin"} />}
           {activeSection === "teachingTraining" && (
             <TeachingTrainingSection canEdit={adminUser?.role==="super_admin"} />
           )}
@@ -4958,7 +4961,7 @@ function sectionEyebrow(section: AdminSection) {
   if (section === "siteQuestions") return "ALL QUESTIONS";
   if (["usage","classes","students","pin"].includes(section)) return "CLASS OPERATIONS";
   if (["ai","analytics","cost"].includes(section)) return "AI MODEL CENTER";
-  if (["teachingOverview","teachingQuestions","teachingExamples","teachingRuleLibrary","teachingCoach","teachingTraining","teachingSettings"].includes(section)) return "TEACHING ENGINE";
+  if (["teachingOverview","teachingQuestions","teachingExamples","teachingRuleLibrary","teachingCoach","teachingTraining","teachingImages","teachingSettings"].includes(section)) return "TEACHING ENGINE";
   return "OVERVIEW";
 }
 
@@ -4976,6 +4979,7 @@ function sectionTitle(section: AdminSection) {
   if (section === "teachingExamples") return "解題範例庫";
   if (section === "teachingRuleLibrary") return "教學規則庫";
   if (section === "teachingCoach") return "AI 教練";
+  if (section === "teachingImages") return "教學圖庫";
   if (section === "teachingTraining") return "訓練資料";
   if (section === "teachingSettings") return "全站預設";
   return "管理總覽";

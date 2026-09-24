@@ -1,3 +1,5 @@
+import { normalizeScienceDiagram, SCIENCE_TEMPLATE_PROMPT } from "@/lib/science/diagram-engine";
+import { retrieveTeachingImages } from "@/lib/teaching-images";
 import { randomUUID } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
@@ -8,67 +10,6 @@ import { saveSolverUsage } from "@/lib/ai/usage-log";
 import { parseAIJson } from "@/lib/ai/json";
 import { buildTeachingContext } from "@/lib/teaching-engine";
 import type { ScienceDiagram, ScienceDiagramPrimitive } from "@/lib/ai/types";
-
-function clampDiagramNumber(value: unknown) {
-  const n = Number(value);
-  if (!Number.isFinite(n)) return undefined;
-  return Math.max(0, Math.min(100, n));
-}
-
-function normalizeFollowupDiagram(value: any): ScienceDiagram | null {
-  if (!value || typeof value !== "object") return null;
-
-  const allowedTypes = new Set([
-    "force", "incline", "circular_motion", "spring", "pulley", "optics", "circuit",
-    "earth_layers", "fault", "plate_boundary", "sun_angle", "earth_moon_sun",
-    "atmosphere", "ocean_circulation", "chemistry_apparatus", "motion_graph",
-    "coordinate_graph", "wave", "vector", "phase_diagram", "generic",
-  ]);
-  const type = String(value.type || "generic");
-  const confidenceRaw = Number(value.confidence ?? 0);
-  const confidence = Number.isFinite(confidenceRaw) ? Math.max(0, Math.min(100, confidenceRaw)) : 0;
-  if (!allowedTypes.has(type) || confidence < 55 || !Array.isArray(value.primitives)) return null;
-
-  const allowedKinds = new Set(["line", "arrow", "circle", "rect", "label", "polyline", "arc"]);
-  const allowedRoles = new Set(["primary", "secondary", "accent", "muted"]);
-
-  const primitives: ScienceDiagramPrimitive[] = value.primitives.slice(0, 24).flatMap((item: any) => {
-    if (!item || typeof item !== "object") return [];
-    const kind = String(item.kind || "") as ScienceDiagramPrimitive["kind"];
-    if (!allowedKinds.has(kind)) return [];
-    const primitive: ScienceDiagramPrimitive = { kind };
-
-    for (const key of ["x1", "y1", "x2", "y2", "x", "y", "cx", "cy", "r", "width", "height"] as const) {
-      const n = clampDiagramNumber(item[key]);
-      if (n !== undefined) (primitive as any)[key] = n;
-    }
-    if (Array.isArray(item.points)) {
-      primitive.points = item.points.slice(0, 20).map((point: any) => ({
-        x: clampDiagramNumber(point?.x) ?? 0,
-        y: clampDiagramNumber(point?.y) ?? 0,
-      }));
-    }
-    const startAngle = Number(item.startAngle);
-    const endAngle = Number(item.endAngle);
-    if (Number.isFinite(startAngle)) primitive.startAngle = Math.max(-360, Math.min(360, startAngle));
-    if (Number.isFinite(endAngle)) primitive.endAngle = Math.max(-360, Math.min(360, endAngle));
-    if (item.text != null) primitive.text = String(item.text).slice(0, 48);
-    if (item.note != null) primitive.note = String(item.note).slice(0, 180);
-    const role = String(item.role || "primary") as ScienceDiagramPrimitive["role"];
-    primitive.role = allowedRoles.has(String(role)) ? role : "primary";
-    primitive.dashed = Boolean(item.dashed);
-    return [primitive];
-  });
-
-  if (primitives.length < 2) return null;
-  return {
-    type: type as ScienceDiagram["type"],
-    title: String(value.title || "追問圖解").slice(0, 36),
-    caption: String(value.caption || "").slice(0, 160),
-    confidence,
-    primitives,
-  };
-}
 
 function buildFollowupPrompt({
   subject,
@@ -126,7 +67,7 @@ ${teachingContext || ""}
 - 使用 0～100 座標，左上 (0,0)、右下 (100,100)。
 - 畫座標圖時畫面 y 座標向下增加，所以「數值越大」要放得越靠上。
 - 坐標軸：arrow；直線：line；折線／曲線近似：polyline；文字／刻度／單位：label。
-- primitives 最多 24 個，標籤保持簡潔。
+- primitives 最多 160 個，標籤保持簡潔。
 - type 可用：force, incline, circular_motion, spring, pulley, optics, circuit, motion_graph, coordinate_graph, wave, vector, phase_diagram, earth_layers, fault, plate_boundary, sun_angle, earth_moon_sun, atmosphere, ocean_circulation, chemistry_apparatus, generic。
 - 每個 primitive 可附 note，學生點擊時顯示短說明。
 
@@ -188,7 +129,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: `這題最多可追問 ${maxPerQuestion} 次。`, remaining: 0 }, { status: 429 });
   }
 
-  const teachingContext = await buildTeachingContext(String(history.subject || ""));
+  const imageContext = await retrieveTeachingImages(String(history.subject || ""), question + " " + String(history.explanation || "").slice(0,2000), 0);
+  const teachingContext = await buildTeachingContext(String(history.subject || "")) + "\n" + SCIENCE_TEMPLATE_PROMPT + imageContext.prompt;
   const prompt = buildFollowupPrompt({
     subject: String(history.subject || "自然科"),
     answer: String(history.answer || ""),
@@ -206,6 +148,7 @@ export async function POST(request: NextRequest) {
       model: settings.followup.model.model,
       reasoning: settings.followup.model.reasoning,
       prompt,
+      images: imageContext.images,
       expectJson: true,
     });
 
@@ -218,7 +161,7 @@ export async function POST(request: NextRequest) {
     }
 
     const answer = String(parsed?.answer || "").trim();
-    const diagram = normalizeFollowupDiagram(parsed?.diagram);
+    const diagram = normalizeScienceDiagram(parsed?.diagram, imageContext.refs);
     if (!answer) throw new Error("追問模型沒有回傳內容。");
 
     const { data: inserted, error: insertError } = await supabaseAdmin

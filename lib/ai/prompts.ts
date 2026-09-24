@@ -213,7 +213,7 @@ $\\htmlData{annotation=a1}{162}\\ \\mathrm{g/mol}$
 1. 不為了好看而畫圖；純計算題若圖不增加理解，diagram=null。
 2. 圖只能呈現你已確認的物理／地科關係，不可新增題目沒有的假設。
 3. 使用 0～100 的座標系，左上角是 (0,0)，右下角是 (100,100)。
-4. primitives 最多 18 個，保持簡潔；標籤 text 最好 1～8 個字。
+4. primitives 最多 160 個，保持簡潔；標籤 text 最好 1～8 個字。
 5. 箭頭只用 arrow；一般幾何線用 line；虛線請 dashed=true。
 6. 不要把長篇公式塞進圖裡。圖是輔助詳解，不是取代詳解。
 7. 若題目明確要求「畫圖、作圖、示意、v-t 圖、x-t 圖、a-t 圖、向量圖、波形圖」，而且可由已知條件確定，就優先輸出 diagram，不要用 ASCII art 或 Markdown code block 假裝畫圖。
@@ -435,7 +435,7 @@ ${teachingContext || ""}
 最後產生完整的學生版解答。
 
 如果精確簡圖能明顯幫助理解，也請依 Primary 相同的 Science Diagram Engine 規則輸出 diagram；
-使用 0～100 座標、最多 18 個 primitives，只有把握足夠時才畫，否則 diagram=null。
+使用 0～100 座標、最多 160 個 primitives，只有把握足夠時才畫，否則 diagram=null。
 化學題若結構式能明顯幫助理解，也依 Primary 相同的 Chemical Structure Renderer 規則輸出 chemicalStructure；不需要或不確定時 chemicalStructure=null。
 
 即使你的獨立結論仍與學生提供的標準答案不同，也要維持你認為正確的答案；
