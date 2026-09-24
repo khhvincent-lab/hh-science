@@ -1,14 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyAdminSessionToken } from "@/lib/admin-session";
+import { requireAdminSession } from "@/lib/admin-access";
 import { getAISolverSettings } from "@/lib/ai-settings";
 import { runSolver } from "@/lib/ai/solver";
 import { parseAIJson } from "@/lib/ai/json";
 import { buildTeachingContext } from "@/lib/teaching-engine";
 
-async function requireAdmin(request: NextRequest) {
-  const token = request.cookies.get("hh_science_admin_session")?.value;
-  return token ? verifyAdminSessionToken(token) : null;
-}
 
 function cleanAnnotations(value: any) {
   if (!Array.isArray(value)) return [];
@@ -23,7 +19,7 @@ function cleanAnnotations(value: any) {
 }
 
 export async function POST(request: NextRequest) {
-  if (!(await requireAdmin(request))) return NextResponse.json({ error: "未登入管理員。" }, { status: 401 });
+  if (!(await requireAdminSession(request))) return NextResponse.json({ error: "未登入管理員。" }, { status: 401 });
   try {
     const body = await request.json().catch(() => ({}));
     const task = String(body.task || "chat");

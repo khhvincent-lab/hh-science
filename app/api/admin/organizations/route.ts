@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
   if (allowedClassIds === null) return NextResponse.json({regions:regions??[],institutions:institutions??[],classes:classes??[],students:students??[]});
   const scopedClasses=(classes??[]).filter((row:any)=>allowedClassIds.includes(String(row.id)));
   const institutionIds=new Set(scopedClasses.map((row:any)=>String(row.institution_id)));
-  if(session.role==="platform_admin"||session.role==="institution_admin"){
+  if(session.role==="teacher"){
     const {data:grants,error:grantError}=await supabaseAdmin.from("admin_user_institutions").select("institution_id").eq("admin_user_id",session.userId);
     if(grantError)return NextResponse.json({error:grantError.message},{status:500});
     for(const grant of grants??[])institutionIds.add(String(grant.institution_id));
@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   const session = await requireAdminSession(request); if (!session) return NextResponse.json({error:"未登入管理員。"},{status:401});
-  if (session.role === "teacher") return NextResponse.json({error:"教師不能新增班級。"},{status:403});
+  if (session.role === "teacher") return NextResponse.json({error:"新增地區、補習班或班級僅限總管理員。"},{status:403});
   const body=await request.json().catch(()=>null); if(!body) return NextResponse.json({error:"資料格式錯誤。"},{status:400});
   const type=clean(body.type), name=clean(body.name); if(!name||name.length>50) return NextResponse.json({error:"名稱不可空白且最多 50 字。"},{status:400});
   if(type==="region") {
@@ -66,7 +66,6 @@ export async function POST(request: NextRequest) {
 
 export async function PATCH(request: NextRequest) {
   const session = await requireAdminSession(request); if (!session) return NextResponse.json({error:"未登入管理員。"},{status:401});
-  if (session.role === "teacher") return NextResponse.json({error:"教師不可調整班級設定。"},{status:403});
   const body=await request.json().catch(()=>null); if(!body) return NextResponse.json({error:"資料格式錯誤。"},{status:400});
   const action=clean(body.action);
   if(action==="update_institution_title") {
@@ -86,10 +85,16 @@ export async function PATCH(request: NextRequest) {
     if(!classId) return NextResponse.json({error:"缺少班級。"},{status:400});
     const scoped=await getAccessibleClassIds(request,session);if(scoped!==null&&!scoped.includes(classId))return NextResponse.json({error:"沒有此班級的管理權限。"},{status:403});
     if(!allowedSubjects.length) return NextResponse.json({error:"至少要開放 1 個科目。"},{status:400});
+    const {data:before}=await supabaseAdmin.from("classes").select("allowed_subjects").eq("id",classId).maybeSingle();
     const {data,error}=await supabaseAdmin.from("classes").update({allowed_subjects:allowedSubjects}).eq("id",classId).select("id,name,allowed_subjects").single();
+    if(!error && data) {
+      const {error:auditError}=await supabaseAdmin.from("admin_account_audit").insert({actor_id:session.userId,target_id:classId,action:"update_class_subjects",details:{previous:before?.allowed_subjects??null,next:allowedSubjects}});
+      if(auditError)console.error("Class subject audit failure:",auditError);
+    }
     return error?NextResponse.json({error:error.message},{status:500}):NextResponse.json({success:true,item:data});
   }
   if(action!=="promote_class") return NextResponse.json({error:"未知操作。"},{status:400});
+  if(!isSuperAdmin(session))return NextResponse.json({error:"整班升班僅限總管理員。"},{status:403});
   const sourceClassId=clean(body.sourceClassId), targetClassId=clean(body.targetClassId);
   if(!sourceClassId||!targetClassId||sourceClassId===targetClassId) return NextResponse.json({error:"請選擇不同的來源班級與目標班級。"},{status:400});
   const scoped=await getAccessibleClassIds(request,session);if(scoped!==null&&(!scoped.includes(sourceClassId)||!scoped.includes(targetClassId)))return NextResponse.json({error:"沒有來源或目標班級權限。"},{status:403});

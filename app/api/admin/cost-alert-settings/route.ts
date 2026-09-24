@@ -7,32 +7,18 @@ import {
   supabaseAdmin,
 } from "@/lib/supabase-admin";
 
-import {
-  verifyAdminSessionToken,
-} from "@/lib/admin-session";
+import { requireAdminSession, isSuperAdmin } from "@/lib/admin-access";
 
 
 const USD_TO_TWD_RATE = 32.5;
 const DEFAULT_MONTHLY_THRESHOLD_TWD = 500;
 
 
-async function requireAdmin(
-  request: NextRequest,
-) {
-  const token =
-    request.cookies.get(
-      "hh_science_admin_session",
-    )?.value;
-
-  if (!token) return null;
-  return verifyAdminSessionToken(token);
-}
-
 
 export async function GET(
   request: NextRequest,
 ) {
-  const admin = await requireAdmin(request);
+  const admin = await requireAdminSession(request);
 
   if (!admin) {
     return NextResponse.json(
@@ -83,7 +69,7 @@ export async function GET(
 export async function POST(
   request: NextRequest,
 ) {
-  const admin = await requireAdmin(request);
+  const admin = await requireAdminSession(request);
 
   if (!admin) {
     return NextResponse.json(
@@ -91,6 +77,8 @@ export async function POST(
       { status: 401 },
     );
   }
+
+  if (!isSuperAdmin(admin)) return NextResponse.json({ error: "此設定僅總管理員可以修改。" }, { status: 403 });
 
   let body: {
     monthlyThresholdTwd?: number;

@@ -1,11 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyAdminSessionToken } from "@/lib/admin-session";
+import { requireAdminSession, isSuperAdmin } from "@/lib/admin-access";
+import { getAllowedHistoryIds, mayViewHistory } from "@/lib/admin-history-access";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
-async function requireAdmin(request: NextRequest) {
-  const token = request.cookies.get("hh_science_admin_session")?.value;
-  return token ? verifyAdminSessionToken(token) : null;
-}
 
 function strings(value: unknown, max = 12) {
   return Array.isArray(value)
@@ -65,26 +62,28 @@ function mapExample(row: any) {
   };
 }
 
-async function overview() {
+async function overview(allowed: Set<string> | null) {
   const [rules, examples, queue, sessions] = await Promise.all([
     supabaseAdmin.from("teacher_rules").select("id,enabled,subject,scope", { count: "exact" }),
-    supabaseAdmin.from("teacher_examples").select("id,enabled,subject,annotations", { count: "exact" }),
-    supabaseAdmin.from("teacher_correction_queue").select("id,status", { count: "exact" }),
-    supabaseAdmin.from("teacher_coach_sessions").select("id", { count: "exact" }),
+    supabaseAdmin.from("teacher_examples").select("id,solve_history_id,enabled,subject,annotations", { count: "exact" }),
+    supabaseAdmin.from("teacher_correction_queue").select("id,solve_history_id,status", { count: "exact" }),
+    supabaseAdmin.from("teacher_coach_sessions").select("id,solve_history_id", { count: "exact" }),
   ]);
 
   const firstError = rules.error || examples.error || queue.error || sessions.error;
   if (firstError) throw firstError;
 
-  const exampleRows = examples.data || [];
+  const exampleRows = (examples.data || []).filter(row=>mayViewHistory(allowed,row.solve_history_id));
+  const queueRows = (queue.data || []).filter(row=>mayViewHistory(allowed,row.solve_history_id));
+  const sessionRows = (sessions.data || []).filter(row=>mayViewHistory(allowed,row.solve_history_id));
   return {
     rules: rules.count || 0,
     enabledRules: (rules.data || []).filter((row: any) => row.enabled !== false).length,
-    examples: examples.count || 0,
+    examples: exampleRows.length,
     enabledExamples: exampleRows.filter((row: any) => row.enabled !== false).length,
     annotatedExamples: exampleRows.filter((row: any) => Array.isArray(row.annotations) && row.annotations.length > 0).length,
-    pendingCorrections: (queue.data || []).filter((row: any) => row.status === "pending").length,
-    coachSessions: sessions.count || 0,
+    pendingCorrections: queueRows.filter((row: any) => row.status === "pending").length,
+    coachSessions: sessionRows.length,
     subjects: ["physics", "chemistry", "biology", "earth"].map((subject) => ({
       subject,
       rules: (rules.data || []).filter((row: any) => row.subject === subject).length,
@@ -94,14 +93,17 @@ async function overview() {
 }
 
 export async function GET(request: NextRequest) {
-  if (!(await requireAdmin(request))) return NextResponse.json({ error: "未登入管理員。" }, { status: 401 });
+  const admin=await requireAdminSession(request);
+  if(!admin)return NextResponse.json({error:"未登入管理員。"},{status:401});
   const view = request.nextUrl.searchParams.get("view") || "overview";
   try {
-    if (view === "overview") return NextResponse.json({ overview: await overview() });
+    const allowed=await getAllowedHistoryIds(request,admin);
+    if (view === "overview") return NextResponse.json({ overview: await overview(allowed) });
 
     if (view === "example") {
       const historyId = request.nextUrl.searchParams.get("historyId") || "";
       if (!historyId) return NextResponse.json({ item: null });
+      if(!mayViewHistory(allowed,historyId))return NextResponse.json({error:"無權查看此題目。"},{status:403});
       const { data, error } = await supabaseAdmin
         .from("teacher_examples")
         .select("*")
@@ -129,7 +131,7 @@ export async function GET(request: NextRequest) {
         .order("updated_at", { ascending: false })
         .limit(500);
       if (error) throw error;
-      return NextResponse.json({ items: (data || []).map(mapExample) });
+      return NextResponse.json({ items: (data || []).filter(row=>mayViewHistory(allowed,row.solve_history_id)).map(mapExample) });
     }
 
     if (view === "sessions") {
@@ -139,7 +141,7 @@ export async function GET(request: NextRequest) {
         .order("updated_at", { ascending: false })
         .limit(100);
       if (error) throw error;
-      return NextResponse.json({ items: data || [] });
+      return NextResponse.json({ items: (data || []).filter(row=>mayViewHistory(allowed,row.solve_history_id)) });
     }
 
     return NextResponse.json({ error: "未知的教學資料檢視。" }, { status: 400 });
@@ -149,12 +151,15 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  if (!(await requireAdmin(request))) return NextResponse.json({ error: "未登入管理員。" }, { status: 401 });
+  const admin=await requireAdminSession(request);
+  if(!admin)return NextResponse.json({error:"未登入管理員。"},{status:401});
   const body = await request.json().catch(() => ({}));
   const action = String(body.action || "");
 
   try {
+    const allowed=await getAllowedHistoryIds(request,admin);
     if (action === "createRule") {
+      if(!isSuperAdmin(admin))return NextResponse.json({error:"全站規則僅總管理員可新增。"},{status:403});
       const content = String(body.content || "").trim();
       if (!content) return NextResponse.json({ error: "規則內容不可空白。" }, { status: 400 });
       const scope = ["global", "subject", "topic"].includes(String(body.scope)) ? String(body.scope) : "subject";
@@ -177,6 +182,12 @@ export async function POST(request: NextRequest) {
     if (action === "saveCalibration") {
       const solveHistoryId = String(body.solveHistoryId || "").trim();
       if (!solveHistoryId) return NextResponse.json({ error: "缺少題目紀錄 ID。" }, { status: 400 });
+      if(!mayViewHistory(allowed,solveHistoryId))return NextResponse.json({error:"無權校正此題目。"},{status:403});
+      const studentId = String(body.studentId || "").trim();
+      if (studentId) {
+        const { data: historyStudent, error: historyError } = await supabaseAdmin.from("solve_history").select("student_id").eq("id",solveHistoryId).maybeSingle();
+        if(historyError || historyStudent?.student_id!==studentId)return NextResponse.json({error:"題目與學生不一致。"},{status:400});
+      }
       const teacherAnswer = String(body.teacherAnswer || "").trim();
       const teacherExplanation = String(body.teacherExplanation || "").trim();
       if (!teacherExplanation) return NextResponse.json({ error: "請先填寫老師版詳解。" }, { status: 400 });
@@ -217,7 +228,6 @@ export async function POST(request: NextRequest) {
         if (solveError) throw solveError;
       }
 
-      const studentId = String(body.studentId || "").trim();
       if (studentId) {
         const { data: correction, error: correctionError } = await supabaseAdmin.from("teacher_correction_queue").upsert({
           solve_history_id: solveHistoryId,
@@ -233,7 +243,7 @@ export async function POST(request: NextRequest) {
         void correction;
       }
 
-      const requestedRules = Array.isArray(body.rules) ? body.rules : [];
+      const requestedRules = isSuperAdmin(admin) && Array.isArray(body.rules) ? body.rules : [];
       const createdRules: any[] = [];
       for (const raw of requestedRules.slice(0, 8)) {
         const content = String(raw?.content || "").trim();
@@ -256,14 +266,20 @@ export async function POST(request: NextRequest) {
         createdRules.push(mapRule(created));
       }
 
-      return NextResponse.json({ ok: true, example: mapExample(example), rules: createdRules });
+      return NextResponse.json({ ok: true, example: mapExample(example), rules: createdRules, rulesReadOnly:!isSuperAdmin(admin) });
     }
 
     if (action === "saveCoachSession") {
       const messages = Array.isArray(body.messages) ? body.messages.slice(-80) : [];
       const id = String(body.id || "").trim();
+      const linkedHistoryId=String(body.solveHistoryId||"").trim()||null;
+      if(!mayViewHistory(allowed,linkedHistoryId))return NextResponse.json({error:"教師教練紀錄須連結授權班級題目。"},{status:403});
+      if(id&&!isSuperAdmin(admin)){
+        const {data:previous}=await supabaseAdmin.from("teacher_coach_sessions").select("solve_history_id").eq("id",id).maybeSingle();
+        if(!previous||!mayViewHistory(allowed,previous.solve_history_id))return NextResponse.json({error:"無權修改此教練紀錄。"},{status:403});
+      }
       const payload = {
-        solve_history_id: String(body.solveHistoryId || "").trim() || null,
+        solve_history_id: linkedHistoryId,
         subject: String(body.subject || "").trim(),
         title: String(body.title || "AI 教練對話").trim(),
         messages,
@@ -284,12 +300,19 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PATCH(request: NextRequest) {
-  if (!(await requireAdmin(request))) return NextResponse.json({ error: "未登入管理員。" }, { status: 401 });
+  const admin=await requireAdminSession(request);
+  if(!admin)return NextResponse.json({error:"未登入管理員。"},{status:401});
   const body = await request.json().catch(() => ({}));
   const resource = String(body.resource || "");
   const id = String(body.id || "").trim();
   if (!id) return NextResponse.json({ error: "缺少資料 ID。" }, { status: 400 });
   try {
+    const allowed=await getAllowedHistoryIds(request,admin);
+    if(resource==="rule"&&!isSuperAdmin(admin))return NextResponse.json({error:"全站規則僅總管理員可修改。"},{status:403});
+    if(resource==="example"&&!isSuperAdmin(admin)){
+      const {data:example}=await supabaseAdmin.from("teacher_examples").select("solve_history_id").eq("id",id).maybeSingle();
+      if(!example||!mayViewHistory(allowed,example.solve_history_id))return NextResponse.json({error:"無權修改此範例。"},{status:403});
+    }
     if (resource === "rule") {
       const updates: Record<string, any> = { updated_at: new Date().toISOString() };
       for (const [camel, db] of [["title","title"],["content","content"],["scope","scope"],["subject","subject"],["topic","topic"]] as const) {
@@ -317,11 +340,18 @@ export async function PATCH(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
-  if (!(await requireAdmin(request))) return NextResponse.json({ error: "未登入管理員。" }, { status: 401 });
+  const admin=await requireAdminSession(request);
+  if(!admin)return NextResponse.json({error:"未登入管理員。"},{status:401});
   const body = await request.json().catch(() => ({}));
   const resource = String(body.resource || "");
   const id = String(body.id || "").trim();
   if (!id) return NextResponse.json({ error: "缺少資料 ID。" }, { status: 400 });
+  if(resource==="rule"&&!isSuperAdmin(admin))return NextResponse.json({error:"全站規則僅總管理員可刪除。"},{status:403});
+  if(resource==="example"&&!isSuperAdmin(admin)){
+    const allowed=await getAllowedHistoryIds(request,admin);
+    const {data:example}=await supabaseAdmin.from("teacher_examples").select("solve_history_id").eq("id",id).maybeSingle();
+    if(!example||!mayViewHistory(allowed,example.solve_history_id))return NextResponse.json({error:"無權刪除此範例。"},{status:403});
+  }
   const table = resource === "rule" ? "teacher_rules" : resource === "example" ? "teacher_examples" : "";
   if (!table) return NextResponse.json({ error: "未知的刪除資源。" }, { status: 400 });
   const { error } = await supabaseAdmin.from(table).delete().eq("id", id);

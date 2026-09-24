@@ -1,23 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyAdminSessionToken } from "@/lib/admin-session";
+import { requireAdminSession, isSuperAdmin } from "@/lib/admin-access";
 import {
   appendInputGuardRule,
   getInputGuardSettings,
   saveInputGuardSettings,
 } from "@/lib/input-guard";
 
-function requireAdmin(request: NextRequest) {
-  const token = request.cookies.get("hh_science_admin_session")?.value;
-  return token ? verifyAdminSessionToken(token) : null;
-}
 
 export async function GET(request: NextRequest) {
-  if (!requireAdmin(request)) return NextResponse.json({ error: "未登入管理員。" }, { status: 401 });
+  if (!await requireAdminSession(request)) return NextResponse.json({ error: "未登入管理員。" }, { status: 401 });
   return NextResponse.json({ settings: await getInputGuardSettings() });
 }
 
 export async function POST(request: NextRequest) {
-  if (!requireAdmin(request)) return NextResponse.json({ error: "未登入管理員。" }, { status: 401 });
+  const admin = await requireAdminSession(request);
+  if (!admin) return NextResponse.json({ error: "未登入管理員。" }, { status: 401 });
+  if (!isSuperAdmin(admin)) return NextResponse.json({ error: "此設定僅總管理員可以修改。" }, { status: 403 });
   const body = await request.json().catch(() => ({}));
   try {
     const settings = body?.appendRule

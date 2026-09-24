@@ -1188,7 +1188,7 @@ export default function AdminPage() {
 
         <nav className="admin-nav admin-nav-v13">
           <NavButton active={activeSection === "dashboard"} icon="01" label="管理總覽" onClick={() => { setActiveSection("dashboard"); setMobileMenuOpen(false); }} />
-          {adminUser?.role === "super_admin" && (
+          {(
             <NavButton active={activeSection === "siteQuestions"} icon="02" label="全站題目" onClick={() => { setActiveSection("siteQuestions"); setMobileMenuOpen(false); }} />
           )}
 
@@ -1205,7 +1205,7 @@ export default function AdminPage() {
             ]}
           />
 
-          {adminUser?.role === "super_admin" && (<>
+          {(<>
           <AdminNavGroup
             icon="04"
             label="AI模型中心"
@@ -1236,7 +1236,7 @@ export default function AdminPage() {
             ]}
           />
           </>)}
-          {(adminUser?.role === "super_admin" || adminUser?.role === "platform_admin" || adminUser?.role === "institution_admin") && (
+          {adminUser && (
             <NavButton active={activeSection === "platform"} icon="06" label="系統與教師" onClick={() => { setActiveSection("platform"); setMobileMenuOpen(false); }} />
           )}
         </nav>
@@ -1261,7 +1261,7 @@ export default function AdminPage() {
           <div>
             <div className="hh-eyebrow">{sectionEyebrow(activeSection)}</div>
             <h1 className="hh-display admin-page-title">{sectionTitle(activeSection)}</h1>
-            {adminUser&&<div className="admin-role-note">{adminUser.displayName} · {{super_admin:"總管理員",platform_admin:"跨補習班管理員",institution_admin:"補習班管理員",teacher:"教師"}[adminUser.role]||"管理員"}</div>}
+            {adminUser&&<div className="admin-role-note">{adminUser.displayName} · {adminUser.role==="super_admin"?"總管理員":"教師"}</div>}
           </div>
           {adminUser?.role === "super_admin" && (
             <label className="admin-teacher-scope"><span>檢視範圍</span><select value={scopeTeacher?.id || ""} onChange={(event)=>void changeTeacherScope(event.target.value)}><option value="">全部老師 / 全部班級</option>{teacherOptions.map((teacher)=><option key={teacher.id} value={teacher.id}>{teacher.display_name}</option>)}</select></label>
@@ -1364,6 +1364,7 @@ export default function AdminPage() {
               saveInitialPin={saveInitialStudentPin}
               settingsMessage={settingsMessage}
               settingsError={settingsError}
+              canManageOrganization={adminUser?.role==="super_admin"}
             />
           )}
 
@@ -1405,6 +1406,7 @@ export default function AdminPage() {
               saveInitialPin={saveInitialStudentPin}
               settingsMessage={settingsMessage}
               settingsError={settingsError}
+              canManageOrganization={adminUser?.role==="super_admin"}
             />
           )}
 
@@ -1418,6 +1420,7 @@ export default function AdminPage() {
               onSave={saveAISolverSettings}
               message={settingsMessage}
               error={settingsError}
+              canEdit={adminUser?.role==="super_admin"}
             />
           )}
 
@@ -1426,7 +1429,7 @@ export default function AdminPage() {
           )}
 
           {activeSection === "teachingQuestions" && (
-            <TeachingQuestionsSection initialHistoryId={calibrationTargetId} onInitialHistoryHandled={() => setCalibrationTargetId(null)} />
+            <TeachingQuestionsSection initialHistoryId={calibrationTargetId} onInitialHistoryHandled={() => setCalibrationTargetId(null)} canSaveGlobalRules={adminUser?.role==="super_admin"} />
           )}
 
           {activeSection === "teachingExamples" && (
@@ -1434,11 +1437,11 @@ export default function AdminPage() {
           )}
 
           {activeSection === "teachingRuleLibrary" && (
-            <TeachingRuleLibrarySection />
+            <TeachingRuleLibrarySection canEdit={adminUser?.role==="super_admin"} />
           )}
 
           {activeSection === "teachingCoach" && (
-            <TeachingCoachSection />
+            <TeachingCoachSection canSaveGlobalRules={adminUser?.role==="super_admin"} />
           )}
 
           {activeSection === "teachingTraining" && (
@@ -1446,7 +1449,7 @@ export default function AdminPage() {
           )}
 
           {activeSection === "teachingSettings" && (
-            <TeachingRulesSection />
+            <TeachingRulesSection canEdit={adminUser?.role==="super_admin"} />
           )}
 
           {activeSection === "platform" && (
@@ -1653,7 +1656,7 @@ function DashboardSection({
           <button type="button" className="v206-admin-attention-item" onClick={() => onNavigate("usage")}>
             <span>班務管理</span><strong>查看今日班級參與</strong><small>按班級查看活躍學生與解題量 →</small>
           </button>
-          {isSuperAdmin && (
+          {(
             <button type="button" className="v206-admin-attention-item" onClick={() => onNavigate("teachingQuestions")}>
               <span>教學品質</span><strong>前往教師校正</strong><small>核對需教師介入的題目 →</small>
             </button>
@@ -1720,7 +1723,7 @@ function DashboardSection({
                 max="3000000"
                 step="10"
                 value={costAlertThreshold}
-                disabled={costAlertLoading || costAlertSaving}
+                disabled={!isSuperAdmin || costAlertLoading || costAlertSaving}
                 onChange={(event) => setCostAlertThreshold(event.target.value)}
               />
             </label>
@@ -1728,7 +1731,7 @@ function DashboardSection({
             <button
               type="button"
               className="hh-button-secondary"
-              disabled={costAlertLoading || costAlertSaving}
+              disabled={!isSuperAdmin || costAlertLoading || costAlertSaving}
               onClick={() => void saveCostAlertSetting()}
             >
               {costAlertSaving ? "儲存中…" : "設定警示"}
@@ -1829,6 +1832,7 @@ function StudentsSection(props: {
   initialPin: string; setInitialPin: (value: string) => void;
   studentAuthLoading: boolean; studentAuthSaving: boolean; saveInitialPin: () => Promise<void>;
   settingsMessage: string; settingsError: string;
+  canManageOrganization: boolean;
 }) {
   type Region = { id: string; name: string; active: boolean };
   type Institution = { id: string; region_id: string; name: string; active: boolean };
@@ -2408,36 +2412,36 @@ function StudentsSection(props: {
         />
         <div className="org-columns">
           <div className="org-column-block">
-            <div className="org-head"><b>地區</b><button onClick={() => void orgCreate("region")} disabled={orgBusy}>＋</button></div>
+            <div className="org-head"><b>地區</b><button onClick={() => void orgCreate("region")} disabled={orgBusy || !props.canManageOrganization}>＋</button></div>
             <div className="org-chip-list">
               {regions.map((region) => (
                 <div className={`org-item ${regionId === region.id ? "active" : ""}`} key={region.id}>
                   <button onClick={() => setRegionId(region.id)}>{region.name}</button>
-                  <button className="del" onClick={() => void orgDelete("region", region.id, region.name)}>×</button>
+                  <button className="del" disabled={!props.canManageOrganization} onClick={() => void orgDelete("region", region.id, region.name)}>×</button>
                 </div>
               ))}
             </div>
           </div>
 
           <div className="org-column-block">
-            <div className="org-head"><b>合作單位</b><button onClick={() => void orgCreate("institution", regionId)} disabled={!regionId || orgBusy}>＋</button></div>
+            <div className="org-head"><b>合作單位</b><button onClick={() => void orgCreate("institution", regionId)} disabled={!regionId || orgBusy || !props.canManageOrganization}>＋</button></div>
             <div className="org-chip-list">
               {visibleInstitutions.map((institution) => (
                 <div className={`org-item ${institutionId === institution.id ? "active" : ""}`} key={institution.id}>
                   <button onClick={() => setInstitutionId(institution.id)}>{institution.name}</button>
-                  <button className="del" onClick={() => void orgDelete("institution", institution.id, institution.name)}>×</button>
+                  <button className="del" disabled={!props.canManageOrganization} onClick={() => void orgDelete("institution", institution.id, institution.name)}>×</button>
                 </div>
               ))}
             </div>
           </div>
 
           <div className="org-column-block">
-            <div className="org-head"><b>班級</b><button onClick={() => void orgCreate("class", institutionId)} disabled={!institutionId || orgBusy}>＋</button></div>
+            <div className="org-head"><b>班級</b><button onClick={() => void orgCreate("class", institutionId)} disabled={!institutionId || orgBusy || !props.canManageOrganization}>＋</button></div>
             <div className="org-chip-list">
               {visibleClasses.map((classRow) => (
                 <div className={`org-item ${classId === classRow.id ? "active" : ""}`} key={classRow.id}>
                   <button onClick={() => setClassId(classRow.id)}>{compactClassLabel(classRow)}</button>
-                  <button className="del" onClick={() => void orgDelete("class", classRow.id, classRow.name)}>×</button>
+                  <button className="del" disabled={!props.canManageOrganization} onClick={() => void orgDelete("class", classRow.id, classRow.name)}>×</button>
                 </div>
               ))}
             </div>
@@ -2482,7 +2486,7 @@ function StudentsSection(props: {
             <option value="">{promotionSourceClass ? "選擇同單位的目標班級" : "請先選原班級"}</option>
             {promotionTargets.map((item) => <option key={item.id} value={item.id}>{compactClassLabel(item)}</option>)}
           </select></label>
-          <button className="hh-button-primary promotion-button" disabled={orgBusy || !promotionSourceClass || !promotionTargetClass || promotionSourceCount === 0} onClick={() => void promoteWholeClass()}>3 · 確認整班升班</button>
+          <button className="hh-button-primary promotion-button" disabled={orgBusy || !props.canManageOrganization || !promotionSourceClass || !promotionTargetClass || promotionSourceCount === 0} onClick={() => void promoteWholeClass()}>3 · 確認整班升班</button>
         </div>
       </section>
 
@@ -2701,6 +2705,7 @@ function StudentsSection(props: {
         <PinSection
           initialPin={props.initialPin}
           setInitialPin={props.setInitialPin}
+          canEdit={props.canManageOrganization}
           loading={props.studentAuthLoading}
           saving={props.studentAuthSaving}
           onSave={props.saveInitialPin}
@@ -3304,6 +3309,7 @@ function AISection(props: {
   onSave: () => Promise<void>;
   message: string;
   error: string;
+  canEdit: boolean;
 }) {
   if (props.loading || !props.settings) {
     return (
@@ -3355,7 +3361,8 @@ function AISection(props: {
   }
 
   return (
-    <div className="admin-stack">
+    <fieldset disabled={!props.canEdit} className="admin-stack admin-readonly-fieldset">
+      {!props.canEdit && <div className="admin-notice">教師可檢視目前模型配置與額度；調整與儲存僅限總管理員。</div>}
       <section className="hh-card admin-panel">
         <PanelHeader
           eyebrow="DAILY QUOTA"
@@ -3584,13 +3591,13 @@ function AISection(props: {
         <button
           type="button"
           className="hh-button-primary"
-          disabled={props.saving}
+          disabled={props.saving || !props.canEdit}
           onClick={() => void props.onSave()}
         >
           {props.saving ? "儲存中…" : "儲存 v1.1 AI 設定"}
         </button>
       </div>
-    </div>
+    </fieldset>
   );
 }
 
@@ -3731,6 +3738,7 @@ function reasoningLabel(value: string) {
 
 
 function PinSection(props: {
+  canEdit: boolean;
   initialPin: string;
   setInitialPin: (value: string) => void;
   loading: boolean;
@@ -3770,7 +3778,7 @@ function PinSection(props: {
               inputMode="numeric"
               maxLength={6}
               value={props.initialPin}
-              disabled={props.loading || props.saving}
+              disabled={!props.canEdit || props.loading || props.saving}
               onChange={(event) =>
                 props.setInitialPin(
                   event.target.value.replace(/\D/g, "").slice(0, 6),
@@ -3782,7 +3790,7 @@ function PinSection(props: {
             <button
               type="button"
               className="hh-button-primary"
-              disabled={props.loading || props.saving}
+              disabled={!props.canEdit || props.loading || props.saving}
               onClick={() => void props.onSave()}
             >
               {props.saving ? "儲存中…" : "儲存初始密碼"}
@@ -3963,7 +3971,7 @@ function SiteQuestionsSection({onCalibrate}:{onCalibrate:(historyId:string)=>voi
   </div>
 }
 
-function TeachingQuestionsSection({initialHistoryId,onInitialHistoryHandled}:{initialHistoryId?:string|null;onInitialHistoryHandled?:()=>void} = {}) {
+function TeachingQuestionsSection({initialHistoryId,onInitialHistoryHandled,canSaveGlobalRules=true}:{initialHistoryId?:string|null;onInitialHistoryHandled?:()=>void;canSaveGlobalRules?:boolean} = {}) {
   type TeacherAnnotation = { id:string; display:string; label:string; meaning:string; source:string; usage:string };
   type RuleSuggestion = { title:string; content:string; scope:"global"|"subject"|"topic"; topic?:string; keywords?:string[]; priority?:number; selected?:boolean };
   type CoachMessage = { role:"user"|"assistant"; content:string };
@@ -4184,7 +4192,7 @@ function TeachingQuestionsSection({initialHistoryId,onInitialHistoryHandled}:{in
     if(!selected||!teacherExplanation.trim()) return;
     setSaving(true); setMessage("");
     try{
-      const response=await fetch("/api/admin/teaching-knowledge",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"saveCalibration",solveHistoryId:selected.id,studentId:selected.studentId,subject:selected.subject,issueType,teacherAnswer,teacherExplanation,teacherOptions,teacherStrategy,teacherNote,topic,keywords,questionSignature,annotations:teacherAnnotations,applyScope,updateCurrentAnswer:true,rules:suggestedRules.filter(r=>r.selected)})});
+      const response=await fetch("/api/admin/teaching-knowledge",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"saveCalibration",solveHistoryId:selected.id,studentId:selected.studentId,subject:selected.subject,issueType,teacherAnswer,teacherExplanation,teacherOptions,teacherStrategy,teacherNote,topic,keywords,questionSignature,annotations:teacherAnnotations,applyScope,updateCurrentAnswer:true,rules:canSaveGlobalRules?suggestedRules.filter(r=>r.selected):[]})});
       const data=await response.json();
       if(!response.ok)throw new Error(data.error||"儲存教師校正失敗。");
       setSelected({...selected,answer:teacherAnswer||selected.answer,explanation:teacherExplanation,options:teacherOptions,annotations:teacherAnnotations});
@@ -4232,11 +4240,11 @@ function TeachingQuestionsSection({initialHistoryId,onInitialHistoryHandled}:{in
       <div className="teacher-knowledge-meta-grid"><label><span>主題／單元</span><input className="hh-input" value={topic} onChange={e=>setTopic(e.target.value)} placeholder="例如：限制試劑"/></label><label><span>關鍵詞</span><input className="hh-input" value={keywords.join("、")} onChange={e=>setKeywords(e.target.value.split(/[、,，]/).map(v=>v.trim()).filter(Boolean))} placeholder="莫耳、係數比、限制試劑"/></label><label className="wide"><span>題目特徵摘要</span><input className="hh-input" value={questionSignature} onChange={e=>setQuestionSignature(e.target.value)} placeholder="供同題與相似題檢索，不需要寫答案"/></label></div>
     </section>
 
-    {suggestedRules.length>0&&<section className="hh-card admin-panel"><PanelHeader eyebrow="RULE SUGGESTIONS" title="AI 建議保存的教學規則" subtitle="預設全部不勾選；只有你確認值得跨題重用的規則才會寫入規則庫。"/><div className="teacher-rule-suggestion-list">{suggestedRules.map((r,index)=><label key={index}><input type="checkbox" checked={Boolean(r.selected)} onChange={e=>setSuggestedRules(v=>v.map((x,i)=>i===index?{...x,selected:e.target.checked}:x))}/><span><strong>{r.title||"教學規則"}</strong><p>{r.content}</p><small>{r.scope==="global"?"全站":r.scope==="subject"?adminSubjectLabel(selected.subject):`${adminSubjectLabel(selected.subject)} · ${r.topic||topic||"主題"}`}</small></span></label>)}</div></section>}
+    {suggestedRules.length>0&&canSaveGlobalRules&&<section className="hh-card admin-panel"><PanelHeader eyebrow="RULE SUGGESTIONS" title="AI 建議保存的教學規則" subtitle="預設全部不勾選；只有你確認值得跨題重用的規則才會寫入規則庫。"/><div className="teacher-rule-suggestion-list">{suggestedRules.map((r,index)=><label key={index}><input type="checkbox" checked={Boolean(r.selected)} onChange={e=>setSuggestedRules(v=>v.map((x,i)=>i===index?{...x,selected:e.target.checked}:x))}/><span><strong>{r.title||"教學規則"}</strong><p>{r.content}</p><small>{r.scope==="global"?"全站":r.scope==="subject"?adminSubjectLabel(selected.subject):`${adminSubjectLabel(selected.subject)} · ${r.topic||topic||"主題"}`}</small></span></label>)}</div></section>}
 
     <section className="hh-card admin-panel teacher-inline-coach"><button type="button" className="teacher-inline-coach-toggle" onClick={()=>setCoachOpen(v=>!v)}><span><strong>AI 教練</strong><small>直接告訴 AI「你希望它怎麼想、怎麼教」</small></span><b>{coachOpen?"收合":"展開 ＋"}</b></button>{coachOpen&&<div className="teacher-inline-coach-body"><div className="teacher-inline-chat">{coachMessages.length===0&&<div className="admin-empty">例如：「這題不要先套公式，我會先讓學生判斷比例關係。」</div>}{coachMessages.map((m,i)=><article key={i} className={m.role}><span>{m.role==="user"?"老師":"AI 教練"}</span><p>{m.content}</p></article>)}{coachBusy&&<article className="assistant"><span>AI 教練</span><p>正在整理你的教學偏好…</p></article>}</div><div className="teacher-coach-image-bar"><span>{coachReferenceImages.length?`已附 ${coachReferenceImages.length} 張詳解圖片`:"可附上你的詳解圖片讓 AI 一起看"}</span><label>＋ 附圖<input type="file" accept="image/*" multiple onChange={async e=>{try{setCoachReferenceImages(await adminTeachingFilesToDataUrls(e.target.files));}catch(err){setMessage(err instanceof Error?err.message:"讀取圖片失敗。");}e.currentTarget.value="";}}/></label>{coachReferenceImages.length>0&&<button type="button" onClick={()=>setCoachReferenceImages([])}>清除</button>}</div><div className="teacher-inline-compose"><textarea className="hh-input" value={coachInput} onChange={e=>setCoachInput(e.target.value)} placeholder="說明你會怎麼教、哪個步驟應該先做…"/><button className="hh-button-primary" onClick={()=>void sendCoach()} disabled={coachBusy||(!coachInput.trim()&&!coachReferenceImages.length)}>送出</button></div></div>}</section>
 
-    <section className="hh-card admin-panel teacher-save-panel"><div><strong>確認後儲存教師校正</strong><span>會更新本題、建立教師範例，並只新增你有勾選的規則。</span></div><button type="button" className="hh-button-primary teacher-save-button" onClick={()=>void saveTeacherSolution()} disabled={saving||!teacherExplanation.trim()}>{saving?"儲存中…":"儲存並套用"}</button></section>
+    <section className="hh-card admin-panel teacher-save-panel"><div><strong>確認後儲存教師校正</strong><span>{canSaveGlobalRules?"會更新本題、建立教師範例，並只新增你有勾選的規則。":"會更新本題並建立教師範例；全站教學規則由總管理員統一維護。"}</span></div><button type="button" className="hh-button-primary teacher-save-button" onClick={()=>void saveTeacherSolution()} disabled={saving||!teacherExplanation.trim()}>{saving?"儲存中…":"儲存並套用"}</button></section>
 
     <section className="hh-card admin-panel teaching-question-cost-panel"><PanelHeader eyebrow="QUESTION COST" title="本題總成本" subtitle="只統計 Science Gate／Primary／Verifier／Arbiter，不包含學生後續追問。" />
       {selected.cost?.hasCostRecord ? <><div className="teaching-question-cost-total"><span>本題解題成本</span><strong>{formatQuestionCostTwd(selected.cost.totalCostUsd)}</strong><small>{formatInteger(selected.cost.totalCalls)} 次模型呼叫</small></div><div className="teaching-question-cost-grid">{TEACHING_COST_ROLE_ORDER.map((role) => {const entries = (selected.cost.roles || []).filter((entry) => entry.role === role);return <article key={role}><div className="teaching-question-cost-role"><strong>{teachingCostRoleLabel(role)}</strong><span>{entries.length ? `${entries.reduce((sum, entry) => sum + entry.calls, 0)} 次` : "未啟動"}</span></div>{entries.length ? entries.map((entry, index) => <div className="teaching-question-cost-model" key={`${role}-${entry.provider}-${entry.model}-${index}`}><span><b>{modelDisplayName(entry.model)}</b><small>{providerLabel(entry.provider)}</small></span><strong>{formatQuestionCostTwd(entry.costUsd)}</strong></div>) : <div className="teaching-question-cost-empty">這題沒有啟動此角色</div>}</article>;})}</div></> : <div className="admin-notice teaching-cost-missing">這筆舊題目沒有可連結的 api_usage 成本紀錄，因此不以 NT$0.00 顯示，也不會納入每題平均成本。</div>}
@@ -4258,7 +4266,7 @@ function TeachingQuestionsSection({initialHistoryId,onInitialHistoryHandled}:{in
   </div>;
 }
 
-function TeachingRulesSection(){
+function TeachingRulesSection({canEdit=true}:{canEdit?:boolean}){
   const [settings,setSettings]=useState<any>(null);
   const [guard,setGuard]=useState<any>(null);
   const [loading,setLoading]=useState(true);
@@ -4305,11 +4313,12 @@ function TeachingRulesSection(){
   const activeSubjectLabel=subjects.find(([key])=>key===activeSubject)?.[1]||"物理";
   return <div className="admin-stack teaching-rules-page">
     <section className="hh-card admin-panel teaching-settings-clarifier"><div className="hh-eyebrow">GLOBAL BASELINE</div><h2 className="hh-display">這裡是「全站預設」</h2><p><b>全站預設</b>＝每題固定先遵守的系統底線；<b>教學規則庫</b>＝老師針對特定科目／單元累積、符合條件才檢索的教法。兩者不再混在同一層。</p></section>
+    {!canEdit&&<div className="admin-notice">全站預設與圖片阻擋規則由總管理員統一管理；教師可切換科目查看設定。</div>}
     {message&&<div className={`admin-notice ${message.includes("已更新")?"success":"danger"}`}>{message}</div>}
-    <section className="hh-card admin-panel"><PanelHeader eyebrow="TEACHING MODE" title="解題模式" subtitle="設定整個解題實驗室預設的教學深度。"/><div className="teaching-mode-list">{modes.map(m=><button key={m.key} type="button" className={settings.mode===m.key?"active":""} onClick={()=>setSettings({...settings,mode:m.key})}><span className="teaching-mode-radio"/><strong>{m.name}</strong><span>{m.desc}</span></button>)}</div><div className="teaching-mode-current">目前模式：<strong>{activeMode.name}</strong> · {activeMode.desc}</div></section>
-    <section className="hh-card admin-panel"><PanelHeader eyebrow="GLOBAL DEFAULTS" title="全站解題預設" subtitle="這裡是所有題目固定套用的基礎開關與互動重點密度，不是老師從個別題目教給 AI 的知識。跨題教法請放在「教學規則庫」。"/><div className="teaching-rule-checks">{general.map(([key,label])=><label key={key}><input type="checkbox" checked={Boolean(settings.general[key])} onChange={e=>setSettings({...settings,general:{...settings.general,[key]:e.target.checked}})}/><span>{label}</span></label>)}</div><div className="teaching-annotation-density"><div><strong>互動式詳解密度</strong><span>控制新解題預設要標多少個真正有教學價值的數值、變數、單位或公式片段；教師校正仍可逐題覆寫。</span></div><select className="hh-select" value={settings.general.annotationDensity||"rich"} onChange={e=>setSettings({...settings,general:{...settings.general,annotationDensity:e.target.value}})}><option value="light">精簡 · 約 1～2 個</option><option value="standard">標準 · 約 2～4 個</option><option value="rich">豐富 · 約 4～8 個</option></select></div><div className="teaching-annotation-density"><div><strong>Science Diagram Engine</strong><span>自動判斷物理、地科與少數實驗題是否需要精確 SVG 圖解。關閉後所有新題都只輸出文字詳解。</span></div><select className="hh-select" value={settings.general.diagramMode||"auto"} onChange={e=>setSettings({...settings,general:{...settings.general,diagramMode:e.target.value}})}><option value="auto">自動 · 需要時才畫</option><option value="off">關閉 · 不產生圖解</option></select></div></section>
-    <section className="hh-card admin-panel input-guard-panel"><PanelHeader eyebrow="INPUT GUARD" title="圖片有效性與阻擋規則" subtitle="先擋無效圖片，再做自然科判斷。被擋的圖片不扣題數，也不會進入正式 Primary／Verifier／Arbiter 解題。"/><label className="input-guard-master"><input type="checkbox" checked={Boolean(guard.enabled)} onChange={e=>setGuard({...guard,enabled:e.target.checked})}/><span><strong>啟用輸入阻擋</strong><small>建議保持開啟</small></span></label><div className="teaching-rule-checks input-guard-checks">{guardRules.map(([key,label])=><label key={key}><input type="checkbox" checked={Boolean(guard[key])} onChange={e=>setGuard({...guard,[key]:e.target.checked})}/><span>{label}</span></label>)}</div><label className="teaching-subject-editor"><span>老師自訂阻擋規則</span><small>每行一條。也可以在「全站題目」個別題目中按「加入阻擋規則」。</small><textarea className="hh-input" value={(guard.customRules||[]).join("\n")} onChange={e=>setGuard({...guard,customRules:e.target.value.split("\n").map((v:string)=>v.trim()).filter(Boolean)})} placeholder={'例如：圖片只有黑底沒有題目內容時直接阻擋\n例如：學生上傳與自然科題目無關的聊天截圖時直接阻擋'}/></label></section>
-    <section className="hh-card admin-panel"><PanelHeader eyebrow="SUBJECT BASELINE" title="各科基礎指示" subtitle="這裡放每一題都要遵守的科目級底線；若是特定單元或題型的教法，請改放「教學規則庫」。"/><div className="teaching-subject-tabs">{subjects.map(([key,label])=><button key={key} type="button" className={activeSubject===key?"active":""} onClick={()=>setActiveSubject(key)}>{label}</button>)}</div><label className="teaching-subject-editor"><span>{activeSubjectLabel}基礎指示</span><textarea className="hh-input" value={settings.subjects[activeSubject]||""} onChange={e=>setSettings({...settings,subjects:{...settings.subjects,[activeSubject]:e.target.value}})}/></label><button type="button" className="hh-button-primary teaching-rules-save" onClick={()=>void save()} disabled={saving}>{saving?"儲存中…":"儲存全部規則"}</button></section>
+    <section className="hh-card admin-panel"><PanelHeader eyebrow="TEACHING MODE" title="解題模式" subtitle="設定整個解題實驗室預設的教學深度。"/><div className="teaching-mode-list">{modes.map(m=><button key={m.key} type="button" className={settings.mode===m.key?"active":""} disabled={!canEdit} onClick={()=>setSettings({...settings,mode:m.key})}><span className="teaching-mode-radio"/><strong>{m.name}</strong><span>{m.desc}</span></button>)}</div><div className="teaching-mode-current">目前模式：<strong>{activeMode.name}</strong> · {activeMode.desc}</div></section>
+    <section className="hh-card admin-panel"><PanelHeader eyebrow="GLOBAL DEFAULTS" title="全站解題預設" subtitle="這裡是所有題目固定套用的基礎開關與互動重點密度，不是老師從個別題目教給 AI 的知識。跨題教法請放在「教學規則庫」。"/><div className="teaching-rule-checks">{general.map(([key,label])=><label key={key}><input type="checkbox" disabled={!canEdit} checked={Boolean(settings.general[key])} onChange={e=>setSettings({...settings,general:{...settings.general,[key]:e.target.checked}})}/><span>{label}</span></label>)}</div><div className="teaching-annotation-density"><div><strong>互動式詳解密度</strong><span>控制新解題預設要標多少個真正有教學價值的數值、變數、單位或公式片段；教師校正仍可逐題覆寫。</span></div><select className="hh-select" disabled={!canEdit} value={settings.general.annotationDensity||"rich"} onChange={e=>setSettings({...settings,general:{...settings.general,annotationDensity:e.target.value}})}><option value="light">精簡 · 約 1～2 個</option><option value="standard">標準 · 約 2～4 個</option><option value="rich">豐富 · 約 4～8 個</option></select></div><div className="teaching-annotation-density"><div><strong>Science Diagram Engine</strong><span>自動判斷物理、地科與少數實驗題是否需要精確 SVG 圖解。關閉後所有新題都只輸出文字詳解。</span></div><select className="hh-select" disabled={!canEdit} value={settings.general.diagramMode||"auto"} onChange={e=>setSettings({...settings,general:{...settings.general,diagramMode:e.target.value}})}><option value="auto">自動 · 需要時才畫</option><option value="off">關閉 · 不產生圖解</option></select></div></section>
+    <section className="hh-card admin-panel input-guard-panel"><PanelHeader eyebrow="INPUT GUARD" title="圖片有效性與阻擋規則" subtitle="先擋無效圖片，再做自然科判斷。被擋的圖片不扣題數，也不會進入正式 Primary／Verifier／Arbiter 解題。"/><label className="input-guard-master"><input type="checkbox" disabled={!canEdit} checked={Boolean(guard.enabled)} onChange={e=>setGuard({...guard,enabled:e.target.checked})}/><span><strong>啟用輸入阻擋</strong><small>建議保持開啟</small></span></label><div className="teaching-rule-checks input-guard-checks">{guardRules.map(([key,label])=><label key={key}><input type="checkbox" disabled={!canEdit} checked={Boolean(guard[key])} onChange={e=>setGuard({...guard,[key]:e.target.checked})}/><span>{label}</span></label>)}</div><label className="teaching-subject-editor"><span>老師自訂阻擋規則</span><small>每行一條。也可以在「全站題目」個別題目中按「加入阻擋規則」。</small><textarea className="hh-input" disabled={!canEdit} value={(guard.customRules||[]).join("\n")} onChange={e=>setGuard({...guard,customRules:e.target.value.split("\n").map((v:string)=>v.trim()).filter(Boolean)})} placeholder={'例如：圖片只有黑底沒有題目內容時直接阻擋\n例如：學生上傳與自然科題目無關的聊天截圖時直接阻擋'}/></label></section>
+    <section className="hh-card admin-panel"><PanelHeader eyebrow="SUBJECT BASELINE" title="各科基礎指示" subtitle="這裡放每一題都要遵守的科目級底線；若是特定單元或題型的教法，請改放「教學規則庫」。"/><div className="teaching-subject-tabs">{subjects.map(([key,label])=><button key={key} type="button" className={activeSubject===key?"active":""} onClick={()=>setActiveSubject(key)}>{label}</button>)}</div><label className="teaching-subject-editor"><span>{activeSubjectLabel}基礎指示</span><textarea className="hh-input" disabled={!canEdit} value={settings.subjects[activeSubject]||""} onChange={e=>setSettings({...settings,subjects:{...settings.subjects,[activeSubject]:e.target.value}})}/></label><button type="button" className="hh-button-primary teaching-rules-save" onClick={()=>void save()} disabled={!canEdit||saving}>{saving?"儲存中…":"儲存全部規則"}</button></section>
   </div>;
 }
 
@@ -4939,6 +4948,8 @@ function sectionTitle(section: AdminSection) {
 
 
 const adminStyles = `
+  .admin-readonly-fieldset { border:0; padding:0; margin:0; min-width:0; }
+  .admin-readonly-fieldset :disabled { cursor:not-allowed; opacity:.68; }
   .management-tabs { display:inline-flex; gap:4px; padding:4px; border:1px solid var(--border); background:var(--surface-soft); border-radius:12px; margin-bottom:4px; }
   .management-tabs button { border:0; background:transparent; color:var(--text-secondary); min-height:34px; padding:0 16px; border-radius:9px; font-weight:850; }
   .management-tabs button.active { background:var(--surface); color:var(--text); box-shadow:0 0 0 1px var(--border); }
