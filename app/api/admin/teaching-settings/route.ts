@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdminSession, isSuperAdmin } from "@/lib/admin-access";
 import { getTeachingEngineSettings, saveTeachingEngineSettings } from "@/lib/teaching-engine";
 
-async 
 export async function GET(request: NextRequest) {
   if (!(await requireAdminSession(request))) return NextResponse.json({ error: "未登入管理員。" }, { status: 401 });
   return NextResponse.json({ settings: await getTeachingEngineSettings() });
