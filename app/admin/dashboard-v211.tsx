@@ -172,7 +172,7 @@ export default function DashboardV211({
   if (error && !dashboard) return <div className="admin-notice danger">{error}</div>;
   if (!dashboard) return null;
   return <div className={styles.dashboard}>
-    <div className={styles.intro}><div><div className={styles.eyebrow}>OPERATIONS OVERVIEW / V2.1.6</div><h2>今天的解題實驗室</h2><p>掌握解題使用、班級動態與 AI 成本。所有數字依目前登入權限顯示。</p></div><span className={styles.live}>台灣時間 · 即時資料</span></div>
+    <div className={styles.intro}><div><div className={styles.eyebrow}>OPERATIONS OVERVIEW / V2.2.0</div><h2>今天的解題實驗室</h2><p>掌握解題使用、班級動態與 AI 成本。所有數字依目前登入權限顯示。</p></div><span className={styles.live}>台灣時間 · 即時資料</span></div>
     {error && <div className="admin-notice danger">{error}</div>}
     <div className={styles.kpis}>
       <article className={styles.kpi}><span>今日解題</span><strong>{number(dashboard.today.questions)} <small>題</small></strong><em>本月 {number(dashboard.month.questions)} 題</em></article>

@@ -1,0 +1,65 @@
+"use client";
+
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { toPng } from "html-to-image";
+
+const paint = () => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+const loadImage = (src:string) => new Promise<HTMLImageElement>((resolve,reject)=>{const image=new Image();image.onload=()=>resolve(image);image.onerror=()=>reject(new Error("題目圖片無法載入，請重新開啟這筆紀錄後再試。"));image.src=src;});
+
+export default function SolutionImageDownload({children,title}:{children:ReactNode;title:string}) {
+  const card=useRef<HTMLDivElement>(null);
+  const pending=useRef<Promise<File>|null>(null);
+  const [prepared,setPrepared]=useState<File|null>(null);
+  const [saving,setSaving]=useState(false);
+  const [message,setMessage]=useState("");
+  const build=useCallback(async()=>{
+    const root=card.current;
+    if(!root)throw new Error("解析內容尚未準備完成。");
+    await document.fonts.ready;
+    const images=Array.from(root.querySelectorAll("img"));
+    const originals=images.map(image=>({src:image.src,opacity:image.style.opacity}));
+    try {
+      const decoded=await Promise.all(images.map(async image=>{
+        const response=await fetch(image.src,{signal:AbortSignal.timeout(15000)});
+        if(!response.ok)throw new Error("題目圖片連結已失效，請重新開啟紀錄後再試。");
+        const blob=await response.blob();
+        const data=await new Promise<string>((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result));reader.onerror=()=>reject(new Error("讀取圖片失敗。"));reader.readAsDataURL(blob);});
+        image.src=data;return loadImage(data);
+      }));
+      await Promise.all(images.map(image=>image.decode()));
+      await paint();
+      const bounds=root.getBoundingClientRect();
+      const imageBounds=images.map(image=>image.getBoundingClientRect());
+      images.forEach(image=>{image.style.opacity="0";});
+      const pixelRatio=Math.min(1.5,16000/Math.max(1,bounds.height));
+      const png=await toPng(root,{backgroundColor:"#ffffff",pixelRatio,cacheBust:false,skipAutoScale:true});
+      const base=await loadImage(png);
+      const canvas=document.createElement("canvas");canvas.width=base.naturalWidth;canvas.height=base.naturalHeight;
+      const context=canvas.getContext("2d");if(!context)throw new Error("無法建立圖片。");
+      context.drawImage(base,0,0);
+      const scale=canvas.width/bounds.width;
+      decoded.forEach((image,index)=>{const box=imageBounds[index];const ratio=Math.min(box.width/image.naturalWidth,box.height/image.naturalHeight);const width=image.naturalWidth*ratio,height=image.naturalHeight*ratio;context.drawImage(image,(box.left-bounds.left+(box.width-width)/2)*scale,(box.top-bounds.top+(box.height-height)/2)*scale,width*scale,height*scale);});
+      const blob=await new Promise<Blob|null>(resolve=>canvas.toBlob(resolve,"image/png"));
+      if(!blob)throw new Error("圖片產生失敗，請再試一次。");
+      return new File([blob],`解題紀錄-${title.replace(/[\\/:*?"<>|]/g,"")}.png`,{type:"image/png"});
+    } finally {images.forEach((image,index)=>{image.src=originals[index].src;image.style.opacity=originals[index].opacity;});}
+  },[title]);
+  useEffect(()=>{
+    let active=true;
+    const timer=setTimeout(()=>{const job=pending.current||build();pending.current=job;void job.then(file=>{if(active)setPrepared(file);}).catch(()=>{}).finally(()=>{if(pending.current===job)pending.current=null;});},300);
+    return()=>{active=false;clearTimeout(timer);};
+  },[build]);
+  async function save(){
+    if(saving)return;setSaving(true);setMessage("");
+    try {
+      if(!prepared&&!pending.current)pending.current=build();
+      const file=prepared||await pending.current!;setPrepared(file);
+      if(navigator.share&&navigator.canShare?.({files:[file]})){
+        try{await navigator.share({title:"解題紀錄",files:[file]});setMessage("已開啟分享選單，可選擇儲存影像。");return;}
+        catch(error){if(error instanceof DOMException&&error.name==="AbortError")return;}
+      }
+      const url=URL.createObjectURL(file),link=document.createElement("a");link.href=url;link.download=file.name;document.body.appendChild(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);setMessage("圖片已產生；可從下載項目開啟並儲存。");
+    }catch(error){setMessage(error instanceof Error?error.message:"儲存圖片失敗。");}finally{pending.current=null;setSaving(false);}
+  }
+  return <><div style={{display:"grid",gap:8,margin:"16px 0"}}><button type="button" className="hh-button-primary" disabled={saving} onClick={()=>void save()}>{saving?"正在產生解析圖片…":"儲存成圖片"}</button>{message&&<p role="status" style={{margin:0,fontSize:13}}>{message}</p>}</div><div aria-hidden="true" style={{position:"fixed",left:-12000,top:0,width:820,pointerEvents:"none",zIndex:-1000}}><div ref={card} className="history-export-paper" style={{width:820,padding:36,background:"#fff",color:"#243447",fontSize:16,lineHeight:1.8}}>{children}</div></div><style jsx global>{`.history-export-paper{--text:#243447;--text-secondary:#526476;--text-muted:#526476;--primary:#276c78;--surface:#fff;--surface-soft:#f1f5f7}.history-export-paper h2{font-size:28px;margin:0 0 8px}.history-export-paper h3{font-size:18px;color:#276c78;margin:24px 0 8px}.history-export-paper img{display:block;width:100%;height:auto;max-height:720px;object-fit:contain;margin:14px 0}.history-export-paper .student-science-text{color:#243447!important}.history-export-paper p{overflow-wrap:anywhere}`}</style></>;
+}

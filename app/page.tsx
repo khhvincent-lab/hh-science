@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Cropper } from "react-cropper";
 import katex from "katex";
 import { toPng } from "html-to-image";
+import SolutionImageDownload from "@/components/solution-image-download";
 import ThemeToggle from "@/components/theme-toggle";
 import AdaptiveBrandLogo from "@/components/adaptive-brand-logo";
 import { getOfficialLineChatUrl, getOfficialLineProfileUrl } from "@/lib/official-line";
@@ -3355,6 +3356,16 @@ export default function Home() {
                   ← 返回解題紀錄
                 </button>
 
+                <SolutionImageDownload key={selectedHistory.id} title={`${selectedHistory.createdAt.slice(0,10)}-${selectedHistory.id.slice(0,8)}`}>
+                  <h2>{brand.name} · 解題紀錄</h2><p>{historySubjectLabel(selectedHistory.subject)} · {formatHistoryDate(selectedHistory.createdAt)}</p>
+                  {selectedHistory.imagePaths.map((item,index)=>item.url?<img key={item.path||index} src={item.url} alt={`題目 ${index+1}`}/>:null)}
+                  {selectedHistory.questionNote&&<><h3>題目補充</h3><p>{selectedHistory.questionNote}</p></>}
+                  <h3>AI 最終答案</h3><ScienceText text={selectedHistory.answer||"—"} stripAnnotations/>
+                  <h3>觀念詳解</h3><ScienceText text={selectedHistory.explanation||""} stripAnnotations/>
+                  {selectedHistory.options&&<><h3>選項解析</h3><ScienceText text={selectedHistory.options} stripAnnotations/></>}
+                  {selectedHistory.diagram&&<ScienceDiagramView diagram={selectedHistory.diagram}/>}
+                  {selectedHistory.chemicalStructure&&<ChemicalStructureView structure={selectedHistory.chemicalStructure}/>}
+                </SolutionImageDownload>
                 <article className="hh-card student-history-detail">
                   <div className="student-history-detail-head">
                     <div>
@@ -3551,7 +3562,7 @@ export default function Home() {
         </nav>}
         <footer className="student-footer">
           <div className="hh-eyebrow">{brand.englishName}</div>
-          <div>{brand.name} v2.1.0</div>
+          <div>{brand.name} v2.2.0</div>
         </footer>
       </div>
 

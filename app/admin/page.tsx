@@ -1,6 +1,8 @@
 "use client";
 import AdminPasswordChange from "@/components/admin-password-change";
 import DashboardV211 from "./dashboard-v211";
+import WorkspaceNavigation, {workspaceFor} from "@/components/admin/workspace-navigation";
+import "./workspaces.css";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import katex from "katex";
@@ -1285,32 +1287,8 @@ export default function AdminPage() {
           </div>
         </header>
 
-        <div className="admin-content">
-          {(["usage","classes","students","pin"] as AdminSection[]).includes(activeSection) && (
-            <div className="management-tabs" role="tablist" aria-label="班務管理">
-              <button type="button" className={activeSection === "usage" ? "active" : ""} onClick={() => setActiveSection("usage")}>使用狀況</button>
-              <button type="button" className={activeSection === "students" || activeSection === "pin" ? "active" : ""} onClick={() => setActiveSection("students")}>學生管理</button>
-              <button type="button" className={activeSection === "classes" ? "active" : ""} onClick={() => setActiveSection("classes")}>班級管理</button>
-            </div>
-          )}
-          {(["ai","analytics","cost"] as AdminSection[]).includes(activeSection) && (
-            <div className="management-tabs" role="tablist" aria-label="AI模型中心">
-              <button type="button" className={activeSection === "ai" ? "active" : ""} onClick={() => setActiveSection("ai")}>AI模型設定</button>
-              <button type="button" className={activeSection === "analytics" ? "active" : ""} onClick={() => setActiveSection("analytics")}>AI數據分析</button>
-              <button type="button" className={activeSection === "cost" ? "active" : ""} onClick={() => setActiveSection("cost")}>成本分析</button>
-            </div>
-          )}
-          {(["teachingOverview","teachingQuestions","teachingExamples","teachingRuleLibrary","teachingCoach","teachingTraining","teachingSettings"] as AdminSection[]).includes(activeSection) && (
-            <div className="management-tabs teaching-engine-tabs" role="tablist" aria-label="教學引擎">
-              <button type="button" className={activeSection === "teachingOverview" ? "active" : ""} onClick={() => setActiveSection("teachingOverview")}>總覽</button>
-              <button type="button" className={activeSection === "teachingQuestions" ? "active" : ""} onClick={() => setActiveSection("teachingQuestions")}>教師校正</button>
-              <button type="button" className={activeSection === "teachingExamples" ? "active" : ""} onClick={() => setActiveSection("teachingExamples")}>範例庫</button>
-              <button type="button" className={activeSection === "teachingRuleLibrary" ? "active" : ""} onClick={() => setActiveSection("teachingRuleLibrary")}>規則庫</button>
-              <button type="button" className={activeSection === "teachingCoach" ? "active" : ""} onClick={() => setActiveSection("teachingCoach")}>AI 教練</button>
-              <button type="button" className={activeSection === "teachingTraining" ? "active" : ""} onClick={() => setActiveSection("teachingTraining")}>訓練資料</button>
-              <button type="button" className={activeSection === "teachingSettings" ? "active" : ""} onClick={() => setActiveSection("teachingSettings")}>全站預設</button>
-            </div>
-          )}
+        <div className={`admin-content admin-workspace workspace-${workspaceFor(activeSection)}`}>
+          <WorkspaceNavigation section={activeSection} onNavigate={section=>setActiveSection(section as AdminSection)}/>
           {activeSection === "dashboard" && (
             <DashboardV211
               dashboard={dashboard}
@@ -1881,11 +1859,14 @@ function StudentsSection(props: {
     names: string[];
   };
   type BulkResult = { inserted: number; skipped: number; total: number };
+  const [bulkMode, setBulkMode] = useState<"text" | "file">("text");
+  const [bulkNames, setBulkNames] = useState("");
   const [bulkFile, setBulkFile] = useState<File | null>(null);
   const [bulkPreview, setBulkPreview] = useState<BulkPreview | null>(null);
   const [bulkResult, setBulkResult] = useState<BulkResult | null>(null);
   const [bulkBusy, setBulkBusy] = useState(false);
   const [bulkInputKey, setBulkInputKey] = useState(0);
+  useEffect(() => { setBulkPreview(null); setBulkResult(null); }, [regionId, institutionId, classId, bulkMode, bulkNames]);
   type ClassOverviewRow = {
     classId: string; label: string; regionId?: string; regionName?: string; institutionName?: string; className?: string; academicYear?: number;
     students: number; todayActive: number; todayQuestions: number; monthQuestions: number; monthCostTwd: number;
@@ -2288,8 +2269,8 @@ function StudentsSection(props: {
   }
 
   async function sendBulkStudentFile(action: "preview" | "import") {
-    if (!bulkFile || !regionId || !institutionId || !classId) {
-      setOrgMessage("請先選擇地區、合作單位、班級，再選擇 CSV 或 Excel 名單。");
+    if ((bulkMode === "file" ? !bulkFile : !bulkNames.trim()) || !regionId || !institutionId || !classId) {
+      setOrgMessage("請先選擇地區、合作單位、班級，再輸入名單或選擇 CSV / Excel。");
       return;
     }
 
@@ -2302,7 +2283,8 @@ function StudentsSection(props: {
       form.append("regionId", regionId);
       form.append("institutionId", institutionId);
       form.append("classId", classId);
-      form.append("file", bulkFile);
+      if (bulkMode === "text") form.append("namesText", bulkNames);
+      else if (bulkFile) form.append("file", bulkFile);
 
       const response = await fetch("/api/admin/students/bulk", { method: "POST", body: form });
       const data = await response.json();
@@ -2316,6 +2298,7 @@ function StudentsSection(props: {
         setOrgMessage(`批次匯入完成：新增 ${data.inserted ?? 0} 位，跳過 ${data.skipped ?? 0} 位。`);
         setBulkPreview(null);
         setBulkFile(null);
+        setBulkNames("");
         setBulkInputKey((value) => value + 1);
         await props.reloadStudents();
       }
@@ -2504,13 +2487,13 @@ function StudentsSection(props: {
           subtitle="細部分班只供老師後台管理"
         />
         <div className="org-add-row">
-          <select value={regionId} onChange={(event) => setRegionId(event.target.value)} className="hh-select">
+          <select disabled={bulkBusy} value={regionId} onChange={(event) => setRegionId(event.target.value)} className="hh-select">
             {regions.map((region) => <option key={region.id} value={region.id}>{region.name}</option>)}
           </select>
-          <select value={institutionId} onChange={(event) => setInstitutionId(event.target.value)} className="hh-select">
+          <select disabled={bulkBusy} value={institutionId} onChange={(event) => setInstitutionId(event.target.value)} className="hh-select">
             {visibleInstitutions.map((institution) => <option key={institution.id} value={institution.id}>{institution.name}</option>)}
           </select>
-          <select value={classId} onChange={(event) => setClassId(event.target.value)} className="hh-select">
+          <select disabled={bulkBusy} value={classId} onChange={(event) => setClassId(event.target.value)} className="hh-select">
             {visibleClasses.map((classRow) => <option key={classRow.id} value={classRow.id}>{compactClassLabel(classRow)}</option>)}
           </select>
           <input className="hh-input" placeholder="學生姓名" value={props.newName} onChange={(event) => props.setNewName(event.target.value)} />
@@ -2527,16 +2510,19 @@ function StudentsSection(props: {
         <PanelHeader
           eyebrow="BULK IMPORT"
           title="批次匯入學生"
-          subtitle="CSV 或 Excel (.xlsx) 都可以；先檢查名單，再一次建立學生帳號與初始密碼"
+          subtitle="每行一位姓名，也可以貼上整份名單；先預覽並排除重複，再建立帳號"
         />
         <div className="bulk-target-class">
           <span>匯入目標</span>
           <strong>{classId ? `${regions.find((item) => item.id === regionId)?.name || "地區"} · ${institutions.find((item) => item.id === institutionId)?.name || "合作單位"} · ${classes.find((item) => item.id === classId) ? compactClassLabel(classes.find((item) => item.id === classId)!) : "班級"}` : "請先選擇班級"}</strong>
         </div>
+        <div className="bulk-entry-tabs" aria-label="名單輸入方式"><button type="button" disabled={bulkBusy} aria-pressed={bulkMode==="text"} onClick={()=>setBulkMode("text")}>換行輸入姓名</button><button type="button" disabled={bulkBusy} aria-pressed={bulkMode==="file"} onClick={()=>setBulkMode("file")}>CSV / Excel</button></div>
+        {bulkMode==="text"&&<label className="bulk-manual-entry"><span>學生姓名 · 每行一位 · 最多 500 位</span><textarea className="hh-input" rows={7} maxLength={25000} disabled={bulkBusy} value={bulkNames} onChange={event=>setBulkNames(event.target.value)} placeholder={"王小明\n陳小華\n林小美"}/><small>已輸入 {bulkNames.split(/\r\n?|\n/).filter(name=>name.trim()).length} 位；空白行會自動略過。</small></label>}
         <div className="bulk-import-controls">
-          <label className="bulk-file-picker">
+          {bulkMode==="file"&&<label className="bulk-file-picker">
             <input
               key={bulkInputKey}
+              disabled={bulkBusy}
               type="file"
               accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
               onChange={(event) => {
@@ -2547,8 +2533,8 @@ function StudentsSection(props: {
               }}
             />
             <span>{bulkFile ? bulkFile.name : "選擇 CSV / Excel 名單"}</span>
-          </label>
-          <button className="hh-button-secondary" type="button" disabled={bulkBusy || !bulkFile || !classId} onClick={() => void sendBulkStudentFile("preview")}>
+          </label>}
+          <button className="hh-button-secondary" type="button" disabled={bulkBusy || (bulkMode === "file" ? !bulkFile : !bulkNames.trim()) || !classId} onClick={() => void sendBulkStudentFile("preview")}>
             {bulkBusy ? "檢查中…" : "檢查名單"}
           </button>
         </div>
@@ -3364,8 +3350,8 @@ function AISection(props: {
   }
 
   return (
-    <fieldset disabled={!props.canEdit} className="admin-stack admin-readonly-fieldset">
-      <section className="hh-card admin-panel">
+    <fieldset disabled={!props.canEdit} className="admin-stack admin-readonly-fieldset ai-settings-workspace">
+      <section className="hh-card admin-panel ai-quota-panel">
         <PanelHeader
           eyebrow="DAILY QUOTA"
           title="每日解題額度"
@@ -3400,7 +3386,7 @@ function AISection(props: {
           </div>
         </div>
       </section>
-      <section className="hh-card admin-panel">
+      <section className="hh-card admin-panel ai-mode-panel">
         <PanelHeader
           eyebrow="ROUTING MODE"
           title="AI 解題模式"
@@ -3438,7 +3424,7 @@ function AISection(props: {
         </div>
       </section>
 
-      <section className="hh-card admin-panel">
+      <section className="hh-card admin-panel ai-models-panel">
         <PanelHeader
           eyebrow="MODEL ROUTER"
           title="模型角色"
@@ -3515,7 +3501,7 @@ function AISection(props: {
         </div>
       </section>
 
-      <section className="hh-card admin-panel">
+      <section className="hh-card admin-panel ai-followup-panel">
         <PanelHeader
           eyebrow="FOLLOW-UP"
           title="學生追問"
@@ -3596,7 +3582,7 @@ function AISection(props: {
           disabled={props.saving || !props.canEdit}
           onClick={() => void props.onSave()}
         >
-          {props.saving ? "儲存中…" : "儲存 v1.1 AI 設定"}
+          {props.saving ? "儲存中…" : "儲存 AI 設定"}
         </button>
       </div>
     </fieldset>
@@ -3848,6 +3834,8 @@ function AdminNavGroup({
 function UsageStatusSection({ dashboard }: { dashboard: DashboardData | null }) {
   type ClassUsage = { classId:string; label:string; students:number; todayActive:number; todayQuestions:number; monthQuestions:number; monthCostTwd:number };
   const [rows, setRows] = useState<ClassUsage[]>([]);
+  const [search,setSearch]=useState("");
+  const [sort,setSort]=useState<"today"|"month"|"name">("today");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const load = useCallback(async () => {
@@ -3865,22 +3853,21 @@ function UsageStatusSection({ dashboard }: { dashboard: DashboardData | null }) 
   const activeToday = rows.reduce((sum,row)=>sum+Number(row.todayActive||0),0);
   const todayQuestions = rows.reduce((sum,row)=>sum+Number(row.todayQuestions||0),0);
   const monthQuestions = rows.reduce((sum,row)=>sum+Number(row.monthQuestions||0),0);
-  return <div className="admin-stack">
+  const visibleRows=rows.filter(row=>row.label.toLowerCase().includes(search.trim().toLowerCase())).sort((a,b)=>sort==="name"?a.label.localeCompare(b.label,"zh-Hant"):sort==="month"?b.monthQuestions-a.monthQuestions:b.todayQuestions-a.todayQuestions);
+  const activeClasses=rows.filter(row=>row.todayActive>0).length;
+  return <div className="admin-stack usage-workspace">
     <section className="admin-kpi-grid admin-usage-kpis">
-      <KpiCard label="今日使用學生" value={activeToday || dashboard?.today.students || 0} suffix=" 人" tone="blue" />
-      <KpiCard label="今日解題" value={todayQuestions || dashboard?.today.questions || 0} suffix=" 題" tone="gold" />
-      <KpiCard label="本月解題" value={monthQuestions || dashboard?.month.questions || 0} suffix=" 題" tone="purple" />
-      <KpiCard label="學生總數" value={totalStudents} suffix=" 人" />
+      <KpiCard label="今日使用學生" value={loading?"—":activeToday} suffix=" 人" tone="blue" />
+      <KpiCard label="今日解題" value={loading?"—":todayQuestions} suffix=" 題" tone="gold" />
+      <KpiCard label="本月解題" value={loading?"—":monthQuestions} suffix=" 題" tone="purple" />
+      <KpiCard label="學生總數" value={loading?"—":totalStudents} suffix=" 人" />
     </section>
-    {error && <div className="admin-notice danger">{error}</div>}
-    <section className="hh-card admin-panel admin-data-table-panel">
-      <PanelHeader eyebrow="USAGE STATUS" title="班級使用狀況" subtitle="快速掌握今天哪些班級有使用、解了多少題，以及本月累積使用量。" />
-      {loading ? <div className="admin-empty">正在整理班級使用狀況…</div> : <div className="admin-data-table-wrap">
-        <table className="admin-data-table"><thead><tr><th>班級</th><th>學生</th><th>今日使用</th><th>今日解題</th><th>本月解題</th></tr></thead><tbody>
-          {rows.map((row)=><tr key={row.classId}><td><strong>{row.label}</strong></td><td>{row.students}</td><td>{row.todayActive} 人</td><td>{row.todayQuestions} 題</td><td>{row.monthQuestions} 題</td></tr>)}
-          {rows.length===0 && <tr><td colSpan={5}>目前沒有班級資料。</td></tr>}
-        </tbody></table>
-      </div>}
+    {error&&<div className="admin-notice danger">{error}</div>}
+    {!loading&&!error&&<aside className="usage-insight"><span className="usage-insight-mark" aria-hidden="true">↗</span><div><strong>今天有 {activeClasses} 個班級使用解題</strong><p>{totalStudents?`今日學生使用率 ${Math.round(activeToday/totalStudents*100)}%` : "新增班級與學生後，這裡會呈現使用分布。"} · 統計依目前管理範圍顯示</p></div></aside>}
+    <section className="hh-card admin-panel">
+      <PanelHeader eyebrow="CLASS ACTIVITY" title="班級動態" subtitle="每班一張卡，直接比較今日參與及本月累積。" />
+      <div className="usage-toolbar"><input className="hh-input" aria-label="搜尋班級" placeholder="搜尋地區、補習班或班級…" value={search} onChange={event=>setSearch(event.target.value)}/><select className="hh-select" aria-label="班級排序" value={sort} onChange={event=>setSort(event.target.value as typeof sort)}><option value="today">今日解題最多</option><option value="month">本月解題最多</option><option value="name">依班級名稱</option></select></div>
+      {loading?<div className="admin-empty">正在整理班級使用狀況…</div>:<div className="usage-class-grid">{visibleRows.map(row=><article key={row.classId} className="usage-class-card"><div className="usage-class-heading"><h3>{row.label}</h3><span>{row.students} 位學生</span></div><div className="usage-class-numbers"><div><span>今日使用</span><strong>{row.todayActive}<small>人</small></strong></div><div><span>今日解題</span><strong>{row.todayQuestions}<small>題</small></strong></div><div><span>本月累積</span><strong>{row.monthQuestions}<small>題</small></strong></div></div><div className="usage-participation" aria-label={`今日使用率 ${row.students?Math.round(row.todayActive/row.students*100):0}%`}><span style={{width:`${Math.min(100,row.students?row.todayActive/row.students*100:0)}%`}}/></div><p>今日參與 {row.todayActive} / {row.students} 人</p></article>)}{!visibleRows.length&&<div className="admin-empty">沒有符合條件的班級。</div>}</div>}
     </section>
   </div>;
 }
@@ -4584,17 +4571,12 @@ function AnalyticsSection() {
         <>
           <section className="hh-card admin-panel admin-data-table-panel">
             <PanelHeader eyebrow="OVERVIEW" title="使用與成本" subtitle={data.label} />
-            <div className="admin-data-table-wrap">
-              <table className="admin-data-table admin-overview-data-table">
-                <thead><tr><th>指標</th><th>數值</th><th>說明</th></tr></thead>
-                <tbody>
-                  <tr><td>解題數</td><td>{formatInteger(data.totals.solvedQuestions)} 題</td><td>成功建立的解題紀錄</td></tr>
-                  <tr><td>模型呼叫</td><td>{formatInteger(data.totals.apiCalls)} 次</td><td>全部 AI 角色合計</td></tr>
-                  <tr><td>估算總成本</td><td>{formatTwdFromUsd(data.totals.totalCostUsd)}</td><td>依 api_usage 加總</td></tr>
-                  <tr><td>平均每題成本</td><td>{formatTwdFromUsd(data.totals.averageCostPerSolveUsd)}</td><td>總成本 ÷ 解題數</td></tr>
-                  <tr><td>AI 平均回應時間</td><td>{formatDuration(latency?.averageMs)}</td><td>依已記錄 latency_ms 的模型呼叫計算</td></tr>
-                </tbody>
-              </table>
+            <div className="analytics-summary-grid">
+              <article><span>解題數</span><strong>{formatInteger(data.totals.solvedQuestions)}<small>題</small></strong><p>成功建立的解題紀錄</p></article>
+              <article><span>模型呼叫</span><strong>{formatInteger(data.totals.apiCalls)}<small>次</small></strong><p>全部模型角色合計</p></article>
+              <article><span>估算總成本</span><strong>{formatTwdFromUsd(data.totals.totalCostUsd)}</strong><p>依已記錄用量加總</p></article>
+              <article><span>平均每題</span><strong>{formatTwdFromUsd(data.totals.averageCostPerSolveUsd)}</strong><p>總成本 ÷ 解題數</p></article>
+              <article><span>平均回應時間</span><strong>{formatDuration(latency?.averageMs)}</strong><p>依已記錄的模型呼叫</p></article>
             </div>
           </section>
 
@@ -4925,7 +4907,7 @@ function KpiCard({
   tone = "",
 }: {
   label: string;
-  value: number;
+  value: number | string;
   suffix?: string;
   prefix?: string;
   digits?: number;
@@ -4936,7 +4918,7 @@ function KpiCard({
       <div>{label}</div>
       <strong className="hh-number">
         {prefix}
-        {digits ? value.toFixed(digits) : value}
+        {digits && typeof value === "number" ? value.toFixed(digits) : value}
         {suffix}
       </strong>
     </article>

@@ -99,8 +99,10 @@ export async function PATCH(request:NextRequest){
  if(typeof b?.active==="boolean")update.active=b.active;
  if(typeof b?.password==="string"&&b.password){if(b.password.length<10||b.password.length>128)return fail("密碼需 10–128 碼。",400);update.password_hash=await bcrypt.hash(b.password,12);update.password_changed_at=new Date().toISOString();}
  if(Object.keys(update).length){const {error}=await supabaseAdmin.from("admin_users").update(update).eq("id",id);if(error)return fail(error.message,500);}
- if(institutionIds){const {error:de}=await supabaseAdmin.from("admin_user_institutions").delete().eq("admin_user_id",id);if(de)return fail(de.message,500);
-  if(institutionIds.length){const {error}=await supabaseAdmin.from("admin_user_institutions").insert(institutionIds.map(i=>({admin_user_id:id,institution_id:i})));if(error)return fail(error.message,500);}}
+ if(institutionIds){
+  const {error}=await supabaseAdmin.rpc("replace_teacher_institutions",{teacher_id:id,institution_ids:institutionIds});
+  if(error)return fail("儲存管理範圍失敗，原授權仍保留。請重新整理補習班清單後重試。",500);
+ }
  // 移除 v1.5.1 舊班級指派；教師權限一律由補習班繼承。
  if(role==="teacher" || target.role==="teacher"){
   const {error:classError}=await supabaseAdmin.from("admin_user_classes").delete().eq("admin_user_id",id);

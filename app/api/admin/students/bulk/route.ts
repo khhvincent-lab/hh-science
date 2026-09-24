@@ -245,15 +245,19 @@ export async function POST(request: NextRequest) {
     const institutionId = String(form.get("institutionId") ?? "").trim();
     const classId = String(form.get("classId") ?? "").trim();
     const file = form.get("file");
+    const namesText = form.get("namesText");
+    const manual = typeof namesText === "string";
+    if (manual && (namesText.length > 25000 || namesText.split(/\r\n?|\n/).filter(name => name.trim()).length > 500)) return NextResponse.json({ error: "每次最多輸入 500 位學生。" }, { status: 400 });
 
-    if (!(file instanceof File)) return NextResponse.json({ error: "請選擇要匯入的 CSV 或 Excel 檔案。" }, { status: 400 });
-    if (file.size > 5 * 1024 * 1024) return NextResponse.json({ error: "名單檔案請控制在 5 MB 以內。" }, { status: 400 });
+    if (!manual && !(file instanceof File)) return NextResponse.json({ error: "請選擇要匯入的 CSV 或 Excel 檔案。" }, { status: 400 });
+    if (file instanceof File && file.size > 5 * 1024 * 1024) return NextResponse.json({ error: "名單檔案請控制在 5 MB 以內。" }, { status: 400 });
 
     if (!(await assertClassAccess(request, admin, classId))) return NextResponse.json({error:"你沒有此班級的匯入權限。"},{status:403});
     const organization = await resolveOrganization(regionId, institutionId, classId);
-    const bytes = Buffer.from(await file.arrayBuffer());
-    const lowerName = file.name.toLowerCase();
-    const parsed = lowerName.endsWith(".xlsx") ? parseXlsx(bytes) : lowerName.endsWith(".csv") ? parseCsv(bytes) : null;
+    const bytes = file instanceof File ? Buffer.from(await file.arrayBuffer()) : Buffer.alloc(0);
+    const lowerName = file instanceof File ? file.name.toLowerCase() : "";
+    const parsed = manual ? collectNames(namesText.split(/\r\n?|\n/).filter(name => name.trim())) : lowerName.endsWith(".xlsx") ? parseXlsx(bytes) : lowerName.endsWith(".csv") ? parseCsv(bytes) : null;
+    if (parsed && !parsed.totalRows) return NextResponse.json({ error: "請至少輸入一位學生姓名。" }, { status: 400 });
     if (!parsed) return NextResponse.json({ error: "目前只支援 .csv 與 .xlsx 名單。" }, { status: 400 });
 
     const { data: existingRows, error: existingError } = await supabaseAdmin

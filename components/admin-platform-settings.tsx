@@ -68,8 +68,14 @@ export default function AdminPlatformSettings({ actor, onBrandChanged }: { actor
     }}
     finally{setBusy(false);}
   }
-  async function updateTeacher(id:string,patch:any){
-    setError("");setMessage(""); const r=await fetch("/api/admin/teachers",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({id,...patch})});const d=await r.json();if(!r.ok){setError(d.error||"更新教師失敗。");return;}setMessage("教師權限已更新。");await load();
+  async function updateTeacher(id:string,patch:Record<string,unknown>) {
+    setError("");setMessage("");setBusy(true);
+    try {
+      const r=await fetch("/api/admin/teachers",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({id,...patch})});
+      const d=await r.json();if(!r.ok)throw new Error(d.error||"更新教師失敗。");
+      await load();setMessage("教師設定已儲存，管理範圍已更新。");return true;
+    } catch(e){setError(e instanceof Error?e.message:"更新教師失敗。");return false;}
+    finally {setBusy(false);}
   }
   async function deleteTeacher(t:Teacher){
     if(!window.confirm(`確定刪除「${t.display_name}」(@${t.username})？\n帳號將無法再登入，但保留歷史解題與校正紀錄。`))return;
@@ -127,7 +133,8 @@ export default function AdminPlatformSettings({ actor, onBrandChanged }: { actor
       <div className="admin-actions"><button className="hh-button-primary" type="button" onClick={()=>void addTeacher()} disabled={busy||!isOwner}>{busy?"正在建立帳號…":"新增教師帳號"}</button></div></fieldset>
       <div ref={accountFeedbackRef} aria-live="polite" aria-atomic="true">{accountFeedback&&<div role={accountFeedback.kind==="error"?"alert":"status"} className={`admin-notice ${accountFeedback.kind==="error"?"danger":"success"}`}>{accountFeedback.text}</div>}</div>
       <div className="teacher-account-list">{!isOwner&&<p>已授權補習班：{visibleInstitutions.map(institutionLabel).join("、")||"尚未授權"}</p>}{teacherRows.map(t=><div key={t.id} className="teacher-account-row" style={{display:"grid",gap:10}}><div><strong>{t.display_name}</strong><small>@{t.username} · {t.role==="super_admin"?"總管理員":"教師"} · {t.active?"啟用":"停用"}</small></div>
-      {t.role!=="super_admin"&&<div className="teacher-class-grid compact">{visibleInstitutions.map(i=><label key={i.id} className="teacher-class-chip"><input type="checkbox" checked={(t.institutionIds||[]).includes(i.id)} disabled={!isOwner} onChange={e=>{const next=e.target.checked?[...(t.institutionIds||[]),i.id]:(t.institutionIds||[]).filter(x=>x!==i.id);void updateTeacher(t.id,{institutionIds:next});}}/><span>{institutionLabel(i)}</span></label>)}</div>}
+      {t.role!=="super_admin"&&<TeacherGrantEditor teacher={t} institutions={visibleInstitutions.map(i=>({...i,name:institutionLabel(i)}))} disabled={!isOwner||busy} onSave={ids=>updateTeacher(t.id,{institutionIds:ids})}/>}
+
       {t.role==="teacher"&&<small>已授權補習班的所有班級</small>}
       <div className="v2-account-actions"><button type="button" disabled={!isOwner} className="admin-ghost-button" onClick={()=>void resetTeacherPassword(t)}>重設密碼</button><button type="button" disabled={!isOwner} className="admin-ghost-button" onClick={()=>void updateTeacher(t.id,{active:!t.active})}>{t.active?"停用":"啟用"}</button><button type="button" className="v2-danger-button" disabled={busy||!isOwner} onClick={()=>void deleteTeacher(t)}>刪除帳號</button></div></div>)}</div>
     </section>
@@ -138,4 +145,16 @@ function InstitutionTitleEditor({institution,disabled,onSave}:{institution:Insti
   const [title,setTitle]=useState(institution.brand_title||"");
   useEffect(()=>{setTitle(institution.brand_title||"");},[institution.brand_title]);
   return <div className="teacher-account-row"><div><strong>{institution.name}</strong><small>學生端標題</small></div><input className="hh-input" aria-label={`${institution.name} 顯示標題`} value={title} disabled={disabled} maxLength={80} placeholder="留白 = 全站品牌" onChange={e=>setTitle(e.target.value)}/><button type="button" className="hh-button-secondary" disabled={disabled || title===(institution.brand_title||"")} onClick={()=>void onSave(institution.id,title)}>儲存</button></div>;
+}
+
+function TeacherGrantEditor({teacher,institutions,disabled,onSave}:{teacher:Teacher;institutions:InstitutionRow[];disabled:boolean;onSave:(ids:string[])=>Promise<boolean>}) {
+  const [editing,setEditing]=useState(false);
+  const [draft,setDraft]=useState<string[]>(teacher.institutionIds||[]);
+  const [feedback,setFeedback]=useState("");
+  const start=()=>{setDraft(teacher.institutionIds||[]);setFeedback("");setEditing(true);};
+  return <div className="teacher-grant-editor">
+    <div className="teacher-grant-summary"><span>管理範圍 · {teacher.institutionIds.length} 間補習班</span><strong>{institutions.filter(i=>teacher.institutionIds.includes(i.id)).map(i=>i.name).join("、")||"尚未授權"}</strong>{!editing&&<button type="button" className="hh-button-secondary" disabled={disabled} onClick={start}>編輯管理範圍</button>}</div>
+    {editing&&<div className="teacher-grant-draft"><div className="teacher-class-grid">{institutions.map(i=><label key={i.id} className="teacher-class-chip"><input type="checkbox" disabled={disabled} checked={draft.includes(i.id)} onChange={e=>setDraft(old=>e.target.checked?[...old,i.id]:old.filter(id=>id!==i.id))}/><span>{i.name}</span></label>)}</div><p>選取的補習班及其所有班級會一起授權；儲存後生效。</p><div className="admin-actions"><button type="button" className="hh-button-primary" disabled={disabled||!draft.length} onClick={async()=>{if(await onSave(draft)){setEditing(false);setFeedback("管理範圍已儲存。");}else setFeedback("儲存未完成，請查看錯誤訊息後重試。");}}>儲存管理範圍</button><button type="button" className="hh-button-secondary" disabled={disabled} onClick={()=>setEditing(false)}>取消</button></div>{!draft.length&&<small>請至少保留一間補習班；暫停使用可選擇停用帳號。</small>}</div>}
+    {feedback&&<p role="status">{feedback}</p>}
+  </div>;
 }

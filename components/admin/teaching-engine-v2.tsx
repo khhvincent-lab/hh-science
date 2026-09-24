@@ -35,7 +35,7 @@ export function TeachingOverviewSection({onNavigate,canEdit=true}:{onNavigate:(s
   if(loading&&!data)return <section className="hh-card admin-panel admin-empty">正在整理教師知識層…</section>;
   return <div className="admin-stack teacher-v2-stack">
     {error&&<div className="admin-notice danger">{error}</div>}
-    <section className="hh-card admin-panel teacher-v2-hero"><div><div className="hh-eyebrow">TEACHER KNOWLEDGE LAYER</div><h2 className="hh-display">教學引擎總覽</h2><p>學生真實題目 → 教師校正 → 範例／規則 → 下一次解題自動檢索。所有功能集中在這裡，不再把「修正題目」與「教學引擎」分開。</p></div><button className="hh-button-primary" type="button" onClick={()=>onNavigate("teachingQuestions")}>{canEdit?"開始教師校正":"查看題目"}</button></section>
+    <section className="hh-card admin-panel teacher-v2-hero"><div><div className="hh-eyebrow">TEACHER KNOWLEDGE LAYER</div><h2 className="hh-display">教學引擎總覽</h2><p>檢視待校正題目、整理教師範例，讓有效的解題方法持續累積。</p></div><button className="hh-button-primary" type="button" onClick={()=>onNavigate("teachingQuestions")}>{canEdit?"開始教師校正":"查看題目"}</button></section>
     {data&&<>
       <section className="teacher-v2-kpis">
         <article><span>教師範例</span><strong>{data.examples}</strong><small>{data.enabledExamples} 筆啟用</small></article>
@@ -43,8 +43,9 @@ export function TeachingOverviewSection({onNavigate,canEdit=true}:{onNavigate:(s
         <article><span>互動數字</span><strong>{data.annotatedExamples}</strong><small>已有標註的範例</small></article>
         <article><span>待校正</span><strong>{data.pendingCorrections}</strong><small>需要老師處理</small></article>
       </section>
-      <section className="hh-card admin-panel"><div className="teacher-v2-section-head"><div><div className="hh-eyebrow">SUBJECT KNOWLEDGE</div><h3 className="hh-display">各科累積</h3></div><button type="button" className="hh-button-secondary" onClick={()=>void load()}>重新整理</button></div><div className="teacher-v2-subject-grid">{data.subjects.map(x=><article key={x.subject}><strong>{subjectLabel(x.subject)}</strong><span>{x.examples} 範例</span><span>{x.rules} 規則</span></article>)}</div></section>
-      <section className="teacher-v2-actions"><button onClick={()=>onNavigate("teachingExamples")}><strong>解題範例庫</strong><span>查看 AI 會檢索的教師核准案例 →</span></button><button onClick={()=>onNavigate("teachingRuleLibrary")}><strong>教學規則庫</strong><span>管理單元與全域規則 →</span></button><button onClick={()=>onNavigate("teachingCoach")}><strong>AI 教練</strong><span>直接用對話教 AI 怎麼教學生 →</span></button></section>
+      <div className="teaching-overview-columns"><section className="hh-card admin-panel"><div className="teacher-v2-section-head"><div><div className="hh-eyebrow">SUBJECT KNOWLEDGE</div><h3 className="hh-display">各科知識累積</h3><p>範例與規則的累積量，協助安排下一步整理方向。</p></div><button type="button" className="hh-button-secondary" onClick={()=>void load()}>更新</button></div>{data.subjects.map(x=><div key={x.subject} className="teaching-subject-row"><strong>{subjectLabel(x.subject)}</strong><div className="teaching-subject-bar"><i style={{width:`${(x.examples+x.rules)/Math.max(1,...data.subjects.map(item=>item.examples+item.rules))*100}%`}}/></div><span>{x.examples} 範例 · {x.rules} 規則</span></div>)}</section>
+      <section className="hh-card admin-panel"><div className="hh-eyebrow">NEXT STEP</div><h3 className="hh-display">接下來可以做</h3><div className="teaching-next-actions"><button type="button" onClick={()=>onNavigate("teachingQuestions")}><strong>01 · 檢視教師校正 →</strong><small>{data.pendingCorrections} 題待校正，從真實題目改善解法</small></button><button type="button" onClick={()=>onNavigate("teachingExamples")}><strong>02 · 整理解題範例 →</strong><small>{data.enabledExamples} 筆啟用範例，檢查主題與教學策略</small></button><button type="button" onClick={()=>onNavigate("teachingRuleLibrary")}><strong>03 · 檢視教學規則 →</strong><small>{data.enabledRules} 條啟用規則，累積可重用原則</small></button><button type="button" onClick={()=>onNavigate("teachingCoach")}><strong>和 AI 教練討論 →</strong><small>把你的教學偏好整理成規則建議</small></button></div></section></div>
+
     </>}
     <TeacherV2Styles />
   </div>
