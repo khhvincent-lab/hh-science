@@ -2363,14 +2363,14 @@ export default function Home() {
   const usageTone =
     usage.remaining <= 1
       ? "danger"
-      : usage.remaining <= 5
+      : usage.remaining <= 3
         ? "warning"
         : "caution";
   const quotaStatus = usage.remaining <= 0
     ? "今日額度已用完"
     : usage.remaining === 1
       ? "最後一題"
-      : usage.remaining <= 5
+      : usage.remaining <= 3
         ? "題數偏少"
         : "題數充足";
 
@@ -3551,7 +3551,7 @@ export default function Home() {
         </nav>}
         <footer className="student-footer">
           <div className="hh-eyebrow">{brand.englishName}</div>
-          <div>{brand.name} v2.0.9</div>
+          <div>{brand.name} v2.0.10</div>
         </footer>
       </div>
 
