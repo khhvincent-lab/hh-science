@@ -7,7 +7,14 @@ export const ADMIN_SESSION_COOKIE = "hh_science_admin_session";
 export const ADMIN_SCOPE_COOKIE = "hh_science_admin_scope";
 export const ADMIN_SESSION_MAX_AGE = 60 * 60 * 24 * 7;
 
-export type AdminRole = "teacher" | "super_admin" | "platform_admin" | "institution_admin";
+export type AdminRole = "teacher" | "super_admin";
+
+/** Accept old signed sessions during the two-role database migration. */
+export function normalizeAdminRole(value: unknown): AdminRole | null {
+  if (value === "super_admin") return "super_admin";
+  if (value === "teacher" || value === "platform_admin" || value === "institution_admin") return "teacher";
+  return null;
+}
 export type AdminSessionPayload = {
   role: AdminRole;
   userId: string;
@@ -57,7 +64,9 @@ export function verifyAdminSessionToken(token: string): AdminSessionPayload | nu
         exp: raw.exp,
       };
     }
-    if (!["teacher", "super_admin", "platform_admin", "institution_admin"].includes(raw.role)) return null;
+    const normalizedRole = normalizeAdminRole(raw.role);
+    if (!normalizedRole) return null;
+    raw.role = normalizedRole;
     if (typeof raw.exp !== "number" || raw.exp < Math.floor(Date.now() / 1000)) return null;
     return raw as AdminSessionPayload;
   } catch {
