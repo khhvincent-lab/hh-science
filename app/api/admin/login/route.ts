@@ -26,13 +26,13 @@ export async function POST(request: NextRequest) {
   if (!rate.ok) return NextResponse.json({ error: rate.serviceError ? "管理員登入服務暫時無法使用。" : `登入嘗試次數過多，請約 ${Math.max(1,Math.ceil(rate.retryAfter/60))} 分鐘後再試。` }, { status: rate.serviceError ? 503 : 429 });
 
   let user: any = null;
-  const lookup = await supabaseAdmin.from("admin_users").select("id,username,display_name,password_hash,role,active").eq("username", username).maybeSingle();
+  const lookup = await supabaseAdmin.from("admin_users").select("id,username,display_name,password_hash,role,active,deleted_at").eq("username", username).maybeSingle();
   if (!lookup.error && lookup.data) user = lookup.data;
   if (lookup.error && lookup.error.code !== "42P01") console.error("admin_users lookup:", lookup.error);
 
   let valid = false;
   let legacy = false;
-  if (user) valid = Boolean(user.active) && await bcrypt.compare(password, user.password_hash);
+  if (user) valid = Boolean(user.active && !user.deleted_at && normalizeAdminRole(user.role)) && await bcrypt.compare(password, user.password_hash);
   else if (username === "admin" && process.env.ADMIN_PASSWORD && password === process.env.ADMIN_PASSWORD) {
     valid = true; legacy = true;
     // migration 已執行時，自動把既有 ADMIN_PASSWORD 建成正式 super_admin。
@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
       if (created.data) { user = created.data; legacy = false; }
     }
   }
-  if (!valid) return NextResponse.json({ error: "帳號或密碼錯誤。" }, { status: 401 });
+  if (!valid || (user && !normalizeAdminRole(user.role))) return NextResponse.json({ error: "帳號或密碼錯誤。" }, { status: 401 });
   await clearRateLimit(rateKey);
   if (user?.id) await supabaseAdmin.from("admin_users").update({ last_login_at: new Date().toISOString() }).eq("id", user.id);
   const token = createAdminSessionToken({ role:normalizeAdminRole(user?.role) ?? "super_admin", userId:user?.id ?? "legacy-admin", username:user?.username ?? "admin", displayName:user?.display_name ?? "總管理員", legacy });
