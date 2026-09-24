@@ -7,9 +7,7 @@ import {
   supabaseAdmin,
 } from "@/lib/supabase-admin";
 
-import {
-  verifyAdminSessionToken,
-} from "@/lib/admin-session";
+import { requireAdminSession, getAccessibleStudentIds } from "@/lib/admin-access";
 
 import {
   answersMatch,
@@ -54,6 +52,7 @@ type UsageRow = {
 
 
 type HistoryRow = {
+  student_id: string;
   id: string;
   reference_answer: string | null;
   primary_provider: string | null;
@@ -70,24 +69,6 @@ type HistoryRow = {
   created_at: string;
 };
 
-
-async function requireAdmin(
-  request:
-    NextRequest,
-) {
-  const token =
-    request.cookies.get(
-      "hh_science_admin_session",
-    )?.value;
-
-  if (!token) {
-    return null;
-  }
-
-  return verifyAdminSessionToken(
-    token,
-  );
-}
 
 
 function getTaiwanParts(
@@ -341,6 +322,7 @@ async function fetchHistoryRows(
         .select(
           `
           id,
+          student_id,
           reference_answer,
           primary_provider,
           primary_model,
@@ -489,6 +471,31 @@ async function fetchUsageRows(
 }
 
 
+async function fetchTeacherUsageRows(studentIds: string[], startAt: string, endAt: string): Promise<UsageRow[]> {
+  if (!studentIds.length) return [];
+  const grouped = new Map<string, UsageRow>();
+  for (let start = 0; start < studentIds.length; start += 120) {
+    const chunk = studentIds.slice(start, start + 120);
+    for (let offset = 0;; offset += 1000) {
+      const {data,error} = await supabaseAdmin.from("api_usage")
+        .select("provider,model,role,estimated_cost_usd,created_at")
+        .in("student_id",chunk).gte("created_at",startAt).lt("created_at",endAt)
+        .order("created_at").range(offset,offset+999);
+      if(error) throw new Error(`讀取教師模型成本失敗：${error.message}`);
+      for(const row of data??[]) {
+        const usageDay = new Intl.DateTimeFormat("en-CA",{timeZone:"Asia/Taipei",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date(row.created_at));
+        const key = [usageDay,row.provider,row.model,row.role].join("|");
+        const item = grouped.get(key)??{usage_day:usageDay,provider:row.provider,model:row.model,role:row.role,calls:0,estimated_cost_usd:0};
+        item.calls=Number(item.calls||0)+1;
+        item.estimated_cost_usd=Number(item.estimated_cost_usd||0)+Number(row.estimated_cost_usd||0);
+        grouped.set(key,item);
+      }
+      if((data??[]).length<1000)break;
+    }
+  }
+  return [...grouped.values()];
+}
+
 async function fetchSolveCostRows(
   historyIds: string[],
 ) {
@@ -593,9 +600,7 @@ export async function GET(
     NextRequest,
 ) {
   const admin =
-    await requireAdmin(
-      request,
-    );
+    await requireAdminSession(request);
 
   if (!admin) {
     return NextResponse.json(
@@ -636,6 +641,14 @@ export async function GET(
         ),
       ]);
 
+
+    const allowedStudentIds = await getAccessibleStudentIds(request, admin);
+    if (allowedStudentIds !== null) {
+      const allowed = new Set(allowedStudentIds);
+      historyRows.splice(0, historyRows.length, ...historyRows.filter(row => allowed.has(row.student_id)));
+      const scopedUsage = await fetchTeacherUsageRows(allowedStudentIds, period.startAt, period.endAt);
+      usageRows.splice(0, usageRows.length, ...scopedUsage);
+    }
 
     const solveCostRows =
       await fetchSolveCostRows(
