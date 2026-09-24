@@ -47,13 +47,14 @@ export async function GET(request: NextRequest) {
         const reviewMap = await getAccuracyReviews(rows.map((row) => row.id));
         for (const row of rows) {
           if (!row.reference_answer?.trim()) continue;
-          referenceCases++;
           const review = reviewMap.get(row.id);
           const state = answerReviewState(row.answer, row.reference_answer, review);
+          if (state.needsReview) pendingReview++;
+          if (state.excluded) continue;
+          referenceCases++;
           const verdict = review?.verdict;
           if (verdict === "ai_correct" || verdict === "ai_incorrect") reviewedCases++;
           if (state.countsCorrect) referenceMatches++;
-          if (state.needsReview) pendingReview++;
         }
         if (rows.length < 1000) break;
       }

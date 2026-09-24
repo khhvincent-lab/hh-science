@@ -153,11 +153,11 @@ export async function GET(request: NextRequest) {
       const review = reviews.get(String(row.id));
       const answerState = answerReviewState(row.answer, row.reference_answer, review);
       const verifierVerdict = String(row.verifier_result?.verdict || "");
-      const issue = review?.verdict === "ai_correct" ? false : answerState.needsReview || review?.verdict === "ai_incorrect" ||
-        row.dispute_status === "disputed" || Boolean(row.arbitration_trigger) || verifierVerdict === "major_error";
+      const issue = (review?.verdict === "ai_correct" || review?.verdict === "invalid_question") ? false : answerState.needsReview || review?.verdict === "ai_incorrect" ||
+        (!answerState.automaticMatch && (row.dispute_status === "disputed" || Boolean(row.arbitration_trigger) || verifierVerdict === "major_error"));
       if ((onlyIssues || focus === "issue") && !issue) continue;
       if (focus === "pending" && !answerState.needsReview) continue;
-      if (focus === "reviewed" && !review?.verdict?.startsWith("ai_")) continue;
+      if (focus === "reviewed" && (!review || review.verdict === "unreviewed")) continue;
       if (focus === "followup" && !followupIds.has(String(row.id))) continue;
       if (focus === "verifier" && !row.verifier_model) continue;
       if (focus === "arbiter" && !row.arbiter_model) continue;
@@ -168,7 +168,7 @@ export async function GET(request: NextRequest) {
           .map((value) => String(value || "")).join("\n").toLocaleLowerCase("zh-Hant");
         if (!haystack.includes(q)) continue;
       }
-      matched.push({ ...row, review, issue, automaticMatch: answerState.automaticMatch, answerMismatch: answerState.needsReview });
+      matched.push({ ...row, review, issue, partialMatch: answerState.partialMatch, automaticMatch: answerState.automaticMatch, answerMismatch: answerState.needsReview });
       if (matched.length > (page + 1) * pageSize) break;
     }
     if (batch.length < 200) break;
@@ -259,7 +259,8 @@ export async function GET(request: NextRequest) {
         arbiterAnswer: row.arbiter_answer || null,
         disputeStatus: row.dispute_status || "normal",
         issue,
-        automaticMatch: row.automaticMatch,
+        partialMatch: row.partialMatch,
+      automaticMatch: row.automaticMatch,
         answerMismatch: row.answerMismatch,
         review: row.review || null,
         followups: followupMap.get(String(row.id)) || [],

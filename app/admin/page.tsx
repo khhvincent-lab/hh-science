@@ -3903,7 +3903,7 @@ type TeachingQuestionCost = {
 type TeachingQuestionRow = {
   id:string; studentId:string; studentName:string; campus:string; regionName:string; institutionName:string; className:string;
   subject:string; referenceAnswer:string; questionNote:string; answer:string; explanation:string; options:string; annotations:any[]; diagram:ScienceDiagram|null; chemicalStructure:ChemicalStructure|null; imageUrls:string[]; followups:AdminFollowup[];
-  createdAt:string; primaryProvider?:string|null; primaryModel?:string|null; primaryAnswer?:string|null; verifierProvider?:string|null; verifierModel?:string|null; verifierResult?:any; arbiterProvider?:string|null; arbiterModel?:string|null; arbiterAnswer?:string|null; disputeStatus:string; issue:boolean; automaticMatch?:boolean; answerMismatch?:boolean; review?:{verdict:"ai_correct"|"ai_incorrect"|"unreviewed";note:string;reviewedAt:string;reviewerName:string}|null; cost:TeachingQuestionCost;
+  createdAt:string; primaryProvider?:string|null; primaryModel?:string|null; primaryAnswer?:string|null; verifierProvider?:string|null; verifierModel?:string|null; verifierResult?:any; arbiterProvider?:string|null; arbiterModel?:string|null; arbiterAnswer?:string|null; disputeStatus:string; issue:boolean; automaticMatch?:boolean; partialMatch?:boolean; answerMismatch?:boolean; review?:{verdict:"ai_correct"|"ai_incorrect"|"invalid_question"|"unreviewed";note:string;reviewedAt:string;reviewerName:string}|null; cost:TeachingQuestionCost;
 };
 
 const TEACHING_COST_ROLE_ORDER: TeachingQuestionCostRole["role"][] = ["science_gate", "primary", "verifier", "arbiter"];
@@ -3949,10 +3949,10 @@ function SiteQuestionsSection({onCalibrate,initialFocus="all",canReview=false}:{
   useEffect(()=>{void load();},[load]);
   const visibleItems=items;
   const pendingCount=items.filter(item=>item.answerMismatch).length;
-  const reviewLabel=(item:TeachingQuestionRow)=>item.review?.verdict==="ai_correct"?"已確認 AI 正確":item.review?.verdict==="ai_incorrect"?"已確認 AI 答錯":item.answerMismatch?"答案待核對":item.issue?"需注意":!item.referenceAnswer?.trim()?"未納入統計":"已比對";
+  const reviewLabel=(item:TeachingQuestionRow)=>item.review?.verdict==="invalid_question"?"題目有誤 · 已排除統計":item.review?.verdict==="ai_correct"?"已確認 AI 正確":item.review?.verdict==="ai_incorrect"?"已確認 AI 答錯":item.answerMismatch?(item.partialMatch?"部分答案相符，待覆核":"答案待核對"):item.issue?"需注意":!item.referenceAnswer?.trim()?"未納入統計":"已比對";
   const reviewTone=(item:TeachingQuestionRow)=>item.review?.verdict&&item.review.verdict!=="unreviewed"?item.review.verdict:item.answerMismatch?"pending":"neutral";
 
-  async function saveAnswerReview(verdict:"ai_correct"|"ai_incorrect"|"unreviewed") {
+  async function saveAnswerReview(verdict:"ai_correct"|"ai_incorrect"|"invalid_question"|"unreviewed") {
     if(!selected||!canReview)return;
     setReviewBusy(true);setReviewMessage("");
     try{
@@ -3962,7 +3962,7 @@ function SiteQuestionsSection({onCalibrate,initialFocus="all",canReview=false}:{
       const needsReview=verdict==="unreviewed"&&!selected.automaticMatch&&Boolean(selected.referenceAnswer);
       const updated={...selected,review:{...data.review,reviewerName:"總管理員"},answerMismatch:needsReview,issue:verdict==="ai_incorrect"||needsReview||(verdict==="unreviewed"&&selected.disputeStatus==="disputed")};
       setSelected(updated);
-      setReviewMessage(verdict==="unreviewed"?"已撤回判定，這題重新列入待核對。":"已儲存覆核，正確率會依這項判定重新計算。");
+      setReviewMessage(verdict==="unreviewed"?"已撤回判定，恢復依答案比對結果統計。":verdict==="invalid_question"?"已排除這題，不計入正確率的分子與分母。":"已儲存覆核，正確率會依這項判定重新計算。");
       void load();
     }catch(e){setReviewMessage(e instanceof Error?e.message:"儲存覆核失敗。");}
     finally{setReviewBusy(false);}
@@ -3982,9 +3982,9 @@ function SiteQuestionsSection({onCalibrate,initialFocus="all",canReview=false}:{
       </section>
 
       {selected.referenceAnswer && <section className="hh-card admin-panel site-review-panel">
-        <div className="site-review-heading"><div><div className="hh-eyebrow">ANSWER REVIEW</div><h2 className="hh-display">答案核對</h2><p>依題目圖片與解法判斷；學生原先填寫的答案會完整保留。</p></div><span className={`site-review-status ${reviewTone(selected)}`}>{reviewLabel(selected)}</span></div>
+        <div className="site-review-heading"><div><div className="hh-eyebrow">ANSWER REVIEW</div><h2 className="hh-display">答案核對</h2><p>依題目圖片與解法判斷；原答案完整保留。題目有誤可排除正確率統計，並隨時撤回。</p></div><span className={`site-review-status ${reviewTone(selected)}`}>{reviewLabel(selected)}</span></div>
         {selected.review?.verdict!=="unreviewed"&&selected.review&&<div className="site-review-history">{selected.review.reviewerName} · {new Date(selected.review.reviewedAt).toLocaleString("zh-TW")}{selected.review.note&&<span>覆核說明：{selected.review.note}</span>}</div>}
-        {canReview&&<><label className="site-review-note"><span>覆核說明（選填）</span><textarea className="hh-input" maxLength={500} value={reviewNote} onChange={event=>setReviewNote(event.target.value)} placeholder="例如：依題目照片與計算過程核對，學生把選項填錯。" /></label><div className="site-review-actions"><button type="button" disabled={reviewBusy} className="site-review-correct" onClick={()=>void saveAnswerReview("ai_correct")}>AI 正確，學生答案誤填</button><button type="button" disabled={reviewBusy} className="site-review-incorrect" onClick={()=>void saveAnswerReview("ai_incorrect")}>AI 確實答錯</button>{selected.review&&selected.review.verdict!=="unreviewed"&&<button type="button" disabled={reviewBusy} className="site-review-reset" onClick={()=>void saveAnswerReview("unreviewed")}>撤回判定</button>}</div>{reviewMessage&&<p className="site-review-feedback" role="status">{reviewMessage}</p>}</>}
+        {canReview&&<><label className="site-review-note"><span>覆核說明（選填）</span><textarea className="hh-input" maxLength={500} value={reviewNote} onChange={event=>setReviewNote(event.target.value)} placeholder="例如：答案數值相同，僅格式不同；或說明題目缺漏、條件矛盾。" /></label><div className="site-review-actions"><button type="button" disabled={reviewBusy} className="site-review-correct" onClick={()=>void saveAnswerReview("ai_correct")}>確認 AI 正確</button><button type="button" disabled={reviewBusy} className="site-review-incorrect" onClick={()=>void saveAnswerReview("ai_incorrect")}>AI 確實答錯</button><button type="button" disabled={reviewBusy} className="site-review-reset" onClick={()=>void saveAnswerReview("invalid_question")}>題目有誤，排除統計</button>{selected.review&&selected.review.verdict!=="unreviewed"&&<button type="button" disabled={reviewBusy} className="site-review-reset" onClick={()=>void saveAnswerReview("unreviewed")}>撤回判定</button>}</div>{reviewMessage&&<p className="site-review-feedback" role="status">{reviewMessage}</p>}</>}
       </section>}
 
       <section className="hh-card admin-panel site-student-view-card"><div className="hh-eyebrow">STUDENT VIEW</div><h2 className="hh-display">學生看到的解題內容</h2><div className="site-answer-hero"><span>答案</span><div className="admin-formula-value"><AdminScienceText text={selected.answer||"—"} /></div></div><div className="site-result-section"><h3>觀念解析／詳解</h3><AdminScienceText text={selected.explanation||"目前沒有詳解內容。"}/></div><ScienceDiagramView diagram={selected.diagram} compact /><ChemicalStructureView structure={selected.chemicalStructure} compact />{selected.options&&<div className="site-result-section"><h3>選項分析</h3><AdminScienceText text={formatAdminOptions(selected.options)}/></div>}</section>

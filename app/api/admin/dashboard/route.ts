@@ -606,7 +606,7 @@ export async function GET(
       },
 
       month: {
-        referenceCases: referenceRows.length,
+        referenceCases: referenceRows.filter((row) => !answerReviewState(row.answer, row.reference_answer, accuracyReviews.get(String(row.id))).excluded).length,
         referenceMatches,
         questions:
           (monthHistoryResult.data || []).length,

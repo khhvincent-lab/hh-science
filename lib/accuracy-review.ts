@@ -1,7 +1,7 @@
-import { answersMatch } from "@/lib/ai/answer-normalization";
+import { referenceAnswersMatch, referencePartiallyMatches } from "@/lib/ai/answer-normalization";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
-export type AccuracyVerdict = "ai_correct" | "ai_incorrect" | "unreviewed";
+export type AccuracyVerdict = "ai_correct" | "ai_incorrect" | "invalid_question" | "unreviewed";
 export type AccuracyReview = {
   verdict: AccuracyVerdict;
   note: string;
@@ -31,10 +31,14 @@ export async function getAccuracyReviews(ids: string[]) {
 
 export function answerReviewState(answer: string | null, reference: string | null, review?: AccuracyReview) {
   const hasReference = Boolean(reference?.trim());
-  const automaticMatch = hasReference && answersMatch(answer || "", reference || "");
+  const automaticMatch = hasReference && referenceAnswersMatch(answer || "", reference || "");
+  const partialMatch = hasReference && !automaticMatch && referencePartiallyMatches(answer || "", reference || "");
+  const excluded = review?.verdict === "invalid_question" || (partialMatch && (!review || review.verdict === "unreviewed"));
   return {
+    excluded,
+    partialMatch,
     automaticMatch,
     needsReview: hasReference && !automaticMatch && (!review || review.verdict === "unreviewed"),
-    countsCorrect: review?.verdict === "ai_correct" || (review?.verdict !== "ai_incorrect" && automaticMatch),
+    countsCorrect: hasReference && !excluded && (review?.verdict === "ai_correct" || (review?.verdict !== "ai_incorrect" && automaticMatch)),
   };
 }

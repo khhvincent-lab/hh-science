@@ -263,3 +263,69 @@ export function answersMatch(
 
   return false;
 }
+
+
+/** Ordered numeric reference answers; omitted reference units inherit the question's units.
+ * Only known units are accepted. Explicit unit conflicts and prose require review.
+ */
+function cleanReferenceFormat(text: string) {
+  return toHalfWidth(text)
+    .replace(/\\+/g, "\\")
+    .replace(/\\(?:mathrm|text|ce)\{([^{}]*)\}/g, "$1")
+    .replace(/\\[,;! ]/g, " ")
+    .replace(/\\[()[\]]/g, "")
+    .replace(/\$/g, "")
+    .replace(/−|–/g, "-")
+    .replace(/^第\s*\d+\s*題\s*[:：]?\s*/, "")
+    .trim();
+}
+
+export function referenceAnswersMatch(answer: string, reference: string) {
+  answer = cleanReferenceFormat(answer);
+  reference = cleanReferenceFormat(reference);
+  const formula = (text: string) => text.replace(/[₀-₉]/g, char => String(char.charCodeAt(0) - 0x2080)).replace(/_\{(\d+)\}/g, "$1").replace(/_(\d+)/g, "$1").replace(/\s+/g, "");
+  const aFormula = formula(answer), rFormula = formula(reference);
+  if (/^(?:[A-Z][a-z]?\d*)+$/.test(aFormula) && /^(?:[A-Z][a-z]?\d*)+$/.test(rFormula)) {
+    if (/\d/.test(aFormula + rFormula)) return aFormula === rFormula;
+  }
+  const parse = (text: string) => {
+    const normalized = toHalfWidth(text)
+      .replace(/\\+/g, "\\")
+      .replace(/\\(?:mathrm|text)\{([^{}]*)\}/g, "$1")
+      .replace(/\\[,;! ]/g, " ")
+      .replace(/\\[()[\]]/g, "")
+      .replace(/\$/g, "")
+      .replace(/−|–/g, "-").trim();
+    const chunks = normalized.split(/[,，、;；\n]+/).map(part => part.trim());
+    if (!chunks.length || chunks.some(part => !part)) return null;
+    const values = chunks.map((part, index) => {
+      const label = part.match(/^\((\d+)\)\s*/);
+      if (label && Number(label[1]) !== index + 1) return null;
+      const cleaned = part.replace(/^\(\d+\)\s*/, "");
+      const match = cleaned.match(/^([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?)\s*(kJ\/mol|J\/mol|mol|mmol|g|kg|mg|L|mL|m|cm|mm|s|min|h|K|°C|℃|Pa|kPa|MPa|atm|mmHg|J|kJ|cal|kcal|N|V|A|W|Hz|%|公克|克|公斤|莫耳|毫升|公升)?$/);
+      if (!match || !Number.isFinite(Number(match[1]))) return null;
+      return { number: Number(match[1]), unit: match[2] || "" };
+    });
+    return values.every(value => value !== null) ? values : null;
+  };
+  const actual = parse(answer);
+  const expected = parse(reference);
+  if (actual && expected) {
+    return actual.length === expected.length && actual.every((value, index) => {
+      const target = expected[index];
+      return (!target.unit || target.unit === value.unit)
+        && Math.abs(value.number - target.number) <= Math.max(1e-12, Math.abs(target.number) * 1e-8);
+    });
+  }
+  if (actual || expected) return false;
+  return answersMatch(answer, reference);
+}
+
+
+/** A reference for only the first subquestion cannot validate the whole solution. */
+export function referencePartiallyMatches(answer: string, reference: string) {
+  const text = cleanReferenceFormat(answer);
+  if (!/^\(1\)/.test(text) || !/\(2\)/.test(text)) return false;
+  const first = text.replace(/^\(1\)\s*/, "").split(/\(2\)/)[0].split(/\(或/)[0].replace(/[;；\s]+$/, "");
+  return referenceAnswersMatch(first, reference);
+}

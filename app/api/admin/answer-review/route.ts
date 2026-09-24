@@ -11,7 +11,7 @@ export async function PATCH(request: NextRequest) {
   const id = typeof body.solveHistoryId === "string" ? body.solveHistoryId.trim() : "";
   const verdict = typeof body.verdict === "string" ? body.verdict : "";
   const note = typeof body.note === "string" ? body.note.trim() : "";
-  if (!/^[0-9a-f-]{36}$/i.test(id) || !["ai_correct", "ai_incorrect", "unreviewed"].includes(verdict) || note.length > 500) {
+  if (!/^[0-9a-f-]{36}$/i.test(id) || !["ai_correct", "ai_incorrect", "invalid_question", "unreviewed"].includes(verdict) || note.length > 500) {
     return NextResponse.json({ error: "覆核資料格式不正確。" }, { status: 400 });
   }
 
@@ -24,7 +24,7 @@ export async function PATCH(request: NextRequest) {
     if (accessible !== null && !accessible.includes(history.student_id)) {
       return NextResponse.json({ error: "沒有這題的查看權限。" }, { status: 403 });
     }
-    if (!String(history.reference_answer || "").trim()) {
+    if (!["invalid_question", "unreviewed"].includes(verdict) && !String(history.reference_answer || "").trim()) {
       return NextResponse.json({ error: "學生未填參考答案，這題不納入正確率。" }, { status: 400 });
     }
     const reviewedAt = new Date().toISOString();
