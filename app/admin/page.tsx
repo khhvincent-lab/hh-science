@@ -1188,7 +1188,7 @@ export default function AdminPage() {
 
         <nav className="admin-nav admin-nav-v13">
           <NavButton active={activeSection === "dashboard"} icon="01" label="管理總覽" onClick={() => { setActiveSection("dashboard"); setMobileMenuOpen(false); }} />
-          {adminUser?.role === "super_admin" && (
+          {(
             <NavButton active={activeSection === "siteQuestions"} icon="02" label="全站題目" onClick={() => { setActiveSection("siteQuestions"); setMobileMenuOpen(false); }} />
           )}
 
@@ -1205,7 +1205,7 @@ export default function AdminPage() {
             ]}
           />
 
-          {adminUser?.role === "super_admin" && (<>
+          {(<>
           <AdminNavGroup
             icon="04"
             label="AI模型中心"
@@ -1236,7 +1236,7 @@ export default function AdminPage() {
             ]}
           />
           </>)}
-          {(adminUser?.role === "super_admin" || adminUser?.role === "platform_admin" || adminUser?.role === "institution_admin") && (
+          {adminUser && (
             <NavButton active={activeSection === "platform"} icon="06" label="系統與教師" onClick={() => { setActiveSection("platform"); setMobileMenuOpen(false); }} />
           )}
         </nav>
@@ -1261,7 +1261,7 @@ export default function AdminPage() {
           <div>
             <div className="hh-eyebrow">{sectionEyebrow(activeSection)}</div>
             <h1 className="hh-display admin-page-title">{sectionTitle(activeSection)}</h1>
-            {adminUser&&<div className="admin-role-note">{adminUser.displayName} · {{super_admin:"總管理員",platform_admin:"跨補習班管理員",institution_admin:"補習班管理員",teacher:"教師"}[adminUser.role]||"管理員"}</div>}
+            {adminUser&&<div className="admin-role-note">{adminUser.displayName} · {adminUser.role==="super_admin"?"總管理員":"教師"}</div>}
           </div>
           {adminUser?.role === "super_admin" && (
             <label className="admin-teacher-scope"><span>檢視範圍</span><select value={scopeTeacher?.id || ""} onChange={(event)=>void changeTeacherScope(event.target.value)}><option value="">全部老師 / 全部班級</option>{teacherOptions.map((teacher)=><option key={teacher.id} value={teacher.id}>{teacher.display_name}</option>)}</select></label>
@@ -1364,6 +1364,7 @@ export default function AdminPage() {
               saveInitialPin={saveInitialStudentPin}
               settingsMessage={settingsMessage}
               settingsError={settingsError}
+              canManageOrganization={adminUser?.role==="super_admin"}
             />
           )}
 
@@ -1405,6 +1406,7 @@ export default function AdminPage() {
               saveInitialPin={saveInitialStudentPin}
               settingsMessage={settingsMessage}
               settingsError={settingsError}
+              canManageOrganization={adminUser?.role==="super_admin"}
             />
           )}
 
@@ -1418,6 +1420,7 @@ export default function AdminPage() {
               onSave={saveAISolverSettings}
               message={settingsMessage}
               error={settingsError}
+              canEdit={adminUser?.role==="super_admin"}
             />
           )}
 
@@ -1434,11 +1437,11 @@ export default function AdminPage() {
           )}
 
           {activeSection === "teachingRuleLibrary" && (
-            <TeachingRuleLibrarySection />
+            <TeachingRuleLibrarySection canEdit={adminUser?.role==="super_admin"} />
           )}
 
           {activeSection === "teachingCoach" && (
-            <TeachingCoachSection />
+            <TeachingCoachSection canSaveGlobalRules={adminUser?.role==="super_admin"} />
           )}
 
           {activeSection === "teachingTraining" && (
@@ -1446,7 +1449,7 @@ export default function AdminPage() {
           )}
 
           {activeSection === "teachingSettings" && (
-            <TeachingRulesSection />
+            <TeachingRulesSection canEdit={adminUser?.role==="super_admin"} />
           )}
 
           {activeSection === "platform" && (
@@ -1829,6 +1832,7 @@ function StudentsSection(props: {
   initialPin: string; setInitialPin: (value: string) => void;
   studentAuthLoading: boolean; studentAuthSaving: boolean; saveInitialPin: () => Promise<void>;
   settingsMessage: string; settingsError: string;
+  canManageOrganization: boolean;
 }) {
   type Region = { id: string; name: string; active: boolean };
   type Institution = { id: string; region_id: string; name: string; active: boolean };
@@ -2408,36 +2412,36 @@ function StudentsSection(props: {
         />
         <div className="org-columns">
           <div className="org-column-block">
-            <div className="org-head"><b>地區</b><button onClick={() => void orgCreate("region")} disabled={orgBusy}>＋</button></div>
+            <div className="org-head"><b>地區</b><button onClick={() => void orgCreate("region")} disabled={orgBusy || !props.canManageOrganization}>＋</button></div>
             <div className="org-chip-list">
               {regions.map((region) => (
                 <div className={`org-item ${regionId === region.id ? "active" : ""}`} key={region.id}>
                   <button onClick={() => setRegionId(region.id)}>{region.name}</button>
-                  <button className="del" onClick={() => void orgDelete("region", region.id, region.name)}>×</button>
+                  <button className="del" disabled={!props.canManageOrganization} onClick={() => void orgDelete("region", region.id, region.name)}>×</button>
                 </div>
               ))}
             </div>
           </div>
 
           <div className="org-column-block">
-            <div className="org-head"><b>合作單位</b><button onClick={() => void orgCreate("institution", regionId)} disabled={!regionId || orgBusy}>＋</button></div>
+            <div className="org-head"><b>合作單位</b><button onClick={() => void orgCreate("institution", regionId)} disabled={!regionId || orgBusy || !props.canManageOrganization}>＋</button></div>
             <div className="org-chip-list">
               {visibleInstitutions.map((institution) => (
                 <div className={`org-item ${institutionId === institution.id ? "active" : ""}`} key={institution.id}>
                   <button onClick={() => setInstitutionId(institution.id)}>{institution.name}</button>
-                  <button className="del" onClick={() => void orgDelete("institution", institution.id, institution.name)}>×</button>
+                  <button className="del" disabled={!props.canManageOrganization} onClick={() => void orgDelete("institution", institution.id, institution.name)}>×</button>
                 </div>
               ))}
             </div>
           </div>
 
           <div className="org-column-block">
-            <div className="org-head"><b>班級</b><button onClick={() => void orgCreate("class", institutionId)} disabled={!institutionId || orgBusy}>＋</button></div>
+            <div className="org-head"><b>班級</b><button onClick={() => void orgCreate("class", institutionId)} disabled={!institutionId || orgBusy || !props.canManageOrganization}>＋</button></div>
             <div className="org-chip-list">
               {visibleClasses.map((classRow) => (
                 <div className={`org-item ${classId === classRow.id ? "active" : ""}`} key={classRow.id}>
                   <button onClick={() => setClassId(classRow.id)}>{compactClassLabel(classRow)}</button>
-                  <button className="del" onClick={() => void orgDelete("class", classRow.id, classRow.name)}>×</button>
+                  <button className="del" disabled={!props.canManageOrganization} onClick={() => void orgDelete("class", classRow.id, classRow.name)}>×</button>
                 </div>
               ))}
             </div>
@@ -2482,7 +2486,7 @@ function StudentsSection(props: {
             <option value="">{promotionSourceClass ? "選擇同單位的目標班級" : "請先選原班級"}</option>
             {promotionTargets.map((item) => <option key={item.id} value={item.id}>{compactClassLabel(item)}</option>)}
           </select></label>
-          <button className="hh-button-primary promotion-button" disabled={orgBusy || !promotionSourceClass || !promotionTargetClass || promotionSourceCount === 0} onClick={() => void promoteWholeClass()}>3 · 確認整班升班</button>
+          <button className="hh-button-primary promotion-button" disabled={orgBusy || !props.canManageOrganization || !promotionSourceClass || !promotionTargetClass || promotionSourceCount === 0} onClick={() => void promoteWholeClass()}>3 · 確認整班升班</button>
         </div>
       </section>
 
@@ -3304,6 +3308,7 @@ function AISection(props: {
   onSave: () => Promise<void>;
   message: string;
   error: string;
+  canEdit: boolean;
 }) {
   if (props.loading || !props.settings) {
     return (
@@ -3355,7 +3360,8 @@ function AISection(props: {
   }
 
   return (
-    <div className="admin-stack">
+    <fieldset disabled={!props.canEdit} className="admin-stack admin-readonly-fieldset">
+      {!props.canEdit && <div className="admin-notice">教師可檢視目前模型配置與額度；調整與儲存僅限總管理員。</div>}
       <section className="hh-card admin-panel">
         <PanelHeader
           eyebrow="DAILY QUOTA"
@@ -3584,13 +3590,13 @@ function AISection(props: {
         <button
           type="button"
           className="hh-button-primary"
-          disabled={props.saving}
+          disabled={props.saving || !props.canEdit}
           onClick={() => void props.onSave()}
         >
           {props.saving ? "儲存中…" : "儲存 v1.1 AI 設定"}
         </button>
       </div>
-    </div>
+    </fieldset>
   );
 }
 
