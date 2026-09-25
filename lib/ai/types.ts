@@ -162,6 +162,7 @@ export type SolverUsage = {
 
 
 export type SolverRequest = {
+  jsonMode?: boolean;
   maxOutputTokens?: number;
   model:
     AIModelId;
@@ -181,6 +182,9 @@ export type SolverRequest = {
 
 
 export type SolverResponse = {
+  responseId?: string;
+  responseStatus?: string;
+  incompleteReason?: string;
   provider:
     AIProvider;
 

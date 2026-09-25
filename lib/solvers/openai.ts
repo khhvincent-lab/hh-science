@@ -189,6 +189,7 @@ export async function runOpenAISolver(
     await client
       .responses
       .create({
+        ...(request.jsonMode ? {text:{format:{type:'json_object'}}} : {}),
         ...(request.maxOutputTokens ? {max_output_tokens:request.maxOutputTokens} : {}),
         model:
           request.model,
@@ -209,6 +210,9 @@ export async function runOpenAISolver(
       } as any);
 
   return {
+    responseId: response.id,
+    responseStatus: response.status,
+    incompleteReason: response.incomplete_details?.reason,
     provider:
       "openai",
 

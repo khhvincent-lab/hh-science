@@ -1,4 +1,5 @@
 import {NextRequest,NextResponse} from 'next/server';
+import {historyRecoveryCounts} from '@/lib/comparison/recovery';
 import {start} from 'workflow/api';
 import {historyReviewWorkflow} from '@/workflows/history-review';
 import {randomUUID} from 'crypto';
@@ -90,7 +91,7 @@ export async function POST(request:NextRequest){
    if(body.action==='pauseBatch'){const {error}=await db.from('model_review_batches').update({status:'paused',reason:'管理員暫停；已送出的呼叫仍會完成。'}).eq('id',body.id).eq('status','running');if(error)throw error;return json({ok:true});}
    const {data:progress,error:pe}=await db.rpc('historical_luna_batch_progress',{p_batch:body.id});if(pe)throw pe;
    if(progress.running)throw new RequestError('仍有執行中的模型呼叫，請稍後再繼續。');
-   if(progress.failed-progress.notCalled>=3||(!progress.succeeded&&progress.failed>progress.notCalled))throw new RequestError('請先處理模型失敗原因，避免再次付費失敗。');
+   if((await historyRecoveryCounts(body.id)).blocked)throw new RequestError('修復後仍有模型失敗，請先檢查錯誤紀錄，避免再次付費失敗。');
    const {data:changed,error}=await db.from('model_review_batches').update({status:'queued',workflow_id:null}).eq('id',body.id).in('status',['paused','queued']).select('id');if(error)throw error;if(!changed?.length)throw new RequestError('批次狀態已變更。');
    const run=await start(historyReviewWorkflow,[body.id]);const {error:we}=await db.from('model_review_batches').update({workflow_id:run.runId}).eq('id',body.id);if(we)throw we;return json({ok:true});
   }
