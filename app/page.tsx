@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import SolveProgress from "@/components/solve-progress";
-import {useSolveJob,solveStages} from "@/components/use-solve-job";
+import {useSolveJob} from "@/components/use-solve-job";
 import { Cropper } from "react-cropper";
 import katex from "katex";
 import { captureSolutionImage } from "@/lib/solution-image-export";
@@ -832,6 +832,7 @@ export default function Home() {
   const [preparedShareFile, setPreparedShareFile] = useState<File | null>(null);
   const imagePreparationRef = useRef<Promise<File> | null>(null);
   const [exportQuestionImage, setExportQuestionImage] = useState("");
+  const retryingRef = useRef(false);
   const resultRef = useRef<HTMLElement | null>(null);
   const uploadPanelRef = useRef<HTMLElement | null>(null);
   const exportCardRef = useRef<HTMLDivElement | null>(null);
@@ -1892,6 +1893,33 @@ export default function Home() {
     else setSubject("");
   }
 
+  async function handleRetryQuestion() {
+    if (retryingRef.current || isSolving || solveTask.running) return;
+    retryingRef.current = true;
+    try {
+      if (solveTask.job?.status !== "failed") {
+        await handleStartSolve();
+        return;
+      }
+      setIsSolving(true);
+      setQuestionError("");
+      setSubjectSuggestion(null);
+      setSolveData(null);
+      setPreparedShareFile(null);
+      setExportQuestionImage("");
+      setFollowups([]);
+      setFollowupQuestion("");
+      setFollowupError("");
+      setActiveView("result");
+      await solveTask.retry();
+    } catch (error) {
+      setQuestionError(error instanceof Error ? error.message : "暫時無法重試，請稍後再試。");
+      setIsSolving(false);
+    } finally {
+      retryingRef.current = false;
+    }
+  }
+
   async function handleStartSolve() {
     if(solveTask.running)return;
     setFirstActionNudge(false);
@@ -2429,7 +2457,6 @@ export default function Home() {
             </>
           )}
         </header>
-        {student&&!student.mustChangePin&&solveTask.job&&solveTask.job.status !== "succeeded"&&(activeView !== "result" || solveTask.job.status === "failed")&&<aside className="student-job-banner" aria-live="polite"><strong>{solveStages[solveTask.job.stage]||"解題任務"}</strong><p>{solveTask.connectionError||(solveTask.running?"已安全送出，可離開頁面，回來後繼續查看。":"可重試原題，或重新上傳圖片。")}</p><div><button type="button" className="hh-button-secondary" onClick={()=>setActiveView("result")}>查看解析進度</button>{solveTask.job.status==="failed"&&<button type="button" className="hh-button-primary" onClick={()=>{void solveTask.retry().then(()=>{setQuestionError("");setSolveData(null);setActiveView("result");}).catch(e=>setQuestionError(e.message));}}>重試原題</button>}{!solveTask.running&&<button type="button" className="hh-button-secondary" onClick={()=>void solveTask.dismiss()}>收起</button>}</div></aside>}
 
 
         {!student && <section className="student-brand-intro">
@@ -2951,7 +2978,13 @@ export default function Home() {
               </div>
             )}
           </div>}
-          {!solveData && !isSolving && (
+          {questionError && !solveData && !isSolving && (
+            <div className="student-two-actions" style={{ marginTop: 16 }}>
+              <button type="button" className="hh-button-primary" onClick={() => void handleRetryQuestion()}>重試原題</button>
+              <button type="button" className="hh-button-secondary" onClick={() => { setActiveView("solve"); window.scrollTo({ top: 0, behavior: "smooth" }); }}>回到解題主頁</button>
+            </div>
+          )}
+          {!solveData && !isSolving && !questionError && (
             <div className="student-result-empty">
               <div className="student-empty-symbol">∴</div>
               <div>尚未產生題目詳解</div>
@@ -3444,7 +3477,7 @@ export default function Home() {
         {activeView === "history" && !selectedHistory && historyHasMore && <button type="button" className="hh-button-secondary" disabled={historyLoading} onClick={()=>void loadHistory(true)}>{historyLoading ? "載入中…" : "載入更多紀錄"}</button>}
         {student && !student.mustChangePin && <nav className="v2-student-bottom-nav" aria-label="學生頁面導覽">
           <button type="button" aria-current={activeView==="solve"?"page":undefined} onClick={()=>{setActiveView("solve");window.scrollTo({top:0,behavior:"smooth"});}}><span aria-hidden="true">⌂</span>首頁</button>
-          <button type="button" aria-current={activeView==="result"?"page":undefined} disabled={!solveData&&!isSolving} onClick={()=>{setActiveView("result");window.scrollTo({top:0,behavior:"smooth"});}}><span aria-hidden="true">✧</span>解析</button>
+          <button type="button" aria-current={activeView==="result"?"page":undefined} disabled={!solveData&&!isSolving&&!questionError&&!solveTask.job} onClick={()=>{setActiveView("result");window.scrollTo({top:0,behavior:"smooth"});}}><span aria-hidden="true">✧</span>解析</button>
           <button type="button" aria-current={activeView==="history"?"page":undefined} onClick={()=>{setActiveView("history");window.scrollTo({top:0,behavior:"smooth"});}}><span aria-hidden="true">▤</span>紀錄</button>
         </nav>}
         <footer className="student-footer">
