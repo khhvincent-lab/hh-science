@@ -38,7 +38,7 @@ export default function SolveProgress({ accepted, completed, createdAt, connecti
       const estimate = accepted
         ? seconds < 30
           ? 10 + 85 * (1 - Math.pow(1 - seconds / 30, 2))
-          : 95 + Math.min(4, (seconds - 30) / 45)
+          : 95 + Math.min(4, (seconds - 30) / 15)
         : 9 * (1 - Math.exp(-seconds / 5));
       setProgress(previous => Math.max(previous, Math.min(99, estimate)));
     }
@@ -48,13 +48,15 @@ export default function SolveProgress({ accepted, completed, createdAt, connecti
   }, [accepted, completed, createdAt]);
 
   if (completed && !finishing) return null;
-  const percentage = completed ? 100 : Math.floor(progress);
+  // Tenths make the slow final stretch visible without claiming completion.
+  const percentage = completed ? 100 : progress >= 95 ? Math.floor(progress * 10) / 10 : Math.floor(progress);
+  const percentageLabel = !completed && progress >= 95 ? percentage.toFixed(1) : String(percentage);
   return <div className={`solve-progress-card ${completed ? "solve-progress-complete" : "student-solving-card-v11"}`}>
     {!completed && <div className="student-solving-ring" aria-hidden="true"><span /></div>}
     <p className="solve-progress-title" role="status">{completed ? "解析已完成" : accepted ? "已送出題目，分析題目中" : "正在送出題目，請保持頁面開啟"}</p>
     <div className="solve-progress-meter">
-      <div className="solve-progress-caption"><span>{completed ? "解題完成" : "解題進度"}</span><span>{percentage}%</span></div>
-      <div className="solve-progress-track" role="progressbar" aria-label="解題進度" aria-valuemin={0} aria-valuemax={100} aria-valuenow={percentage} aria-valuetext={completed ? "解題完成，100%" : `${percentage}%，仍在處理中`}>
+      <div className="solve-progress-caption"><span>{completed ? "解題完成" : "解題進度"}</span><span>{percentageLabel}%</span></div>
+      <div className="solve-progress-track" role="progressbar" aria-label="解題進度" aria-valuemin={0} aria-valuemax={100} aria-valuenow={percentage} aria-valuetext={completed ? "解題完成，100%" : `${percentageLabel}%，仍在處理中`}>
         <span className="solve-progress-fill" style={{ transform: `scaleX(${completed ? 1 : progress / 100})` }} />
       </div>
     </div>
