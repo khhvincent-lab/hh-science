@@ -30,7 +30,7 @@ const pack={requestId:'request-one',text:'【解題實驗室｜真人導師求�
   await page.getByRole('heading',{name:'首次使用：綁定學生帳號'}).waitFor();
   await page.getByLabel('地區',{exact:true}).selectOption('r');await page.getByLabel('補習班',{exact:true}).selectOption('i');await page.getByLabel('班級',{exact:true}).selectOption('c');
   await page.getByLabel('學生姓名').fill('測試學生');await page.getByLabel('個人 PIN',{exact:true}).fill('1234');await page.getByRole('button',{name:'驗證並綁定我的 LINE'}).click();
-  const send=page.getByRole('button',{name:'確認傳送給真人老師',exact:true});await send.waitFor();assert.equal(await page.evaluate(()=>window.testMessages.length),0);
+  const send=page.getByRole('button',{name:'確認傳送',exact:true});await send.waitFor();assert.equal(await page.evaluate(()=>window.testMessages.length),0);
   for(const width of [320,390,768]){await page.setViewportSize({width,height:844});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1))}
   await page.setViewportSize({width:390,height:844});
   // Supply local Traditional Chinese font for screenshot only.

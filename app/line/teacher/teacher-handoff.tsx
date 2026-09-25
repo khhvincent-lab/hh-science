@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { TEACHER_LIFF_ID } from "@/lib/line-liff";
 import { getOfficialLineChatUrl } from "@/lib/official-line";
 import LineStudentBinding from "@/components/line-student-binding";
+import { compactHandoffText } from "@/lib/line-handoff-text";
 
 type Package = { text: string; imageUrl: string; previewUrl: string; expiresAt: string; requestId: string };
 class ReadError extends Error {
@@ -46,7 +47,7 @@ export default function TeacherHandoff() {
       let alreadySent = false;
       try { alreadySent = sessionStorage.getItem("line-sent:" + info.requestId) === "yes"; } catch { /* storage may be disabled */ }
       setSent(alreadySent);
-      setStatus(alreadySent ? "這份題目已送出，請回聊天室查看。" : "題目與詳解已準備好，確認後即可傳送。");
+      setStatus(alreadySent ? "已送出，請回聊天室查看。" : "題目與詳解已備妥。");
     } catch (error) {
       if (error instanceof ReadError && error.code === "BIND_REQUIRED") setNeedsBinding(true);
       setStatus(error instanceof Error ? error.message : "讀取失敗，請重試。");
@@ -79,7 +80,7 @@ export default function TeacherHandoff() {
       const fresh = await readPackage(token.current, data.requestId);
       if (fresh.requestId !== data.requestId) throw new Error("題目已變更，請重新載入並確認內容。");
       attempted = true;
-      await liff.sendMessages([{ type: "text", text: fresh.text }, { type: "image", originalContentUrl: fresh.imageUrl, previewImageUrl: fresh.previewUrl }]);
+      await liff.sendMessages([{ type: "text", text: compactHandoffText(fresh.text) }, { type: "image", originalContentUrl: fresh.imageUrl, previewImageUrl: fresh.previewUrl }]);
       setSent(true);
       try { sessionStorage.setItem("line-sent:" + fresh.requestId, "yes"); } catch { /* optional duplicate guard */ }
       setStatus("LINE 已接受傳送，請回聊天室查看。這不代表老師已讀。");
@@ -108,17 +109,17 @@ export default function TeacherHandoff() {
   return <main style={{ maxWidth: 640, margin: "0 auto", padding: "24px 14px 40px", minHeight: "100dvh" }}>
     <Script src="https://static.line-scdn.net/liff/edge/2/sdk.js" strategy="afterInteractive" onReady={() => void initialize()} onError={() => { ready.current = true; setStatus("無法載入 LINE，請確認網路後重新開啟。"); }} />
     <div className="hh-card" style={{ padding: 20, display: "grid", gap: 16 }}>
-      <header><p style={{ margin: "0 0 8px", fontSize: 13 }}>解題實驗室 · 真人導師</p><h1 style={{ fontSize: 24, margin: 0 }}>向盧澔化學老師詢問</h1></header>
+      <header><h1 style={{ fontSize: 22, margin: 0 }}>詢問真人老師</h1></header>
       <p role="status" aria-live="polite" style={{ margin: 0 }}>{status}</p>
       {needsBinding && canSend && <LineStudentBinding onBound={load} />}
       {data && <>
-        <pre style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere", font: "inherit", margin: 0, lineHeight: 1.7 }}>{data.text}</pre>
+        <pre style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere", font: "inherit", margin: 0, lineHeight: 1.6 }}>{compactHandoffText(data.text)}</pre>
         {!sent && canSend && <>
-          <small>內容會傳到開啟此頁的聊天室。請確認目前是在「盧澔化學 @199dbmdh」；系統無法辨識聊天對象。</small>
-          <button className="hh-button-primary" type="button" disabled={busy} onClick={() => void send()}>{busy ? "正在傳送…" : "確認傳送給真人老師"}</button>
+          <small>將傳至目前聊天室，請確認為盧澔化學（@199dbmdh）。</small>
+          <button className="hh-button-primary" type="button" disabled={busy} onClick={() => void send()}>{busy ? "正在傳送…" : "確認傳送"}</button>
         </>}
         {sent && <button className="hh-button-primary" type="button" onClick={() => window.liff?.closeWindow()}>回 LINE 聊天室</button>}
-        <details><summary style={{ cursor: "pointer" }}>預覽題目與完整 AI 詳解圖片</summary>
+        <details><summary style={{ cursor: "pointer" }}>預覽題目與詳解</summary>
           {/* Signed images must not be cached by the Next image optimizer. */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={data.imageUrl} alt="本題原始題目與完整 AI 詳解" referrerPolicy="no-referrer" style={{ width: "100%", height: "auto", borderRadius: 10, marginTop: 12 }} />
