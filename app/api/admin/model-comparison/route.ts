@@ -79,7 +79,7 @@ export async function GET(request:NextRequest){
   const params=request.nextUrl.searchParams;
   const page=Number(params.get('page')||0),pageSize=Number(params.get('pageSize')||10),sort=params.get('sort')||'newest',search=(params.get('q')||'').trim();
   if(!Number.isInteger(page)||page<0||page>10000||![10,20,30,50].includes(pageSize)||!['newest','oldest'].includes(sort)||search.length>100)throw new RequestError('分頁或搜尋條件錯誤。');
-  let q=db.from('model_comparison_cases').select('id,history_id,created_at,subject,source,version,status,model_comparison_reviews(id),solve_history!inner(question_note,students!inner(class_id))');
+  let q=db.from('model_comparison_cases').select('id,history_id,created_at,subject,source,version,status,model_comparison_reviews(case_id),solve_history!inner(question_note,students!inner(class_id))');
   if(classIds!==null)q=q.in('solve_history.students.class_id',classIds.length?classIds:['00000000-0000-0000-0000-000000000000']);
   q=q.order('created_at',{ascending:sort==='oldest'}).order('id',{ascending:sort==='oldest'});
   if(f.version)q=q.eq('version',f.version);if(f.subject)q=q.eq('subject',f.subject);if(f.source)q=q.eq('source',f.source);
