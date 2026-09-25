@@ -9,6 +9,8 @@
 .workspace-intro p{margin:5px 0 0;color:var(--text-secondary);font-size:13px;line-height:1.6}
 .workspace-destinations{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
 .workspace-destinations.many{grid-template-columns:repeat(4,minmax(0,1fr))}
+.workspace-models .workspace-destinations{grid-template-columns:repeat(4,minmax(0,1fr))}
+.workspace-models .workspace-destinations strong{white-space:nowrap}
 .workspace-destinations button{display:flex;align-items:center;gap:12px;padding:16px;border:1px solid var(--border);border-radius:15px;color:var(--text);background:var(--surface);text-align:left;cursor:pointer;min-width:0;transition:background .18s,border-color .18s}
 .workspace-destinations button[aria-current=page]{border-color:var(--work-accent);background:color-mix(in srgb,var(--work-accent) 6%,var(--surface));box-shadow:inset 0 -1px 0 var(--work-accent)}
 .workspace-destinations button:hover{border-color:var(--work-accent)}
