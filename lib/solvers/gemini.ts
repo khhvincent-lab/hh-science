@@ -277,6 +277,7 @@ export async function runGeminiSolver(
         contents,
 
         config: {
+          ...(request.maxOutputTokens ? {maxOutputTokens:request.maxOutputTokens} : {}),
           ...(request
             .expectJson
             ? {

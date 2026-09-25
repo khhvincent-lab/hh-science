@@ -169,7 +169,7 @@ export type RouterResult = {
 
 function clampDiagramNumber(value: unknown) { const n=Number(value); return Number.isFinite(n)?Math.max(0,Math.min(100,n)):undefined; }
 
-function normalizeChemicalStructure(value: any): ChemicalStructure | null {
+export function normalizeChemicalStructure(value: any): ChemicalStructure | null {
   if (!value || typeof value !== "object") return null;
   const allowedKinds = new Set(["organic", "inorganic", "ionic", "skeletal", "lewis"]);
   const kind = String(value.kind || "organic");

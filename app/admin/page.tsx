@@ -1,4 +1,5 @@
 "use client";
+import ModelComparison, {AddComparisonButton} from "@/components/admin/model-comparison";
 import {useUrlState} from "@/components/admin/use-url-state";
 import WorkQueue from "@/components/admin/work-queue";
 import { ModelConfigurationTools } from "@/components/admin/model-configuration-tools";
@@ -49,7 +50,7 @@ async function adminTeachingFilesToDataUrls(files: FileList | null) {
   })));
 }
 
-type AdminSection = "dashboard" | "siteQuestions" | "usage" | "classes" | "students" | "ai" | "pin" | "analytics" | "cost" | "platform" | "teachingOverview" | "teachingQuestions" | "teachingExamples" | "teachingRuleLibrary" | "teachingCoach" | "teachingTraining" | "teachingImages" | "teachingSettings" | "teachingQueue" | "teachingRules";
+type AdminSection = "comparison" | "dashboard" | "siteQuestions" | "usage" | "classes" | "students" | "ai" | "pin" | "analytics" | "cost" | "platform" | "teachingOverview" | "teachingQuestions" | "teachingExamples" | "teachingRuleLibrary" | "teachingCoach" | "teachingTraining" | "teachingImages" | "teachingSettings" | "teachingQueue" | "teachingRules";
 
 type DashboardData = {
   today: {
@@ -496,7 +497,7 @@ export default function AdminPage() {
   const [loginError, setLoginError] = useState("");
   const [loginLoading, setLoginLoading] = useState(false);
 
-  const [activeSection, setActiveSection] = useUrlState<AdminSection>("section","dashboard",["dashboard","siteQuestions","usage","students","classes","pin","ai","analytics","cost","teachingOverview","teachingQuestions","teachingExamples","teachingRuleLibrary","teachingCoach","teachingTraining","teachingImages","teachingSettings","platform"],true);
+  const [activeSection, setActiveSection] = useUrlState<AdminSection>("section","dashboard",["comparison","dashboard","siteQuestions","usage","students","classes","pin","ai","analytics","cost","teachingOverview","teachingQuestions","teachingExamples","teachingRuleLibrary","teachingCoach","teachingTraining","teachingImages","teachingSettings","platform"],true);
   const [siteQuestionInitialFocus, setSiteQuestionInitialFocus] = useState<"all" | "pending">("all");
   const [calibrationTargetId, setCalibrationTargetId] = useUrlState<string>("calibration","");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -1221,10 +1222,11 @@ export default function AdminPage() {
             icon="04"
             label="AI模型中心"
             open={openNavGroup === "ai"}
-            active={["ai","analytics","cost"].includes(activeSection)}
+            active={["ai","analytics","cost","comparison"].includes(activeSection)}
             onToggle={() => setOpenNavGroup((current) => current === "ai" ? null : "ai")}
             items={[
               { label: "AI模型設定", active: activeSection === "ai", onClick: () => { setActiveSection("ai"); setMobileMenuOpen(false); } },
+              { label: "模型比較", active: activeSection === "comparison", onClick: () => { setActiveSection("comparison"); setMobileMenuOpen(false); } },
               { label: "AI數據分析", active: activeSection === "analytics", onClick: () => { setActiveSection("analytics"); setMobileMenuOpen(false); } },
               { label: "成本分析", active: activeSection === "cost", onClick: () => { setActiveSection("cost"); setMobileMenuOpen(false); } },
             ]}
@@ -1306,6 +1308,7 @@ export default function AdminPage() {
           )}
 
           {activeSection === "dashboard" && <WorkQueue/>}
+          {activeSection === "comparison" && <ModelComparison/>}
           {activeSection === "siteQuestions" && (
             <SiteQuestionsSection initialFocus={siteQuestionInitialFocus} canReview={adminUser?.role === "super_admin"} onCalibrate={(historyId) => { setCalibrationTargetId(historyId); setActiveSection("teachingQuestions"); setOpenNavGroup("teaching"); }} />
           )}
@@ -3973,6 +3976,7 @@ function SiteQuestionsSection({onCalibrate,initialFocus="all",canReview=false}:{
       <div className="site-question-detail-actions">
         <button type="button" className="student-history-back" onClick={()=>{setSelected(null);setSelectedId("");}}>← 返回全站題目</button>
         <button type="button" className="hh-button-primary" onClick={()=>onCalibrate(selected.id)}>教師校正 →</button>
+        <AddComparisonButton historyId={selected.id}/>
       </div>
       <section className="hh-card admin-panel site-question-identity-card">
         <div className="site-question-identity-main"><div><div className="hh-eyebrow">STUDENT QUESTION</div><h2 className="hh-display">{selected.studentName} · {adminSubjectLabel(selected.subject)}</h2><p>{[selected.regionName,selected.institutionName,selected.className].filter(Boolean).join(" · ")||selected.campus} · {new Date(selected.createdAt).toLocaleString("zh-TW")}</p></div><span className={`site-review-status ${reviewTone(selected)}`}>{reviewLabel(selected)}</span></div>
@@ -4968,7 +4972,7 @@ function QuickAction({
 function sectionEyebrow(section: AdminSection) {
   if (section === "siteQuestions") return "ALL QUESTIONS";
   if (["usage","classes","students","pin"].includes(section)) return "CLASS OPERATIONS";
-  if (["ai","analytics","cost"].includes(section)) return "AI MODEL CENTER";
+  if (["ai","analytics","cost","comparison"].includes(section)) return "AI MODEL CENTER";
   if (["teachingOverview","teachingQuestions","teachingExamples","teachingRuleLibrary","teachingCoach","teachingTraining","teachingImages","teachingSettings"].includes(section)) return "TEACHING ENGINE";
   return "OVERVIEW";
 }
@@ -4979,6 +4983,7 @@ function sectionTitle(section: AdminSection) {
   if (section === "classes") return "班級管理";
   if (section === "students" || section === "pin") return "學生管理";
   if (section === "ai") return "AI模型設定";
+  if (section === "comparison") return "模型比較";
   if (section === "analytics") return "AI數據分析";
   if (section === "cost") return "成本分析";
   if (section === "platform") return "系統與教師";

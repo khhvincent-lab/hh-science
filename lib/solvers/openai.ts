@@ -189,6 +189,7 @@ export async function runOpenAISolver(
     await client
       .responses
       .create({
+        ...(request.maxOutputTokens ? {max_output_tokens:request.maxOutputTokens} : {}),
         model:
           request.model,
 

@@ -1,0 +1,9 @@
+const ts=require('typescript'),fs=require('fs'),vm=require('vm'),assert=require('node:assert/strict');
+let progress={failed:1,notCalled:1,succeeded:0,running:0,committedTwd:0},limit=0,paused=false;
+const db={async rpc(){return {data:progress,error:null}},from(table){return {select(){return this},eq(){return this},order(){return this},async single(){return {data:{status:'running',config:{dailyBudgetTwd:300}},error:null}},async limit(n){limit=n;return {data:[{id:'example'}],error:null}},update(value){paused=value.status==='paused';return this},then(resolve){resolve({error:null,data:[]})}}}};
+const exports_={};vm.runInNewContext(ts.transpileModule(fs.readFileSync('lib/comparison/batch-steps.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020}}).outputText,{exports:exports_,require(){return {supabaseAdmin:db}},console});
+(async()=>{let ids=await exports_.nextHistoryChunk('batch');assert.equal(ids.length,1);assert.equal(limit,1);assert(!paused);
+progress.succeeded=1;await exports_.nextHistoryChunk('batch');assert.equal(limit,4);
+progress.succeeded=0;progress.failed=2;ids=await exports_.nextHistoryChunk('batch');assert.equal(ids.length,0);assert(paused);
+paused=false;progress={failed:0,notCalled:0,succeeded:2,running:1,committedTwd:0};ids=await exports_.nextHistoryChunk('batch');assert.equal(ids.length,0);assert(paused);
+paused=false;progress.running=0;progress.committedTwd=299;ids=await exports_.nextHistoryChunk('batch');assert.equal(ids.length,0);assert(paused);console.log('PASS: single canary, four-call limit, missing-image exclusion, failure/uncertain-call/budget pause');})();

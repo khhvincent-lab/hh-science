@@ -162,6 +162,7 @@ export type SolverUsage = {
 
 
 export type SolverRequest = {
+  maxOutputTokens?: number;
   model:
     AIModelId;
 
