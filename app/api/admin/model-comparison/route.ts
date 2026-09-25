@@ -76,9 +76,16 @@ export async function GET(request:NextRequest){
    }}
    return json({cases:rows.length,groups:Object.values(groups).map(g=>{g.latencies.sort((a:number,b:number)=>a-b);return {...g,latencies:undefined,accuracy:g.paired?g.correct/g.paired:null,averageScore:g.scored?g.scoreSum/g.scored:null,averageMs:g.latencies.length?g.latencies.reduce((a:number,b:number)=>a+b,0)/g.latencies.length:null,p95Ms:g.latencies.length?g.latencies[Math.ceil(g.latencies.length*.95)-1]:null};})});
   }
-  const page=Math.max(0,Math.min(10000,Number(request.nextUrl.searchParams.get('page'))||0));let q=scopeQuery(classIds).order('created_at',{ascending:false});if(f.version)q=q.eq('version',f.version);if(f.subject)q=q.eq('subject',f.subject);if(f.source)q=q.eq('source',f.source);
-  const {data,error}=await q.range(page*30,page*30+30);if(error)throw error;
-  return json({hasMore:data.length>30,items:data.slice(0,30).map(r=>({id:r.id,createdAt:r.created_at,subject:r.subject,source:r.source,version:r.version,status:r.status==='running'&&Date.now()-Date.parse(r.created_at)>30*60000?'interrupted':r.status,reviewed:Boolean(reviewOf(r))}))});
+  const params=request.nextUrl.searchParams;
+  const page=Number(params.get('page')||0),pageSize=Number(params.get('pageSize')||10),sort=params.get('sort')||'newest',search=(params.get('q')||'').trim();
+  if(!Number.isInteger(page)||page<0||page>10000||![10,20,30,50].includes(pageSize)||!['newest','oldest'].includes(sort)||search.length>100)throw new RequestError('分頁或搜尋條件錯誤。');
+  let q=db.from('model_comparison_cases').select('id,history_id,created_at,subject,source,version,status,model_comparison_reviews(id),solve_history!inner(question_note,students!inner(class_id))');
+  if(classIds!==null)q=q.in('solve_history.students.class_id',classIds.length?classIds:['00000000-0000-0000-0000-000000000000']);
+  q=q.order('created_at',{ascending:sort==='oldest'}).order('id',{ascending:sort==='oldest'});
+  if(f.version)q=q.eq('version',f.version);if(f.subject)q=q.eq('subject',f.subject);if(f.source)q=q.eq('source',f.source);
+  if(search){const pattern='%'+search.replace(/[\\%_]/g,'\\$&')+'%';if(isUuid(search))q=q.eq('history_id',search);else q=q.ilike('solve_history.question_note',pattern);}
+  const {data,error}=await q.range(page*pageSize,page*pageSize+pageSize);if(error)throw error;
+  return json({pageSize,hasMore:data.length>pageSize,items:data.slice(0,pageSize).map(r=>({id:r.id,historyId:r.history_id,note:(r.solve_history as any)?.question_note||'',createdAt:r.created_at,subject:r.subject,source:r.source,version:r.version,status:r.status,reviewed:Boolean(reviewOf(r))}))});
  }catch(error){console.error('Comparison GET',error);return json({error:error instanceof RequestError?error.message:'讀取模型比較失敗，請稍後再試。'},error instanceof RequestError?error.status:503);}
 }
 export async function POST(request:NextRequest){
