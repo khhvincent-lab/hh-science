@@ -83,13 +83,13 @@ export default function TeacherHandoff() {
       await liff.sendMessages([{ type: "text", text: compactHandoffText(fresh.text) }, { type: "image", originalContentUrl: fresh.imageUrl, previewImageUrl: fresh.previewUrl }]);
       setSent(true);
       try { sessionStorage.setItem("line-sent:" + fresh.requestId, "yes"); } catch { /* optional duplicate guard */ }
-      setStatus("LINE 已接受傳送，請回聊天室查看。這不代表老師已讀。");
+      setStatus("已送出，正在返回聊天室…");
       if (!token.current) {
         try {
-          await fetch("/api/line/pending", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ idToken: liff.getIDToken(), requestId: fresh.requestId }), signal: AbortSignal.timeout(8000) });
+          void fetch("/api/line/pending", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ idToken: liff.getIDToken(), requestId: fresh.requestId }), keepalive: true }).catch(() => { /* cleanup must not delay returning to chat */ });
         } catch { /* message already accepted; do not offer resend */ }
       }
-      liff.closeWindow();
+      try { liff.closeWindow(); } catch { setStatus("已送出，請點右上角 × 回聊天室。"); }
     } catch (error) {
       if (!attempted && error instanceof ReadError && error.code === "CHANGED") setData(null);
       setStatus(attempted ? "尚未取得傳送成功確認。請先回聊天室檢查有沒有文字與圖片，避免重複傳送；確認沒有後再重試。" : (error instanceof Error ? error.message : "無法傳送，請稍後再試。"));
