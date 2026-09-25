@@ -20,9 +20,11 @@ let active=true, owns=true;
 const blobs=new Map();
 const storage={upload:async(p,b)=>{blobs.set(p,b);return {error:null};},download:async p=>({data:blobs.has(p)?new Blob([blobs.get(p)]):null,error:null}),remove:async paths=>{paths.forEach(p=>blobs.delete(p));return {error:null};},createSignedUrl:async p=>({data:blobs.has(p)?{signedUrl:'https://example.test/'+p}:null,error:null})};
 const db={storage:{from:()=>storage},from:table=>{
- const filters={};const query={select:()=>query,eq:(k,v)=>{filters[k]=v;return query;},maybeSingle:async()=>({error:null,data:table==='students'?{name:'測試',campus:'測試班',active,must_change_pin:false}:owns&&filters.student_id===ids.studentId?{id:ids.historyId,answer:'B'}:null})};return query;
+ const filters={};const query={upsert:async()=>({error:null}),select:()=>query,eq:(k,v)=>{filters[k]=v;return query;},maybeSingle:async()=>({error:null,data:table==='students'?{name:'測試',campus:'測試班',active,must_change_pin:false}:owns&&filters.student_id===ids.studentId?{id:ids.historyId,answer:'B'}:null})};return query;
 }};
-const route=load('app/api/line/handoff/route.ts',{'@/lib/supabase-admin':{supabaseAdmin:db},'@/lib/session':{verifySessionToken:t=>t==='valid'?{studentId:ids.studentId}:null},'@/lib/line-handoff-token':tokens,'@/lib/line-liff':{TEACHER_LIFF_URL:'https://liff.line.me/test'}});
+const identity=load('lib/line-identity.ts',{'@/lib/supabase-admin':{supabaseAdmin:db}});
+const reader=load('lib/line-handoff-read.ts',{'@/lib/supabase-admin':{supabaseAdmin:db},'@/lib/line-handoff-token':tokens,'@/lib/line-identity':identity});
+const route=load('app/api/line/handoff/route.ts',{'@/lib/supabase-admin':{supabaseAdmin:db},'@/lib/session':{verifySessionToken:t=>t==='valid'?{studentId:ids.studentId}:null},'@/lib/line-handoff-token':tokens,'@/lib/line-liff':{TEACHER_LIFF_URL:'https://liff.line.me/test'},'@/lib/line-handoff-read':reader});
 const {NextRequest}=require(process.cwd()+'/node_modules/next/server');
 function post(cookie='valid',origin='https://example.test') {
  const form=new FormData();form.set('historyId',ids.historyId);form.set('question','Why?');

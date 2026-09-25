@@ -11,7 +11,7 @@ import SolutionImageDownload from "@/components/solution-image-download";
 import TeacherHandoffPrepare from "@/components/teacher-handoff-prepare";
 import ThemeToggle from "@/components/theme-toggle";
 import AdaptiveBrandLogo from "@/components/adaptive-brand-logo";
-import { getOfficialLineChatUrl, getOfficialLineProfileUrl } from "@/lib/official-line";
+import { getOfficialLineProfileUrl } from "@/lib/official-line";
 import ScienceDiagramView from "@/components/science-diagram";
 import ChemicalStructureView from "@/components/chemical-structure";
 import type { ChemicalStructure, ScienceDiagram } from "@/lib/ai/types";
@@ -828,7 +828,6 @@ export default function Home() {
   const [isSaving, setIsSaving] = useState(false);
   const [isPreparingLine, setIsPreparingLine] = useState(false);
   const [lineShareNotice, setLineShareNotice] = useState("");
-  const [teacherHelpOpen, setTeacherHelpOpen] = useState(false);
   const [teacherHelpQuestion, setTeacherHelpQuestion] = useState("");
   const [preparedShareFile, setPreparedShareFile] = useState<File | null>(null);
   const imagePreparationRef = useRef<Promise<File> | null>(null);
@@ -2042,51 +2041,6 @@ export default function Home() {
     }
   }
 
-  function teacherHelpMessage() {
-    if (!student || !solveData) return "";
-    const question = teacherHelpQuestion.trim() || "想請老師協助釐清這題的觀念與解法。";
-    const excerpt = solveData.explanation.replace(/\s+/g, " ").slice(0, 600);
-    return [
-      "【解題實驗室｜真人導師求助】",
-      "學生：" + student.name,
-      "班級／補習班：" + student.campus,
-      "題目編號：" + (solveData.historyId || "未建立"),
-      "學生疑問：" + question,
-      "AI 答案：" + solveData.answer,
-      "AI 詳解摘要：" + excerpt + (solveData.explanation.length > 600 ? "…" : ""),
-      "完整題目圖片及 AI 詳解請見學生另外附上的解題圖片。",
-    ].join("\n");
-  }
-
-  function openOfficialTeacherChat() {
-    const url = getOfficialLineChatUrl(teacherHelpMessage());
-    if (!url) {
-      setLineShareNotice("官方 LINE 聊天室尚未設定，請聯絡老師。");
-      return;
-    }
-    // Only the student can send the prefilled message. The image must be
-    // attached separately; a URL cannot pre-attach a local image in LINE.
-    window.open(url, "_blank", "noopener,noreferrer");
-  }
-
-  async function shareTeacherHelpImage() {
-    const file = preparedShareFile;
-    if (!file) {
-      setLineShareNotice("完整解析圖片仍在準備，請稍候或先按「儲存成照片」。");
-      return;
-    }
-    if (navigator.share && navigator.canShare?.({ files: [file] })) {
-      try {
-        await navigator.share({ files: [file] });
-        setLineShareNotice("請確認分享對象是盧澔化學 @199dbmdh，並由學生在 LINE 按送出。");
-        return;
-      } catch (error) {
-        if (error instanceof DOMException && error.name === "AbortError") return;
-      }
-    }
-    downloadPreparedFile(file);
-    setLineShareNotice("已下載完整解析圖片；請在盧澔化學 LINE 聊天室手動附上圖片。");
-  }
 
   async function handleLineAsk(destination: "official" | "share") {
     if (!student || !solveData || isPreparingLine) return;
@@ -3124,10 +3078,13 @@ export default function Home() {
                 </div>
               </section>
 
+              <details style={{ marginBottom: 12 }}>
+                <summary>想請教老師的問題（選填）</summary>
+                <label htmlFor="teacher-help-question">你的疑問會和題目一起傳送</label>
+                <textarea id="teacher-help-question" className="hh-input" rows={2} maxLength={1000} value={teacherHelpQuestion} onChange={(event) => setTeacherHelpQuestion(event.target.value)} placeholder="例如：我不懂第三個選項為什麼錯誤…" />
+              </details>
               <div className="student-result-actions" data-tour="result-actions">
-                <button type="button" onClick={() => { setLineShareNotice(""); setTeacherHelpOpen(true); }} disabled={isPreparingLine || isSaving} className="student-line-button v207-line-official-button">
-                  詢問真人老師｜盧澔化學
-                </button>
+                <TeacherHandoffPrepare file={preparedShareFile} historyId={solveData.historyId} question={teacherHelpQuestion} />
                 <button type="button" onClick={() => void handleLineAsk("share")} disabled={isPreparingLine || isSaving} className="student-line-button v207-line-share-button">
                   LINE 分享給老師
                 </button>
@@ -3135,17 +3092,6 @@ export default function Home() {
                   {isSaving ? "正在產生解析圖片…" : "儲存成照片"}
                 </button>
               </div>
-              {teacherHelpOpen && <div role="dialog" aria-modal="true" aria-label="詢問真人導師" className="hh-card" style={{ padding: 20, marginTop: 14, display: "grid", gap: 12 }}>
-                <h3 style={{ margin: 0 }}>向盧澔化學真人老師詢問</h3>
-                <label htmlFor="teacher-help-question">想請教老師什麼問題？（選填）</label>
-                <textarea id="teacher-help-question" className="hh-input" rows={3} maxLength={1000} value={teacherHelpQuestion} onChange={(event) => setTeacherHelpQuestion(event.target.value)} placeholder="例如：我不懂第三個選項為什麼錯誤…" />
-                <TeacherHandoffPrepare file={preparedShareFile} historyId={solveData.historyId} question={teacherHelpQuestion} />
-                <details><summary>其他分享方式</summary>
-                <button type="button" className="hh-button-secondary" onClick={() => void shareTeacherHelpImage()} disabled={!preparedShareFile}>① 分享完整題目＋AI 詳解圖片</button>
-                <button type="button" className="hh-button-primary" onClick={openOfficialTeacherChat}>② 開啟盧澔化學 LINE（預填文字）</button>
-                <p style={{ margin: 0, fontSize: 13 }}>請在 LINE 確認文字、附上圖片並按送出；網站無法確認老師已收到訊息。</p></details>
-                <button type="button" className="hh-button-secondary" onClick={() => setTeacherHelpOpen(false)}>關閉</button>
-              </div>}
               {lineShareNotice && <div role="status" className="student-save-hint v207-line-share-notice">
                 {lineShareNotice}
                 {lineShareNotice.startsWith("已下載完整解析圖片。請開啟盧澔化學官方 LINE") && (

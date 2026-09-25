@@ -4,6 +4,7 @@ export type LineMessage = { type: "text"; text: string } | { type: "image"; orig
 export type TeacherLiff = {
   init(config: { liffId: string }): Promise<void>;
   isInClient(): boolean;
+  getIDToken(): string | null;
   getContext(): { type: string; scope?: string[] } | null;
   sendMessages(messages: LineMessage[]): Promise<void>;
   permission: { getGrantedAll(): Promise<string[]> };
