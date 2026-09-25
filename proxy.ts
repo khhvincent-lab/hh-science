@@ -12,6 +12,7 @@ export async function proxy(request:NextRequest){
   "/api/admin/dashboard","/api/admin/class-overview","/api/admin/organizations",
   "/api/admin/teachers","/api/admin/students","/api/admin/students/bulk",
   "/api/admin/corrections",
+  "/api/admin/model-comparison",
  ]);
  const readOnly=new Set([
   "/api/admin/brand","/api/admin/settings","/api/admin/student-auth-settings",
