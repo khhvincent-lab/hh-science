@@ -31,23 +31,24 @@ const pack={requestId:'request-one',text:'【解題實驗室｜真人導師求�
   await page.getByRole('heading',{name:'首次使用：綁定學生帳號'}).waitFor();
   await page.getByLabel('地區',{exact:true}).selectOption('r');await page.getByLabel('補習班',{exact:true}).selectOption('i');await page.getByLabel('班級',{exact:true}).selectOption('c');
   await page.getByLabel('學生姓名').fill('測試學生');await page.getByLabel('個人 PIN',{exact:true}).fill('1234');await page.getByRole('button',{name:'驗證並綁定我的 LINE'}).click();
-  const send=page.getByRole('button',{name:'確認傳送',exact:true});await send.waitFor();assert.equal(await page.evaluate(()=>window.testMessages.length),0);
+  const send=page.getByRole('button',{name:'確認傳送',exact:true});await page.waitForFunction(()=>window.testClosed===1);
   for(const width of [320,390,768]){await page.setViewportSize({width,height:844});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1))}
   await page.setViewportSize({width:390,height:844});
   // Supply local Traditional Chinese font for screenshot only.
   if(fs.existsSync('/tmp/NotoSansCJKtc-Regular.otf')){await page.route('**/preview.otf',r=>r.fulfill({body:fs.readFileSync('/tmp/NotoSansCJKtc-Regular.otf'),contentType:'font/otf'}));await page.addStyleTag({content:'@font-face{font-family:PreviewTC;src:url("/preview.otf")}body{font-family:PreviewTC,sans-serif!important}'});await page.evaluate(()=>document.fonts.load('16px PreviewTC'))}
   await page.screenshot({path:'/tmp/line-pending-mobile.png',fullPage:true});
-  await send.click();await page.getByRole('button',{name:'回 LINE 聊天室',exact:true}).waitFor();await page.waitForFunction(()=>window.testClosed===1);
+  await page.getByRole('button',{name:'回 LINE 聊天室',exact:true}).waitFor();await page.waitForFunction(()=>window.testClosed===1);
   assert.equal(hasPending,true);const cleaned=page.waitForResponse(r=>r.url().endsWith('/api/line/pending')&&r.request().method()==='DELETE');releaseCleanup();await cleaned;
   const messages=await page.evaluate(()=>window.testMessages);assert.equal(messages.length,1);assert.equal(messages[0].length,2);assert.equal(messages[0][1].type,'image');assert.equal(hasPending,false);
   await page.reload({waitUntil:'domcontentloaded'});await page.getByText('目前沒有待傳題目。',{exact:true}).waitFor();assert.equal(await page.getByRole('heading',{name:'首次使用：綁定學生帳號'}).count(),0);
-  hasPending=true;pack.requestId='request-two';changed=true;await page.reload({waitUntil:'domcontentloaded'});await send.click();await page.getByText(/已有另一份待傳題目/).waitFor();assert.equal(await page.evaluate(()=>window.testMessages.length),0);
-  changed=false;failSend=true;await page.reload({waitUntil:'domcontentloaded'});await send.click();await page.getByText(/尚未取得傳送成功確認/).waitFor();assert.equal(hasPending,true);assert.equal(await page.evaluate(()=>window.testClosed),0);
+  hasPending=true;pack.requestId='request-two';changed=true;await page.reload({waitUntil:'domcontentloaded'});await page.getByText(/已有另一份待傳題目/).waitFor();assert.equal(await page.evaluate(()=>window.testMessages.length),0);
+  changed=false;failSend=true;await page.reload({waitUntil:'domcontentloaded'});await page.getByText(/尚未取得傳送成功確認/).waitFor();assert.equal(hasPending,true);assert.equal(await page.evaluate(()=>window.testClosed),0);
+  await page.reload({waitUntil:'domcontentloaded'});await page.getByText(/這題曾嘗試傳送/).waitFor();assert.equal(await page.evaluate(()=>window.testMessages.length),0);
   for(const value of ['external','group']){mode=value;await page.reload({waitUntil:'domcontentloaded'});await page.getByRole('link',{name:'前往盧澔化學聊天室'}).waitFor();assert.equal(await send.count(),0)}
   assert.deepEqual(errors,[]);
   // Real route guards, not browser intercepts.
   assert.equal((await fetch(base+'/api/line/binding',{method:'POST',headers:{origin:base,'content-type':'application/json'},body:'{}'})).status,401);
   assert.equal((await fetch(base+'/api/line/pending',{method:'POST',headers:{origin:'https://evil.test','content-type':'application/json'},body:'{}'})).status,403);
-  console.log('PASS: first-time login/bind, returning student skips login, text+image only after confirm, automatic close, cleared pending, changed question blocked, uncertain send preserved, external/group blocked, 320/390/768 widths, no JS errors, actual 401/403 guards. Mock LINE, no messages sent.');
+  console.log('PASS: first-time login/bind, returning student skips login, automatic text+image after binding, uncertain send not repeated after reload, automatic close, cleared pending, changed question blocked, uncertain send preserved, external/group blocked, 320/390/768 widths, no JS errors, actual 401/403 guards. Mock LINE, no messages sent.');
  }finally{await browser?.close();server.kill('SIGTERM')}
 })().catch(error=>{console.error(error);process.exitCode=1});

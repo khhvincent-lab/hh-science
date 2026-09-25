@@ -35,6 +35,7 @@ export default function TeacherHandoff() {
   const initialized = useRef(false);
   const sending = useRef(false);
   const ready = useRef(false);
+  const autoAttempted = useRef(new Set<string>());
   useEffect(() => {
     const timer = window.setTimeout(() => { if (!ready.current) setStatus("LINE 連線較慢，請確認網路，或關閉此頁後從聊天室選單重新開啟。"); }, 25000);
     return () => window.clearTimeout(timer);
@@ -48,6 +49,14 @@ export default function TeacherHandoff() {
       try { alreadySent = sessionStorage.getItem("line-sent:" + info.requestId) === "yes"; } catch { /* storage may be disabled */ }
       setSent(alreadySent);
       setStatus(alreadySent ? "已送出，請回聊天室查看。" : "題目與詳解已備妥。");
+      let uncertain = false;
+      try { uncertain = sessionStorage.getItem("line-attempt:" + info.requestId) === "yes"; } catch { /* optional reload guard */ }
+      if (!token.current && !alreadySent && !uncertain && !autoAttempted.current.has(info.requestId)) {
+        autoAttempted.current.add(info.requestId);
+        await send(info);
+      } else if (uncertain && !alreadySent) {
+        setStatus("這題曾嘗試傳送，請先回聊天室檢查，確認沒有收到後再按確認傳送。");
+      }
     } catch (error) {
       if (error instanceof ReadError && error.code === "BIND_REQUIRED") setNeedsBinding(true);
       setStatus(error instanceof Error ? error.message : "讀取失敗，請重試。");
@@ -70,19 +79,21 @@ export default function TeacherHandoff() {
       await load();
     } catch { ready.current = true; setStatus("LINE 連線失敗，請關閉此頁後從聊天室重新開啟。"); }
   }
-  async function send() {
+  async function send(prepared?: Package) {
     const liff = window.liff;
-    if (!liff || !data || !canSend || sent || sending.current) return;
-    sending.current = true; setBusy(true);
+    const packageToSend = prepared || data;
+    if (!liff || !packageToSend || (!prepared && (!canSend || sent)) || sending.current) return;
+    sending.current = true; setBusy(true); setStatus("正在傳送題目與詳解…");
     let attempted = false;
     try {
       if (!liff.isInClient() || liff.getContext()?.type !== "utou" || !(await liff.permission.getGrantedAll()).includes("chat_message.write")) throw new Error("請從盧澔化學聊天室重新開啟並同意傳送權限。");
-      const fresh = await readPackage(token.current, data.requestId);
-      if (fresh.requestId !== data.requestId) throw new Error("題目已變更，請重新載入並確認內容。");
+      const fresh = await readPackage(token.current, packageToSend.requestId);
+      if (fresh.requestId !== packageToSend.requestId) throw new Error("題目已變更，請重新載入並確認內容。");
+      try { sessionStorage.setItem("line-attempt:" + fresh.requestId, "yes"); } catch { /* optional reload guard */ }
       attempted = true;
       await liff.sendMessages([{ type: "text", text: compactHandoffText(fresh.text) }, { type: "image", originalContentUrl: fresh.imageUrl, previewImageUrl: fresh.previewUrl }]);
       setSent(true);
-      try { sessionStorage.setItem("line-sent:" + fresh.requestId, "yes"); } catch { /* optional duplicate guard */ }
+      try { sessionStorage.setItem("line-sent:" + fresh.requestId, "yes"); sessionStorage.removeItem("line-attempt:" + fresh.requestId); } catch { /* optional duplicate guard */ }
       setStatus("已送出，正在返回聊天室…");
       if (!token.current) {
         try {
