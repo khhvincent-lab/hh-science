@@ -1,4 +1,5 @@
 import {solveJobContext} from "@/lib/solve-job-context";
+import { composeSolutionExplanation } from "@/lib/solution-review";
 import { normalizeScienceDiagram, SCIENCE_TEMPLATE_PROMPT, type LibraryImageRef } from "@/lib/science/diagram-engine";
 import { retrieveTeachingImages } from "@/lib/teaching-images";
 import {
@@ -285,11 +286,11 @@ function normalizeSolveResult(
       ).trim(),
 
     explanation:
-      String(
+      composeSolutionExplanation(String(
         value
           ?.explanation ||
         ""
-      ).trim(),
+      ).trim(), value?.keyReview),
 
     options:
       String(

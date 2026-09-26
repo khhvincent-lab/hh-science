@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { REVIEW_TITLE, splitSolutionReview } from "@/lib/solution-review";
 import SolveProgress from "@/components/solve-progress";
 import {useSolveJob} from "@/components/use-solve-job";
 import { Cropper } from "react-cropper";
@@ -338,22 +339,30 @@ function formatOptionAnalysis(text: string) {
 }
 
 function ExplanationSteps(props: { text: string; annotations?: Annotation[]; onAnnotationClick?: (annotation: Annotation) => void }) {
+  const { review, explanation } = splitSolutionReview(props.text);
   // Split only outside display math so equations and clickable annotations stay intact.
   const groups: { label?: string; title?: string; lines: string[] }[] = [{ lines: [] }];
   let inFormula = false;
-  for (const line of props.text.split("\n")) {
+  for (const line of explanation.split("\n")) {
     const heading = !inFormula && line.trim().replace(/^#{1,6}\s*/, "").replace(/\*\*/g, "").match(/^步驟\s*([一二三四五六七八九十\d]+)\s*[：:.、]\s*(.*)$/);
     if (heading) groups.push({ label: `步驟 ${heading[1]}`, title: heading[2], lines: [] });
     else groups[groups.length - 1].lines.push(line);
     if ((line.match(/\$\$/g) || []).length % 2) inFormula = !inFormula;
   }
-  if (groups.length === 1) return <ScienceText {...props} />;
-  return <div className="solution-steps">{groups.map((group, index) => group.label ? (
+  const steps = groups.length === 1 ? <ScienceText {...props} text={explanation} /> : <div className="solution-steps">{groups.map((group, index) => group.label ? (
     <section className="solution-step" key={index}>
       <div className="solution-step-heading" role="heading" aria-level={4}><span className="solution-step-label">{group.label}</span><ScienceText {...props} text={group.title || ""} /></div>
       <ScienceText {...props} text={group.lines.join("\n").trim()} />
     </section>
   ) : group.lines.join("\n").trim() ? <ScienceText {...props} key={index} text={group.lines.join("\n").trim()} /> : null)}</div>;
+  return <div className="solution-explanation">
+    {review && <section className="solution-key-review" aria-label={REVIEW_TITLE}>
+      <h4>{REVIEW_TITLE}</h4>
+      <ScienceText text={review} />
+    </section>}
+    {review && <h4 className="solution-body-title">解題步驟</h4>}
+    {steps}
+  </div>;
 }
 
 function ScienceText({
@@ -3359,7 +3368,7 @@ export default function Home() {
                       </div>
                     </div>
 
-                    <ScienceText
+                    <ExplanationSteps
                       text={selectedHistory.explanation}
                       annotations={selectedHistory.annotations}
                       onAnnotationClick={setSelectedAnnotation}
@@ -4177,6 +4186,11 @@ export default function Home() {
         .student-result-index-gold { background: var(--student-gold-soft); color: var(--student-gold); }
         .student-result-index-red { background: var(--student-terra-soft); color: var(--student-terra); }
         .student-result-content { padding: 17px; color: var(--text); font-size: 15px; }
+        .solution-explanation { min-width: 0; }
+        .solution-key-review { margin-bottom: 18px; padding: 14px 16px; border: 1px solid color-mix(in srgb, var(--primary) 24%, var(--border)); border-radius: 13px; background: color-mix(in srgb, var(--primary) 5%, var(--surface)); min-width: 0; }
+        .solution-key-review h4 { margin: 0 0 9px; font-size: 15px; line-height: 1.5; color: var(--text); }
+        .solution-key-review .student-science-text { font-size: 14px; gap: 5px; }
+        .solution-body-title { margin: 0 0 10px; font-size: 15px; line-height: 1.5; }
         .student-result-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
         .student-line-button, .student-save-button { min-height: 48px; border: 0; border-radius: 12px; font-weight: 750; cursor: pointer; }
         .student-line-button { background: var(--student-terra); color: white; }
