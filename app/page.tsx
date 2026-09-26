@@ -2411,6 +2411,10 @@ export default function Home() {
                   我的解題紀錄
                 </button>
 
+                <button type="button" onClick={() => { setMenuOpen(false); window.location.assign('/chemistry'); }}>
+                  專欄｜每週化學
+                </button>
+
                 <button
                   type="button"
                   onClick={openTutorialFromMenu}
