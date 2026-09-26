@@ -1,0 +1,20 @@
+const fs=require('node:fs'),vm=require('node:vm'),ts=require('typescript'),assert=require('node:assert/strict');
+let identity='student-a',active=true,writes=0;const rows=new Map();
+const db={from(table){let payload=null,mode='',filters=[];const q={select(){return q},eq(key,value){filters.push([key,value]);return q},is(key,value){filters.push([key,value]);return q},maybeSingle:async()=>({data:{id:identity,active},error:null}),upsert(value){mode='insert';payload=value;return q},update(value){mode='update';payload=value;return q},then(resolve){writes++;if(mode==='insert'&&!rows.has(payload.id))rows.set(payload.id,{...payload,completed_at:null});if(mode==='update')for(const row of rows.values())if(filters.every(([k,v])=>row[k]===v))Object.assign(row,payload);resolve({error:null});}};return q;}};
+const exportsObject={};
+vm.runInNewContext(ts.transpileModule(fs.readFileSync('app/api/chemistry/events/route.ts','utf8'),{compilerOptions:{target:ts.ScriptTarget.ES2020,module:ts.ModuleKind.CommonJS}}).outputText,{exports:exportsObject,console,Date,JSON,require(id){return ({'next/server':{NextResponse:{json:(body,opts)=>({body,status:opts?.status||200})}},'@/lib/supabase-admin':{supabaseAdmin:db},'@/lib/session':{verifySessionToken:()=>identity?{studentId:identity}:null},'@/lib/chemistry-articles':{chemistryArticles:[{slug:'test',questions:[0,1,2].map(answer=>({answer,options:['a','b','c','d']}))}]}})[id]||require(id);}});
+const id='22bd471c-56ae-4c23-bd8a-217b502d4450';
+const body={visitId:id,slug:'test',event:'view',studentId:'forged-student'};
+const req=(body,origin='https://test.local')=>({headers:new Headers({origin}),nextUrl:new URL('https://test.local/api'),cookies:{get:()=>({value:'signed-token'})},text:async()=>JSON.stringify(body)});
+(async()=>{
+ assert.equal((await exportsObject.POST(req(body,'https://evil.test'))).status,403);assert.equal(writes,0);
+ assert.equal((await exportsObject.POST(req({...body,event:'complete',answers:[0,1]}))).status,400);assert.equal(writes,0);
+ assert.equal((await exportsObject.POST(req({...body,event:'complete',answers:[0,1,9]}))).status,400);
+ assert.equal((await exportsObject.POST(req(body))).status,200);assert.equal(rows.get(id).student_id,'student-a');
+ await exportsObject.POST(req(body));assert.equal(rows.size,1);
+ identity='student-b';await exportsObject.POST(req({...body,event:'complete',answers:[0,1,2]}));assert.equal(rows.get(id).completed_at,null);
+ identity='student-a';await exportsObject.POST(req({...body,event:'complete',answers:[0,1,2],score:0}));assert.equal(rows.get(id).score,3);
+ await exportsObject.POST(req({...body,event:'complete',answers:[3,3,3]}));assert.equal(rows.get(id).score,3);
+ identity=null;const guestId='32bd471c-56ae-4c23-bd8a-217b502d4450';await exportsObject.POST(req({...body,visitId:guestId,event:'complete',answers:[0,1,3]}));assert.equal(rows.get(guestId).student_id,null);assert.equal(rows.get(guestId).score,2);
+ console.log('Chemistry events: origin, full-answer validation, server identity, server score, idempotency, ownership and anonymous completion passed.');
+})().catch(e=>{console.error(e);process.exitCode=1;});

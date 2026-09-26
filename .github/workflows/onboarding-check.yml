@@ -25,6 +25,8 @@ jobs:
       - run: npm install --no-save --package-lock=false @playwright/test@1.56.1
       - run: npx playwright install --with-deps chromium
       - run: npm run build
+      - run: node tests/chemistry-analytics.cjs
+      - run: node tests/chemistry-events.cjs
       - run: npx playwright test
       - uses: actions/upload-artifact@v4
         if: failure()

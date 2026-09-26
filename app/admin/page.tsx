@@ -1,4 +1,5 @@
 "use client";
+import ChemistryAnalytics from "@/components/admin/chemistry-analytics";
 import ModelComparison, {AddComparisonButton} from "@/components/admin/model-comparison";
 import {useUrlState} from "@/components/admin/use-url-state";
 import WorkQueue from "@/components/admin/work-queue";
@@ -50,7 +51,7 @@ async function adminTeachingFilesToDataUrls(files: FileList | null) {
   })));
 }
 
-type AdminSection = "comparison" | "dashboard" | "siteQuestions" | "usage" | "classes" | "students" | "ai" | "pin" | "analytics" | "cost" | "platform" | "teachingOverview" | "teachingQuestions" | "teachingExamples" | "teachingRuleLibrary" | "teachingCoach" | "teachingTraining" | "teachingImages" | "teachingSettings" | "teachingQueue" | "teachingRules";
+type AdminSection = "chemistryAnalytics" | "comparison" | "dashboard" | "siteQuestions" | "usage" | "classes" | "students" | "ai" | "pin" | "analytics" | "cost" | "platform" | "teachingOverview" | "teachingQuestions" | "teachingExamples" | "teachingRuleLibrary" | "teachingCoach" | "teachingTraining" | "teachingImages" | "teachingSettings" | "teachingQueue" | "teachingRules";
 
 type DashboardData = {
   today: {
@@ -497,7 +498,7 @@ export default function AdminPage() {
   const [loginError, setLoginError] = useState("");
   const [loginLoading, setLoginLoading] = useState(false);
 
-  const [activeSection, setActiveSection] = useUrlState<AdminSection>("section","dashboard",["comparison","dashboard","siteQuestions","usage","students","classes","pin","ai","analytics","cost","teachingOverview","teachingQuestions","teachingExamples","teachingRuleLibrary","teachingCoach","teachingTraining","teachingImages","teachingSettings","platform"],true);
+  const [activeSection, setActiveSection] = useUrlState<AdminSection>("section","dashboard",["comparison","dashboard","siteQuestions","chemistryAnalytics","usage","students","classes","pin","ai","analytics","cost","teachingOverview","teachingQuestions","teachingExamples","teachingRuleLibrary","teachingCoach","teachingTraining","teachingImages","teachingSettings","platform"],true);
   const [siteQuestionInitialFocus, setSiteQuestionInitialFocus] = useState<"all" | "pending">("all");
   const [calibrationTargetId, setCalibrationTargetId] = useUrlState<string>("calibration","");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -1208,9 +1209,10 @@ export default function AdminPage() {
             icon="03"
             label="班務管理"
             open={openNavGroup === "classes"}
-            active={["usage","students","classes","pin"].includes(activeSection)}
+            active={["usage","students","classes","pin","chemistryAnalytics"].includes(activeSection)}
             onToggle={() => setOpenNavGroup((current) => current === "classes" ? null : "classes")}
             items={[
+              { label: "專欄成效", active: activeSection === "chemistryAnalytics", onClick: () => { setActiveSection("chemistryAnalytics"); setMobileMenuOpen(false); } },
               { label: "使用狀況", active: activeSection === "usage", onClick: () => { setActiveSection("usage"); setMobileMenuOpen(false); } },
               { label: "學生管理", active: activeSection === "students" || activeSection === "pin", onClick: () => { setActiveSection("students"); setMobileMenuOpen(false); } },
               { label: "班級管理", active: activeSection === "classes", onClick: () => { setActiveSection("classes"); setMobileMenuOpen(false); } },
@@ -1312,6 +1314,8 @@ export default function AdminPage() {
           {activeSection === "siteQuestions" && (
             <SiteQuestionsSection initialFocus={siteQuestionInitialFocus} canReview={adminUser?.role === "super_admin"} onCalibrate={(historyId) => { setCalibrationTargetId(historyId); setActiveSection("teachingQuestions"); setOpenNavGroup("teaching"); }} />
           )}
+
+          {activeSection === "chemistryAnalytics" && <ChemistryAnalytics key={scopeTeacher?.id || "all"}/>}
 
           {activeSection === "usage" && (
             <UsageStatusSection dashboard={dashboard} />
@@ -4974,7 +4978,7 @@ function QuickAction({
 
 function sectionEyebrow(section: AdminSection) {
   if (section === "siteQuestions") return "ALL QUESTIONS";
-  if (["usage","classes","students","pin"].includes(section)) return "CLASS OPERATIONS";
+  if (["chemistryAnalytics","usage","classes","students","pin"].includes(section)) return "CLASS OPERATIONS";
   if (["ai","analytics","cost","comparison"].includes(section)) return "AI MODEL CENTER";
   if (["teachingOverview","teachingQuestions","teachingExamples","teachingRuleLibrary","teachingCoach","teachingTraining","teachingImages","teachingSettings"].includes(section)) return "TEACHING ENGINE";
   return "OVERVIEW";
@@ -4982,6 +4986,7 @@ function sectionEyebrow(section: AdminSection) {
 
 function sectionTitle(section: AdminSection) {
   if (section === "siteQuestions") return "全站題目";
+  if (section === "chemistryAnalytics") return "專欄成效";
   if (section === "usage") return "使用狀況";
   if (section === "classes") return "班級管理";
   if (section === "students" || section === "pin") return "學生管理";
