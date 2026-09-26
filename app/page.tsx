@@ -4,6 +4,8 @@ import { normalizeScienceMarkup, stripAnnotationCommands, stripBareAnnotationCom
 
 
 import { useEffect, useRef, useState } from "react";
+import TeachingModeSelector, { useTeachingMode } from "@/components/teaching-mode-selector";
+import { isStudentTeachingMode, teachingModeLabel, type StudentTeachingMode } from "@/lib/teaching-modes";
 import StudentNavIcon from "@/components/student-nav-icon";
 import { REVIEW_TITLE, splitSolutionReview } from "@/lib/solution-review";
 import SolveProgress from "@/components/solve-progress";
@@ -68,6 +70,7 @@ type Annotation = {
 };
 
 type SolveData = {
+  teachingMode?: StudentTeachingMode;
   answer: string;
   explanation: string;
   options: string;
@@ -769,6 +772,7 @@ export default function Home() {
   const image = images[0] || "";
 
   const [subject, setSubject] = useState("");
+  const teachingDepth = useTeachingMode(student && !student.mustChangePin ? student.id : undefined);
   const [referenceAnswer, setReferenceAnswer] = useState("");
   const [questionNote, setQuestionNote] = useState("");
   const [questionError, setQuestionError] = useState("");
@@ -798,7 +802,7 @@ export default function Home() {
 
   const solveTask=useSolveJob(student&&!student.mustChangePin?student.id:undefined,(job)=>{
     const data=job.result||{};
-    setSolveData({answer:data.answer||"",explanation:data.explanation||"",options:data.options||"",annotations:Array.isArray(data.annotations)?data.annotations:[],diagram:data.diagram||null,chemicalStructure:data.chemicalStructure||null,historyId:data.historyId||null});
+    setSolveData({teachingMode:isStudentTeachingMode(data.ai?.teachingMode)?data.ai.teachingMode:undefined,answer:data.answer||"",explanation:data.explanation||"",options:data.options||"",annotations:Array.isArray(data.annotations)?data.annotations:[],diagram:data.diagram||null,chemicalStructure:data.chemicalStructure||null,historyId:data.historyId||null});
     if(job.images?.length)setImages(job.images);
     setPreparedShareFile(null);setExportQuestionImage("");setFollowups([]);setQuestionError("");setIsSolving(false);setActiveView("result");void loadUsage();
   },(job)=>{
@@ -1907,6 +1911,7 @@ export default function Home() {
     }
     if (!images.length) return setQuestionError("請先上傳題目圖片。");
     if (!subject) return setQuestionError("請先選擇科目。");
+    if (!teachingDepth.mode) return setQuestionError("請先選擇解說深度。");
 
     setActiveView("result");
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -1928,6 +1933,7 @@ export default function Home() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           clientKey,background:true,
+          teachingMode: teachingDepth.mode,
           images,
           subject,
           referenceAnswer,
@@ -1957,6 +1963,7 @@ export default function Home() {
 
       if(data.job){solveTask.adopt(data.job);return;}
       setSolveData({
+        teachingMode: isStudentTeachingMode(data.ai?.teachingMode) ? data.ai.teachingMode : undefined,
         answer: data.answer || "",
         explanation: data.explanation || "",
         options: data.options || "",
@@ -2907,11 +2914,13 @@ export default function Home() {
               />
             </label>
 
+            <TeachingModeSelector mode={teachingDepth.mode} onChange={teachingDepth.choose} disabled={isSolving || !student || student.mustChangePin} error={teachingDepth.error} />
+
             {limitReached && <div className="student-alert student-alert-danger">今日解題額度已使用完畢，明天會自動恢復為 {usage.limit} 題。</div>}
             {questionError && <div className="student-alert student-alert-danger">{questionError}</div>}
 
             <div className="student-two-actions student-solve-actions">
-              <button type="button" data-tour="solve-button" onClick={handleStartSolve} disabled={isSolving || limitReached} className={`hh-button-primary student-solve-button ${firstActionNudge && images.length > 0 ? "student-first-action-pulse" : ""}`}>
+              <button type="button" data-tour="solve-button" onClick={handleStartSolve} disabled={isSolving || limitReached || !teachingDepth.mode} className={`hh-button-primary student-solve-button ${firstActionNudge && images.length > 0 ? "student-first-action-pulse" : ""}`}>
                 {limitReached ? "今日額度已使用完畢" : isSolving ? "分析題目中…" : "開始解題"}
               </button>
               <button type="button" onClick={clearQuestion} className="hh-button-secondary">清除目前題目</button>
@@ -2972,6 +2981,7 @@ export default function Home() {
 
           {solveData && !isSolving && (
             <div className="student-result-stack">
+              {solveData.teachingMode && <div className="student-muted" data-testid="result-teaching-mode">本題解說深度：{teachingModeLabel(solveData.teachingMode)}</div>}
               <article className="student-answer-card">
                 <div className="student-result-label">CORRECT ANSWER</div>
                 <div className="student-answer-row">
