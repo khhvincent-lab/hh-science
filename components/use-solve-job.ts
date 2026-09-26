@@ -12,7 +12,7 @@ export function useSolveJob(studentId:string|undefined,onComplete:(job:SolveJob)
  let alive=true,timer:ReturnType<typeof setTimeout>;
  async function poll(){try{const r=await fetch(`/api/solve-jobs?id=${job!.id}`,{cache:'no-store'});if(!r.ok)throw Error();const d=await r.json();if(alive){if(d.job)setJob(d.job);setConnectionError('');}}catch{if(alive)setConnectionError('連線暫時中斷；背景任務仍會繼續，恢復連線後會自動更新。');}finally{if(alive)timer=setTimeout(poll,4000);}}
  void poll();return()=>{alive=false;clearTimeout(timer);};},[studentId,job?.id,job?.status]);
- async function dismiss(){if(job){await fetch('/api/solve-jobs',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:job.id})});setJob(null);}}
+ async function dismiss(){if(job){const id=job.id;const response=await fetch('/api/solve-jobs',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({id})});if(!response.ok)throw Error('更新任務失敗。');setJob(current=>current?.id===id?null:current);}}
  async function retry(){if(!job)return;const r=await fetch('/api/solve',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({retryOf:job.id,clientKey:crypto.randomUUID(),background:true})}),d=await r.json();if(!r.ok)throw Error(d.error);setJob(d.job);setConnectionError('');}
  return {job,adopt:setJob,dismiss,retry,connectionError,running:Boolean(job&&['uploading','queued','running'].includes(job.status))};
 }
