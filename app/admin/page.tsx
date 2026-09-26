@@ -9,7 +9,7 @@ import DashboardV211 from "./dashboard-v211";
 import WorkspaceNavigation, {workspaceFor} from "@/components/admin/workspace-navigation";
 import "./workspaces.css";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import katex from "katex";
 import ThemeToggle from "@/components/theme-toggle";
 import AdaptiveBrandLogo from "@/components/adaptive-brand-logo";
@@ -1239,13 +1239,13 @@ export default function AdminPage() {
             active={["teachingOverview","teachingQuestions","teachingExamples","teachingRuleLibrary","teachingCoach","teachingTraining","teachingImages","teachingSettings"].includes(activeSection)}
             onToggle={() => setOpenNavGroup((current) => current === "teaching" ? null : "teaching")}
             items={[
-              { label: "教學總覽", active: activeSection === "teachingOverview", onClick: () => { setActiveSection("teachingOverview"); setMobileMenuOpen(false); } },
+              { label: "教學總覽", group: "日常校正", active: activeSection === "teachingOverview", onClick: () => { setActiveSection("teachingOverview"); setMobileMenuOpen(false); } },
               { label: "教師校正", active: activeSection === "teachingQuestions", onClick: () => { setActiveSection("teachingQuestions"); setMobileMenuOpen(false); } },
               { label: "解題範例庫", active: activeSection === "teachingExamples", onClick: () => { setActiveSection("teachingExamples"); setMobileMenuOpen(false); } },
-              { label: "教學規則庫", active: activeSection === "teachingRuleLibrary", onClick: () => { setActiveSection("teachingRuleLibrary"); setMobileMenuOpen(false); } },
-              { label: "AI 教練", active: activeSection === "teachingCoach", onClick: () => { setActiveSection("teachingCoach"); setMobileMenuOpen(false); } },
               { label: "教學圖庫", active: activeSection === "teachingImages", onClick: () => { setActiveSection("teachingImages"); setMobileMenuOpen(false); } },
-              { label: "訓練資料", active: activeSection === "teachingTraining", onClick: () => { setActiveSection("teachingTraining"); setMobileMenuOpen(false); } },
+              { label: "教學規則庫", group: "AI 教學", active: activeSection === "teachingRuleLibrary", onClick: () => { setActiveSection("teachingRuleLibrary"); setMobileMenuOpen(false); } },
+              { label: "AI 教練", active: activeSection === "teachingCoach", onClick: () => { setActiveSection("teachingCoach"); setMobileMenuOpen(false); } },
+              { label: "訓練資料", group: "進階設定", active: activeSection === "teachingTraining", onClick: () => { setActiveSection("teachingTraining"); setMobileMenuOpen(false); } },
               { label: "全站預設", active: activeSection === "teachingSettings", onClick: () => { setActiveSection("teachingSettings"); setMobileMenuOpen(false); } },
             ]}
           />
@@ -3823,7 +3823,7 @@ function AdminNavGroup({
   open: boolean;
   active: boolean;
   onToggle: () => void;
-  items: Array<{ label: string; active: boolean; onClick: () => void }>;
+  items: Array<{ label: string; active: boolean; onClick: () => void; group?: string }>;
 }) {
   return (
     <div className={`admin-nav-group ${open ? "open" : ""} ${active ? "active" : ""}`}>
@@ -3835,9 +3835,12 @@ function AdminNavGroup({
       {open && (
         <div className="admin-nav-children">
           {items.map((item) => (
-            <button key={item.label} type="button" className={item.active ? "active" : ""} onClick={item.onClick}>
-              <span />{item.label}
-            </button>
+            <Fragment key={item.label}>
+              {item.group && <div className="admin-nav-section-label">{item.group}</div>}
+              <button type="button" className={item.active ? "active" : ""} onClick={item.onClick}>
+                <span />{item.label}
+              </button>
+            </Fragment>
           ))}
         </div>
       )}
@@ -10339,6 +10342,7 @@ const adminStyles = `
   .admin-nav-children button>span { width:5px; height:5px; border-radius:99px; background:currentColor; opacity:.55; }
   .admin-nav-children button:hover,.admin-nav-children button.active { color:var(--text); background:color-mix(in srgb,var(--primary) 8%,var(--surface)); }
   .admin-nav-children button.active>span { opacity:1; box-shadow:0 0 0 4px color-mix(in srgb,var(--primary) 9%,transparent); }
+  .admin-nav-section-label { margin:8px 8px 2px; color:var(--text-muted); font-size:11px; font-weight:800; letter-spacing:.04em; }
   .admin-usage-kpis { grid-template-columns:repeat(4,minmax(0,1fr)); }
   .teaching-toolbar { display:grid; gap:16px; }
   .teaching-toolbar h2 { margin:4px 0 4px; }
