@@ -8,15 +8,20 @@ for(const theme of ['midnight','nordic','aurora','gold','obsidian']) {
   const surfaces=await page.locator('#reading,#concepts,#data,#practice').evaluateAll(nodes=>nodes.map(n=>getComputedStyle(n).backgroundColor));
   expect(new Set(surfaces).size).toBe(4);
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);
+  await expect(page.locator('.chem-curriculum-tags li')).toHaveCount(3);
+  expect(await page.locator('.chem-article>section').evaluateAll(nodes=>nodes.slice(0,4).map(n=>n.id))).toEqual(['reading','data','concepts','practice']);
+  const dates=await page.locator('.chem-publication-meta dd').evaluateAll(nodes=>nodes.map(n=>({wrap:getComputedStyle(n).whiteSpace,width:n.scrollWidth,available:n.clientWidth})));
+  for(const date of dates){expect(date.wrap).toBe('nowrap');expect(date.width).toBeLessThanOrEqual(date.available+1);}
   await page.getByRole('link',{name:'04 練習',exact:true}).click();
   await expect(page.locator('#practice')).toBeInViewport();
   const top=await page.locator('.chem-topbar').boundingBox();
   const practice=await page.locator('#practice').boundingBox();
   expect(top.y).toBeGreaterThanOrEqual(-1);
   expect(practice.y).toBeGreaterThanOrEqual(top.y+top.height-1);
-  await page.getByRole('radio',{name:'B. 懸浮粒子平均降低61%',exact:true}).check();
-  await page.getByRole('radio',{name:'B. 19.5',exact:true}).check();
-  await page.getByRole('radio',{name:'B. 控制人數與門窗等條件，多次比較開關設備的量測',exact:true}).check();
+  await expect(page.getByRole('radio')).toHaveCount(12);
+  for(const [i,answer] of [1,3,0].entries()) {
+   await page.locator('.chem-question').nth(i).getByRole('radio').nth(answer).check();
+  }
   await page.getByRole('button',{name:'查看成績與詳解'}).click();
   await expect(page.getByRole('status')).toContainText('本次答對 3／3 題');
  });
@@ -47,4 +52,21 @@ test('mobile dock remains on the viewport edge after scrolling',async({page},tes
  expect(Math.abs(box.y+box.height-size.height)).toBeLessThan(2);
  const styles=await nav.evaluate(n=>({bg:getComputedStyle(n).backgroundColor,filter:getComputedStyle(n).backdropFilter}));
  expect(styles.bg).not.toBe('rgba(0, 0, 0, 0)');expect(styles.filter).toBe('none');
+});
+
+test('compact metadata and questions fit a narrow phone',async({page})=>{
+ await page.setViewportSize({width:320,height:720});
+ await page.goto('/chemistry/seawater-magnesium');
+ const meta=page.locator('.chem-publication-meta');
+ expect(await meta.evaluate(n=>n.scrollWidth<=n.clientWidth+1)).toBe(true);
+ await expect(page.locator('.chem-curriculum-tags')).toContainText('酸鹼鹽');
+ await page.getByRole('link',{name:'04 練習',exact:true}).click();
+ const card=page.locator('.chem-question').first();
+ const box=await card.boundingBox();
+ const title=await card.locator('h3').boundingBox();
+ expect(title.y).toBeGreaterThan(box.y+5);
+ expect(title.x).toBeGreaterThan(box.x+5);
+ await card.getByRole('radio').nth(2).check();
+ await expect(card.getByRole('radio').nth(2)).toBeChecked();
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);
 });

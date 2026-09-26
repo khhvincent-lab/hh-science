@@ -6,10 +6,12 @@
 
 每次只新增一篇，先讀main最新內容，以來源URL和主題去重。核對來源發表日期，優先七日內期刊、學會或研究機構官方來源；無合適內容可放寬近30日並保留真實日期。不要硬湊新闻，不用未查證研究。科學摘要精簡原創，教學解釋與題目自行編寫，避免長篇翻譯與複製來源圖片。
 
-結構：slug（唯一英文短名）、sourceDate（來源YYYY-MM-DD）、publishedAt（上架台灣日期）、title、category、intro、paragraphs（段落陣列）、concepts（關鍵觀念陣列）、table（headers, rows, note）、questions（三題，每題prompt/options/answer零起算索引/explanation）、sourceName、sourceUrl、minutes。
+結構：slug（唯一英文短名）、sourceDate（來源YYYY-MM-DD）、publishedAt（上架台灣日期）、title、category、intro、curriculumTags（2–4個精準對應高中化學內容的短標籤，例如酸鹼鹽、莫耳濃度；勿硬套不相關章節）、paragraphs（段落陣列）、concepts（關鍵觀念陣列）、table（headers, rows, note）、questions（三題四選一閱讀理解單選，每題prompt/options/answer零起算索引/explanation）、sourceName、sourceUrl、minutes。
 
 標示原研究、推算與教學示意數據。區分研究結論與推測、課內概念與延伸機制。不可將濃度變化誤當回收率、把粒子移除當氣體移除、或把特定實驗成果推廣到所有環境。答案要唯一、計算複核、選項不含歧義。所有來源需可點擊。
 
 新文章自動依sourceDate由新到舊排列並產生獨立URL。更新JSON後需要部署。使用分支與PR，執行JSON格式檢查、TypeScript/build；合併main觸發既有Vercel部署，檢查commit狀態與正式URL。不要更動其他功能或學生資料。
 
 本版為公開閱讀區，作答當次即時計分且不扣AI額度；尚無跨裝置閱讀/作答紀錄、收藏或後台文章編輯器。後續需要這些能力再整合既有學生授權與資料庫，不可把瀏覽器共享儲存冒充學生個人紀錄。
+
+閱讀順序固定為文章→圖表→關鍵觀念複習→素養挑戰。每篇三題均為四個選項、唯一正解，難度以高中學測中等閱讀理解為目標；至少涵蓋整合文表、數據判讀或兩步計算、推論界線或實驗設計。避免只抄一個名詞即可答題，以及與情境無關的明顯錯誤選項。題目所需資訊必須在文章、表格或題幹提供；額外數值須明示為教學情境，不冒充原研究。每題詳解要指出依據與易誤判之處，答案位置適度分散。保留現有標題明體、日期三欄與知識標籤版型。
