@@ -18,7 +18,7 @@ const teachingGroups=[
   ]},
 ];
 const workspaces:{key:string;title:string;intro:string;items:Destination[]}[]=[
-  {key:"classes",title:"班務管理",intro:"從班級動態到學生名單，日常管理集中處理。",items:[{id:"usage",title:"使用狀況",detail:"活躍度與解題分布"},{id:"students",title:"學生管理",detail:"名單、帳號與批次新增"},{id:"classes",title:"班級管理",detail:"組織、開放科目與升班"}]},
+  {key:"classes",title:"班務管理",intro:"從班級動態到學生名單，日常管理集中處理。",items:[{id:"chemistryAnalytics",title:"專欄成效",detail:"閱讀人數與三題完成率"},{id:"usage",title:"使用狀況",detail:"活躍度與解題分布"},{id:"students",title:"學生管理",detail:"名單、帳號與批次新增"},{id:"classes",title:"班級管理",detail:"組織、開放科目與升班"}]},
   {key:"models",title:"AI 模型中心",intro:"分開掌握解題策略、運作表現與成本。",items:[{id:"ai",title:"模型設定",detail:"模型分工與解題額度"},{id:"comparison",title:"模型比較",detail:"盲測評分與品質比較"},{id:"analytics",title:"運作分析",detail:"使用量、品質與回應"},{id:"cost",title:"成本分析",detail:"模型費用與每日趨勢"}]},
   {key:"teaching",title:"教學引擎",intro:"先處理題目，再把好解法保存為範例或規則。",items:teachingGroups.flatMap(group=>group.items)},
 ];
