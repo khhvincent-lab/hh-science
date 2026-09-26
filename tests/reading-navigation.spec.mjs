@@ -50,6 +50,7 @@ test('mobile dock remains on the viewport edge after scrolling',async({page},tes
  const size=page.viewportSize();
  expect(box.x).toBe(0);expect(Math.abs(box.width-size.width)).toBeLessThan(1);
  expect(Math.abs(box.y+box.height-size.height)).toBeLessThan(2);
+ expect(box.height).toBeLessThanOrEqual(55);
  const styles=await nav.evaluate(n=>({bg:getComputedStyle(n).backgroundColor,filter:getComputedStyle(n).backdropFilter}));
  expect(styles.bg).not.toBe('rgba(0, 0, 0, 0)');expect(styles.filter).toBe('none');
 });
@@ -69,4 +70,14 @@ test('compact metadata and questions fit a narrow phone',async({page})=>{
  await card.getByRole('radio').nth(2).check();
  await expect(card.getByRole('radio').nth(2)).toBeChecked();
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);
+});
+
+test('article back button returns to article list before the lab',async({page})=>{
+ await page.goto('/chemistry/classroom-air');
+ const nav=page.getByRole('navigation',{name:'專欄導覽'});
+ await nav.getByRole('link',{name:'文章列表',exact:true}).click();
+ await expect(page).toHaveURL(/\/chemistry$/);
+ await expect(nav.getByRole('link',{name:'解題首頁',exact:true})).toHaveAttribute('href','/');
+ const bar=await page.locator('.chem-topbar').boundingBox();
+ expect(bar.height).toBeLessThanOrEqual(50);
 });

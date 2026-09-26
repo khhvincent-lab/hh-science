@@ -1903,6 +1903,24 @@ export default function Home() {
     else setSubject("");
   }
 
+  async function returnToSolveHome() {
+    // Preserve unfinished/failed drafts; completed work is already in history.
+    if (solveData && !isSolving && !solveTask.running) {
+      try {
+        if (solveTask.job?.status === "succeeded") await solveTask.dismiss();
+      } catch {
+        setQuestionError("暫時無法結束上一題，請再按一次返回首頁。");
+        return;
+      }
+      clearQuestion();
+      setTeacherHelpQuestion("");
+      setLineShareNotice("");
+    }
+    setActiveView("solve");
+    setMenuOpen(false);
+    window.scrollTo({top:0,behavior:"smooth"});
+  }
+
   async function handleRetryQuestion() {
     if (retryingRef.current || isSolving || solveTask.running) return;
     retryingRef.current = true;
@@ -2352,10 +2370,7 @@ export default function Home() {
           <button
             type="button"
             className="student-app-brand"
-            onClick={() => {
-              setActiveView("solve");
-              setMenuOpen(false);
-            }}
+            onClick={() => void returnToSolveHome()}
           >
             <AdaptiveBrandLogo className="v2-student-brand-icon" size={37} />
             <span className="v2-student-brand-copy"><span className="student-app-brand-zh">{brand.name}</span><span className="student-app-brand-en">{brand.englishName}</span></span>
@@ -2393,10 +2408,7 @@ export default function Home() {
                 <button
                   type="button"
                   className={activeView === "solve" ? "active" : ""}
-                  onClick={() => {
-                    setActiveView("solve");
-                    setMenuOpen(false);
-                  }}
+                  onClick={() => void returnToSolveHome()}
                 >
                   開始解題
                 </button>
@@ -2960,7 +2972,7 @@ export default function Home() {
         </div>}
 
         {activeView === "result" && <div className="v2-result-navigation">
-          <button type="button" className="v2-return-button" onClick={() => {setActiveView("solve");window.scrollTo({top:0,behavior:"smooth"});}}>← 返回解題首頁</button>
+          <button type="button" className="v2-return-button" onClick={() => void returnToSolveHome()}>← 返回解題首頁</button>
           <div><span className="hh-eyebrow">SOLVE RESULTS</span><h2 className="hh-display">解題結果</h2></div>
           <span className="v2-result-status">{isSolving ? "分析中" : solveData ? "已完成" : "請重新嘗試"}</span>
         </div>}
@@ -3167,7 +3179,7 @@ export default function Home() {
               <button
                 type="button"
                 className="hh-button-primary"
-                onClick={() => setActiveView("solve")}
+                onClick={() => void returnToSolveHome()}
               >
                 ＋ 開始解題
               </button>
@@ -3490,7 +3502,7 @@ export default function Home() {
 
         {activeView === "history" && !selectedHistory && historyHasMore && <button type="button" className="hh-button-secondary" disabled={historyLoading} onClick={()=>void loadHistory(true)}>{historyLoading ? "載入中…" : "載入更多紀錄"}</button>}
         {student && !student.mustChangePin && <nav className="v2-student-bottom-nav" aria-label="學生頁面導覽">
-          <button type="button" aria-current={activeView==="solve"?"page":undefined} onClick={()=>{setActiveView("solve");window.scrollTo({top:0,behavior:"smooth"});}}><StudentNavIcon kind="home" />首頁</button>
+          <button type="button" aria-current={activeView==="solve"?"page":undefined} onClick={() => void returnToSolveHome()}><StudentNavIcon kind="home" />首頁</button>
           <button type="button" aria-current={activeView==="result"?"page":undefined} disabled={!solveData&&!isSolving&&!questionError&&!solveTask.job} onClick={()=>{setActiveView("result");window.scrollTo({top:0,behavior:"smooth"});}}><StudentNavIcon kind="analysis" />解析</button>
           <button type="button" aria-current={activeView==="history"?"page":undefined} onClick={()=>{setActiveView("history");window.scrollTo({top:0,behavior:"smooth"});}}><StudentNavIcon kind="history" />紀錄</button>
         </nav>}

@@ -1084,21 +1084,28 @@ html:has(.student-page) body,html:has(.chem-shell) body{overscroll-behavior-y:no
 @media(max-width:760px){
  html[data-theme] .student-page .v2-student-bottom-nav{
   position:fixed!important;inset:auto 0 0!important;width:100%!important;
-  padding:8px max(12px,env(safe-area-inset-right)) calc(8px + env(safe-area-inset-bottom,0px)) max(12px,env(safe-area-inset-left))!important;
+  padding:4px max(12px,env(safe-area-inset-right)) max(4px,env(safe-area-inset-bottom,0px)) max(12px,env(safe-area-inset-left))!important;
   border:0!important;border-top:1px solid var(--border)!important;border-radius:20px 20px 0 0!important;
   background:var(--surface)!important;-webkit-backdrop-filter:none!important;backdrop-filter:none!important;
   box-shadow:0 -4px 16px #00000012!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:10px!important;
  }
  html[data-theme] .student-page .v2-student-bottom-nav button{
   display:flex!important;flex-direction:column;align-items:center;justify-content:center;
-  height:52px!important;min-height:52px!important;gap:4px!important;padding:5px 8px!important;border-radius:13px!important;
+  height:44px!important;min-height:44px!important;gap:2px!important;padding:3px 8px!important;border-radius:13px!important;
   font-size:11px!important;line-height:1.2;color:var(--text-secondary);transition:background .15s,color .15s;
  }
  html[data-theme] .student-page .v2-student-bottom-nav .student-nav-icon{display:block;width:23px;height:23px;flex-shrink:0}
  html[data-theme] .student-page .v2-student-bottom-nav button[aria-current="page"]{color:var(--action)!important;background:var(--action-soft)!important}
  html[data-theme] .student-page .v2-student-bottom-nav button:focus-visible{outline:2px solid var(--action);outline-offset:2px}
- html[data-theme] .student-page .student-container,html[data-theme] .student-page.student-compact-ready .student-container{padding-bottom:calc(92px + env(safe-area-inset-bottom,0px))!important}
+ html[data-theme] .student-page .student-container,html[data-theme] .student-page.student-compact-ready .student-container{padding-bottom:calc(64px + env(safe-area-inset-bottom,0px))!important}
 }
 @media(display-mode:standalone){
- body:has(.student-page)::before{content:"";position:fixed;top:0;left:0;right:0;height:env(safe-area-inset-top,0px);background:var(--bg);z-index:94;pointer-events:none}
+ body:has(.student-page)::before{content:"";position:fixed;top:0;left:0;right:0;height:env(safe-area-inset-top,0px);background:var(--student-canvas);background-size:100vw 100dvh;z-index:94;pointer-events:none}
+}
+
+/* Paint the status inset and visible page from the same viewport-sized canvas. */
+html[data-theme]{--student-canvas:radial-gradient(ellipse 75% 310px at 72% 0%,var(--v204-ambient),transparent 78%),radial-gradient(circle 220px at 5% 43%,color-mix(in srgb,var(--v204-rim) 8%,transparent),transparent 80%),repeating-radial-gradient(circle at 108% 4%,transparent 0 66px,var(--v204-orbit) 67px 68px,transparent 69px 133px),linear-gradient(148deg,var(--bg),var(--bg-soft) 53%,var(--bg))}
+@media(max-width:760px){
+ html[data-theme] .student-page{background:var(--bg)!important}
+ html[data-theme] .student-page .student-top-glow{inset:0;height:auto;background:var(--student-canvas);background-size:100vw 100dvh}
 }
