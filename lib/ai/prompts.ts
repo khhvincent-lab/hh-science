@@ -92,6 +92,21 @@ ${inputGuardRules || "- 無額外規則"}
 }
 
 
+const KEY_REVIEW_INSTRUCTIONS = String.raw`
+【關鍵觀念複習】
+在 keyReview 欄位提供解題前的精簡複習，讓學生先知道這題會用到什麼。
+1. 列出 1～4 點真正用到的知識，每點 1～2 句；簡單題可只列 1 點，不湊數。
+2. 有公式就列出公式及成立條件，必要時簡述符號意義；無公式的題目列出概念、因果或判斷原則，不硬加公式。
+3. 只有本題涉及時才提醒單位換算、量綱、正負方向或常見混淆。
+4. 這是解題前的先備知識，不代入本題數字計算、不揭露選項答案，也不重複整段詳解。
+5. 使用繁體中文與編號換行，沿用 LaTeX 公式格式；keyReview 不要加標題或 annotation 標記。
+6. explanation 只寫接續的解題步驟，不重複 keyReview。複習知識必須與最終採用的解法一致。
+例如本題確實用到波以耳定律與體積換算時：
+1. 波以耳定律：定溫、定量的理想氣體，壓力與體積成反比，$P_1V_1=P_2V_2$。
+2. 單位換算：$1\,\mathrm{m^3}=1000\,\mathrm{L}$；代入前，兩個體積的單位要一致。
+這只是格式示例；其他題目應依該題實際知識撰寫，禁止照抄無關內容。
+`;
+
 export function buildPrimaryPrompt({
   subject,
   referenceAnswer,
@@ -157,6 +172,8 @@ ${teachingContext || ""}
 7. 已在觀念解析算過的內容，選項分析直接引用結果。
 8. 不使用 Markdown 粗體 **。
 9. 不使用 Markdown 分隔線 ---。
+
+${KEY_REVIEW_INSTRUCTIONS}
 
 ━━━━━━━━━━━━━━━━━━
 【LaTeX】
@@ -311,6 +328,7 @@ diagram 範例：
 
 {
   "answer": "答案",
+  "keyReview": "1～4 點精簡複習，包含實際用到的公式、條件與單位提醒，不加標題",
   "explanation": "觀念解析，可含 LaTeX 與 annotation",
   "options": "(A) 對：……\\n(B) 錯：……",
   "annotations": [
@@ -434,6 +452,8 @@ ${teachingContext || ""}
 請重新檢查所有題目圖片、圖表、公式、單位、計算與選項，
 最後產生完整的學生版解答。
 
+${KEY_REVIEW_INSTRUCTIONS}
+
 如果精確簡圖能明顯幫助理解，也請依 Primary 相同的 Science Diagram Engine 規則輸出 diagram；
 使用 0～100 座標、最多 160 個 primitives，只有把握足夠時才畫，否則 diagram=null。
 化學題若結構式能明顯幫助理解，也依 Primary 相同的 Chemical Structure Renderer 規則輸出 chemicalStructure；不需要或不確定時 chemicalStructure=null。
@@ -445,6 +465,7 @@ ${teachingContext || ""}
 
 {
   "answer": "答案",
+  "keyReview": "依最終解法撰寫 1～4 點精簡複習，不加標題",
   "explanation": "精簡觀念解析",
   "options": "(A) 對：……\\n(B) 錯：……",
   "annotations": [],
