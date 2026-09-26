@@ -15,6 +15,7 @@ export async function proxy(request:NextRequest){
   "/api/admin/model-comparison",
  ]);
  const readOnly=new Set([
+  "/api/admin/chemistry-analytics",
   "/api/admin/brand","/api/admin/settings","/api/admin/student-auth-settings",
   "/api/admin/ai-settings","/api/admin/analytics","/api/admin/latency-analytics",
   "/api/admin/dashboard-insights","/api/admin/dashboard-accuracy","/api/admin/cost-alert-settings",

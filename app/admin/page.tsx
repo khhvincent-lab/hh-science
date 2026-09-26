@@ -498,6 +498,7 @@ export default function AdminPage() {
   const [loginError, setLoginError] = useState("");
   const [loginLoading, setLoginLoading] = useState(false);
 
+  const [chemistryRevision,setChemistryRevision] = useState(0);
   const [activeSection, setActiveSection] = useUrlState<AdminSection>("section","dashboard",["comparison","dashboard","siteQuestions","chemistryAnalytics","usage","students","classes","pin","ai","analytics","cost","teachingOverview","teachingQuestions","teachingExamples","teachingRuleLibrary","teachingCoach","teachingTraining","teachingImages","teachingSettings","platform"],true);
   const [siteQuestionInitialFocus, setSiteQuestionInitialFocus] = useState<"all" | "pending">("all");
   const [calibrationTargetId, setCalibrationTargetId] = useUrlState<string>("calibration","");
@@ -1288,7 +1289,8 @@ export default function AdminPage() {
               type="button"
               className="hh-button-secondary"
               onClick={() => {
-                if (activeSection === "students" || activeSection === "classes") void loadStudents();
+                if (activeSection === "chemistryAnalytics") setChemistryRevision(v=>v+1);
+                else if (activeSection === "students" || activeSection === "classes") void loadStudents();
                 else void loadAllAdminData();
               }}
             >
@@ -1315,7 +1317,7 @@ export default function AdminPage() {
             <SiteQuestionsSection initialFocus={siteQuestionInitialFocus} canReview={adminUser?.role === "super_admin"} onCalibrate={(historyId) => { setCalibrationTargetId(historyId); setActiveSection("teachingQuestions"); setOpenNavGroup("teaching"); }} />
           )}
 
-          {activeSection === "chemistryAnalytics" && <ChemistryAnalytics key={scopeTeacher?.id || "all"}/>}
+          {activeSection === "chemistryAnalytics" && <ChemistryAnalytics key={`${scopeTeacher?.id || "all"}-${chemistryRevision}`}/>}
 
           {activeSection === "usage" && (
             <UsageStatusSection dashboard={dashboard} />

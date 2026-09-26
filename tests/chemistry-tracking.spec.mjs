@@ -41,7 +41,7 @@ test('admin analytics presents distinct students and changes date range',async({
   return route.fulfill({json:{}});
  });
  await page.goto('/admin?section=chemistryAnalytics');
- await expect(page.getByRole('heading',{name:'專欄成效',exact:true})).toBeVisible();
+ await expect(page.getByRole('heading',{name:'專欄成效',exact:true,level:2})).toBeVisible();
  await expect(page.locator('.reading-analytics-conversion strong')).toHaveText('40%');
  await expect(page.locator('.reading-analytics-progress')).toContainText('5 人閱讀，其中 2 人完成練習');
  await page.locator('.reading-analytics-controls select').selectOption('7');

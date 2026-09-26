@@ -16,5 +16,8 @@ const request=range=>({nextUrl:new URL(`https://test.local/api?range=${range}`)}
  allowedIds=null;res=await admin.GET(request('all'));assert.equal(res.body.totals.readers,2);assert.equal(res.body.includesGuests,true);assert.equal(res.body.totals.guestViews,1);
  loggedIn=false;queries=[];assert.equal((await admin.GET(request('all'))).status,401);assert.equal(queries.length,0);loggedIn=true;
  assert.equal((await admin.GET(request('invalid'))).status,400);
+ const proxy=load('proxy.ts',{'next/server':{NextResponse:{...next.NextResponse,next:()=>({status:200})}},'@/lib/admin-access':{requireAdminSession:async()=>({role:'teacher'})}});
+ assert.equal((await proxy.proxy({nextUrl:new URL('https://test.local/api/admin/chemistry-analytics'),method:'GET'})).status,200);
+ assert.equal((await proxy.proxy({nextUrl:new URL('https://test.local/api/admin/chemistry-analytics'),method:'POST'})).status,403);
  console.log('Chemistry analytics: deduplication, conversion, empty data, teacher scope, global scope and authorization passed.');
 })().catch(e=>{console.error(e);process.exitCode=1;});
