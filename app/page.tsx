@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import StudentNavIcon from "@/components/student-nav-icon";
 import { REVIEW_TITLE, splitSolutionReview } from "@/lib/solution-review";
 import SolveProgress from "@/components/solve-progress";
 import {useSolveJob} from "@/components/use-solve-job";
@@ -3489,9 +3490,9 @@ export default function Home() {
 
         {activeView === "history" && !selectedHistory && historyHasMore && <button type="button" className="hh-button-secondary" disabled={historyLoading} onClick={()=>void loadHistory(true)}>{historyLoading ? "載入中…" : "載入更多紀錄"}</button>}
         {student && !student.mustChangePin && <nav className="v2-student-bottom-nav" aria-label="學生頁面導覽">
-          <button type="button" aria-current={activeView==="solve"?"page":undefined} onClick={()=>{setActiveView("solve");window.scrollTo({top:0,behavior:"smooth"});}}><span aria-hidden="true">⌂</span>首頁</button>
-          <button type="button" aria-current={activeView==="result"?"page":undefined} disabled={!solveData&&!isSolving&&!questionError&&!solveTask.job} onClick={()=>{setActiveView("result");window.scrollTo({top:0,behavior:"smooth"});}}><span aria-hidden="true">✧</span>解析</button>
-          <button type="button" aria-current={activeView==="history"?"page":undefined} onClick={()=>{setActiveView("history");window.scrollTo({top:0,behavior:"smooth"});}}><span aria-hidden="true">▤</span>紀錄</button>
+          <button type="button" aria-current={activeView==="solve"?"page":undefined} onClick={()=>{setActiveView("solve");window.scrollTo({top:0,behavior:"smooth"});}}><StudentNavIcon kind="home" />首頁</button>
+          <button type="button" aria-current={activeView==="result"?"page":undefined} disabled={!solveData&&!isSolving&&!questionError&&!solveTask.job} onClick={()=>{setActiveView("result");window.scrollTo({top:0,behavior:"smooth"});}}><StudentNavIcon kind="analysis" />解析</button>
+          <button type="button" aria-current={activeView==="history"?"page":undefined} onClick={()=>{setActiveView("history");window.scrollTo({top:0,behavior:"smooth"});}}><StudentNavIcon kind="history" />紀錄</button>
         </nav>}
         <footer className="student-footer">
           <div className="hh-eyebrow">{brand.englishName}</div>

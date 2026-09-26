@@ -1076,3 +1076,29 @@ html[data-theme] .student-page .solution-step .student-display-formula .katex-di
 
 /* Reset hanging paragraph indentation at the formula's clipping container. */
 .student-inline-formula {text-indent:0;}
+
+/* PWA chrome: a single opaque surface paints the home-indicator area too. */
+html[data-theme]{background-color:var(--bg)}
+html:has(.student-page),html:has(.chem-shell){overscroll-behavior-y:none}
+html:has(.student-page) body,html:has(.chem-shell) body{overscroll-behavior-y:none;min-height:100dvh}
+@media(max-width:760px){
+ html[data-theme] .student-page .v2-student-bottom-nav{
+  position:fixed!important;inset:auto 0 0!important;width:100%!important;
+  padding:8px max(12px,env(safe-area-inset-right)) calc(8px + env(safe-area-inset-bottom,0px)) max(12px,env(safe-area-inset-left))!important;
+  border:0!important;border-top:1px solid var(--border)!important;border-radius:20px 20px 0 0!important;
+  background:var(--surface)!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;
+  box-shadow:0 -4px 16px #00000012!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:10px!important;
+ }
+ html[data-theme] .student-page .v2-student-bottom-nav button{
+  display:flex!important;flex-direction:column;align-items:center;justify-content:center;
+  height:52px!important;min-height:52px!important;gap:4px!important;padding:5px 8px!important;border-radius:13px!important;
+  font-size:11px!important;line-height:1.2;color:var(--text-secondary);transition:background .15s,color .15s;
+ }
+ html[data-theme] .student-page .v2-student-bottom-nav .student-nav-icon{display:block;width:23px;height:23px;flex-shrink:0}
+ html[data-theme] .student-page .v2-student-bottom-nav button[aria-current="page"]{color:var(--action)!important;background:var(--action-soft)!important}
+ html[data-theme] .student-page .v2-student-bottom-nav button:focus-visible{outline:2px solid var(--action);outline-offset:2px}
+ html[data-theme] .student-page .student-container,html[data-theme] .student-page.student-compact-ready .student-container{padding-bottom:calc(92px + env(safe-area-inset-bottom,0px))!important}
+}
+@media(display-mode:standalone){
+ body:has(.student-page)::before{content:"";position:fixed;top:0;left:0;right:0;height:env(safe-area-inset-top,0px);background:var(--bg);z-index:94;pointer-events:none}
+}
