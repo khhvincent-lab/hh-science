@@ -1,6 +1,7 @@
 'use client';
 import {useCallback,useEffect,useRef,useState} from 'react';
 import katex from 'katex';
+import {normalizeScienceMarkup,stripBareAnnotationCommands} from '@/lib/science-markup';
 import ChemicalStructureView from '@/components/chemical-structure';
 import ScienceDiagramView from '@/components/science-diagram';
 import {CRITERIA,CRITERIA_LABELS,OPTIONS,calculateScore,type Ratings,type Criterion} from '@/lib/comparison/rubric';
@@ -22,7 +23,7 @@ type Answer={answer:string;explanation:string;options:string;diagram:ScienceDiag
 type Detail={id:string;subject:string;source:string;status:string;createdAt:string;images:string[];note:string;referenceAnswer:string;referenceMode:string;answers:Answer[];reviewed:boolean;review:{preference:string;note:string}|null};
 type Settings={version:string|null;config:ComparisonConfig;models:AIModelDefinition[];classes:{id:string;name:string}[];canEdit:boolean};
 function FormulaText({text}:{text:string}){
- return <div className="mc-text">{text.split(/(\$\$[\s\S]*?\$\$|\$[^$\n]+\$|\\\[[\s\S]*?\\\]|\\\([\s\S]*?\\\))/g).map((part,i)=>{
+ return <div className="mc-text">{stripBareAnnotationCommands(normalizeScienceMarkup(text)).split(/(\$\$[\s\S]*?\$\$|\$[^$\n]+\$|\\\[[\s\S]*?\\\]|\\\([\s\S]*?\\\))/g).map((part,i)=>{
  const display=part.startsWith('$$')||part.startsWith('\\['),inline=part.startsWith('$')||part.startsWith('\\(');
  if(!display&&!inline)return <span key={i}>{part}</span>;
  const n=display||part.startsWith('\\(')?2:1;

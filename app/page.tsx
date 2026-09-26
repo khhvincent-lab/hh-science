@@ -1,5 +1,8 @@
 "use client";
 
+import { normalizeScienceMarkup, stripAnnotationCommands, stripBareAnnotationCommands } from "@/lib/science-markup";
+
+
 import { useEffect, useRef, useState } from "react";
 import StudentNavIcon from "@/components/student-nav-icon";
 import { REVIEW_TITLE, splitSolutionReview } from "@/lib/solution-review";
@@ -208,19 +211,6 @@ function subjectsForStudent(student: StudentSession | null) {
   return subjectPermissions[student.campus] || allSubjectOptions;
 }
 
-function normalizeScienceMarkup(text: string) {
-  return String(text || "")
-    .replace(/\\n/g, "\n")
-    .replace(/\\([A-Za-z])/g, "\\$1")
-    .replace(/\\([()\[\]{}])/g, "\\$1")
-    .replace(/\\\[/g, "$$")
-    .replace(/\\\]/g, "$$")
-    .replace(/\\\(/g, "$")
-    .replace(/\\\)/g, "$")
-    .replace(/\*\*/g, "")
-    .replace(/^---+$/gm, "")
-    .trim();
-}
 
 function escapeHtml(text: string) {
   return text
@@ -274,50 +264,8 @@ function renderKatex(formula: string, displayMode: boolean) {
   }
 }
 
-function stripExportAnnotationCommands(formula: string) {
-  // 匯出 PNG 時把互動標註完全還原成純公式內容。
-  // 不能只用 regex，因為被標註的內容常包含 \frac、\sqrt 等巢狀大括號。
-  // 逐字解析才能避免 htmlData 樣式在輸出圖片中變成深綠色方框。
-  let result = formula;
+const stripExportAnnotationCommands = stripAnnotationCommands;
 
-  for (let pass = 0; pass < 24; pass += 1) {
-    const marker = "\\htmlData{annotation=";
-    const start = result.indexOf(marker);
-    if (start < 0) break;
-
-    const metaEnd = result.indexOf("}", start + marker.length);
-    if (metaEnd < 0 || result[metaEnd + 1] !== "{") break;
-
-    let depth = 1;
-    let cursor = metaEnd + 2;
-    for (; cursor < result.length && depth > 0; cursor += 1) {
-      if (result[cursor] === "{") depth += 1;
-      else if (result[cursor] === "}") depth -= 1;
-    }
-
-    if (depth !== 0) break;
-
-    const inner = result.slice(metaEnd + 2, cursor - 1);
-    result = result.slice(0, start) + inner + result.slice(cursor);
-  }
-
-  return result;
-}
-
-function stripBareAnnotationCommands(text: string) {
-  if (!text) return "";
-  // 保留公式區塊內的 annotation，讓互動點仍可點擊；
-  // 只清掉 AI 誤放在一般文字中的 \htmlData{annotation=...}{...} 外殼。
-  const parts = text.split(/(\$\$[\s\S]*?\$\$|\$[^$\n]+\$)/g);
-  return parts
-    .map((part) => {
-      const isMath =
-        (part.startsWith("$$") && part.endsWith("$$")) ||
-        (part.startsWith("$") && part.endsWith("$"));
-      return isMath ? part : stripExportAnnotationCommands(part);
-    })
-    .join("");
-}
 
 function historyPlainPreview(text: string) {
   return stripExportAnnotationCommands(normalizeScienceMarkup(text || ""))

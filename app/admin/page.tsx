@@ -1,4 +1,7 @@
 "use client";
+
+import { normalizeScienceMarkup as normalizeAdminScienceMarkup, stripAnnotationCommands, stripBareAnnotationCommands } from "@/lib/science-markup";
+
 import ChemistryAnalytics from "@/components/admin/chemistry-analytics";
 import ModelComparison, {AddComparisonButton} from "@/components/admin/model-comparison";
 import {useUrlState} from "@/components/admin/use-url-state";
@@ -355,45 +358,8 @@ function adminRenderKatex(formula: string, displayMode: boolean) {
   }
 }
 
-function stripAdminAnnotationCommands(formula: string) {
-  let result = formula;
+const stripAdminAnnotationCommands = stripAnnotationCommands;
 
-  for (let pass = 0; pass < 12; pass += 1) {
-    const marker = "\\htmlData{annotation=";
-    const start = result.indexOf(marker);
-    if (start < 0) break;
-
-    const metaEnd = result.indexOf("}", start + marker.length);
-    if (metaEnd < 0 || result[metaEnd + 1] !== "{") break;
-
-    let depth = 1;
-    let cursor = metaEnd + 2;
-    for (; cursor < result.length && depth > 0; cursor += 1) {
-      if (result[cursor] === "{") depth += 1;
-      else if (result[cursor] === "}") depth -= 1;
-    }
-    if (depth !== 0) break;
-
-    const inner = result.slice(metaEnd + 2, cursor - 1);
-    result = result.slice(0, start) + inner + result.slice(cursor);
-  }
-
-  return result;
-}
-
-function normalizeAdminScienceMarkup(text: string) {
-  return String(text || "")
-    .replace(/\\n/g, "\n")
-    .replace(/\\([A-Za-z])/g, "\\$1")
-    .replace(/\\([()\[\]{}])/g, "\\$1")
-    .replace(/\\\[/g, "$$")
-    .replace(/\\\]/g, "$$")
-    .replace(/\\\(/g, "$")
-    .replace(/\\\)/g, "$")
-    .replace(/\*\*/g, "")
-    .replace(/^---+$/gm, "")
-    .trim();
-}
 
 function looksLikeAdminMathExpression(text: string) {
   const value = stripAdminAnnotationCommands(normalizeAdminScienceMarkup(text || "")).trim();
@@ -417,7 +383,7 @@ function chemistryToLatex(raw: string) {
 function AdminScienceText({ text }: { text: string }) {
   if (!text) return null;
 
-  const cleaned = normalizeAdminScienceMarkup(text);
+  const cleaned = stripBareAnnotationCommands(normalizeAdminScienceMarkup(text));
 
   const blocks = cleaned.split(/(\$\$[\s\S]*?\$\$)/);
 
