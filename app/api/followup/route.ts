@@ -7,7 +7,7 @@ import { verifySessionToken } from "@/lib/session";
 import { getAISolverSettings } from "@/lib/ai-settings";
 import { runSolver } from "@/lib/ai/solver";
 import { saveSolverUsage } from "@/lib/ai/usage-log";
-import { parseAIJson } from "@/lib/ai/json";
+import { parseFollowupResponse, unwrapStoredScienceAnswer } from "@/lib/ai/json";
 import { buildTeachingContext } from "@/lib/teaching-engine";
 import type { ScienceDiagram, ScienceDiagramPrimitive } from "@/lib/ai/types";
 
@@ -136,7 +136,7 @@ export async function POST(request: NextRequest) {
     answer: String(history.answer || ""),
     explanation: String(history.explanation || ""),
     options: String(history.options || ""),
-    previousFollowups: previous.map((item) => ({ question: String(item.question || ""), answer: String(item.answer || "") })),
+    previousFollowups: previous.map((item) => ({ question: String(item.question || ""), answer: unwrapStoredScienceAnswer(String(item.answer || "")) })),
     question,
     teachingContext,
   });
@@ -152,13 +152,7 @@ export async function POST(request: NextRequest) {
       expectJson: true,
     });
 
-    let parsed: any;
-    try {
-      parsed = parseAIJson<any>(String(response.text || ""));
-    } catch {
-      // 圖解是輔助功能；即使 JSON 失敗，也不要讓學生整個追問失敗。
-      parsed = { answer: String(response.text || "").trim(), diagram: null };
-    }
+    const parsed = parseFollowupResponse(String(response.text || ""));
 
     const answer = String(parsed?.answer || "").trim();
     const diagram = normalizeScienceDiagram(parsed?.diagram, imageContext.refs);
