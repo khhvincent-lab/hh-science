@@ -17,6 +17,7 @@ import { ExportHeader, ExportSection } from "@/components/solution-export-layout
 import SolutionImageDownload from "@/components/solution-image-download";
 import TeacherHandoffPrepare from "@/components/teacher-handoff-prepare";
 import ThemeToggle from "@/components/theme-toggle";
+import LabStartup from "@/components/lab-startup";
 import AdaptiveBrandLogo from "@/components/adaptive-brand-logo";
 import { getOfficialLineProfileUrl } from "@/lib/official-line";
 import ScienceDiagramView from "@/components/science-diagram";
@@ -820,7 +821,7 @@ export default function Home() {
   useEffect(() => {
     async function restoreSession() {
       try {
-        const response = await fetch("/api/auth/session", { cache: "no-store" });
+        const response = await fetch("/api/auth/session", { cache: "no-store", signal: AbortSignal.timeout(12000) });
         const data = await response.json();
         if (data.authenticated && data.student) {
           const restored: StudentSession = {
@@ -833,7 +834,7 @@ export default function Home() {
           };
           setStudent(restored);
           setupSubject(restored);
-          await loadUsage();
+          void loadUsage();
         }
       } catch (error) {
         console.error("Restore session:", error);
@@ -2295,19 +2296,8 @@ export default function Home() {
       )
     : 520;
 
-  if (authLoading) {
-    return (
-      <main className="hh-page student-loading-page">
-        <div className="student-loading-card">
-          <div className="hh-eyebrow">{brand.englishName}</div>
-          <div className="hh-display student-loading-title">{brand.name}</div>
-          <div className="student-muted">正在確認登入狀態…</div>
-        </div>
-      </main>
-    );
-  }
-
   return (
+    <LabStartup loading={authLoading} authenticated={Boolean(student)} name={brand.name} englishName={brand.englishName}>
     <main data-view={activeView} className={`hh-page student-page ${tutorialOpen && tutorialPhase !== "setup" ? "student-tour-results-active" : ""} ${student && !student.mustChangePin && activeView === "solve" && !tutorialOpen ? "student-compact-ready" : ""}`}>
       <div className="student-top-glow" />
 
@@ -6453,5 +6443,6 @@ export default function Home() {
 
 `}</style>
     </main>
+    </LabStartup>
   );
 }
