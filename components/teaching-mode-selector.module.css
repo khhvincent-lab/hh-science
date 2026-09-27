@@ -15,7 +15,7 @@
   color: var(--text); font-weight: 750;
   background: color-mix(in srgb, var(--tone) 10%, var(--surface));
   border-color: color-mix(in srgb, var(--tone) 65%, var(--border));
-  box-shadow: 0 0 8px color-mix(in srgb, var(--tone) 8%, transparent);
+  box-shadow: inset 0 0 12px color-mix(in srgb, var(--tone) 5%, transparent), 0 0 14px color-mix(in srgb, var(--tone) 15%, transparent);
 }
 .option input:checked + span::before { content: "✓"; color: var(--tone); font-size: 11px; font-weight: 800; }
 .option input:focus-visible + span { outline: 2px solid var(--tone); outline-offset: 3px; }
@@ -27,7 +27,7 @@
   -webkit-mask-composite: xor;
   mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
   mask-composite: exclude;
-  animation: orbitFade 80ms ease-out 700ms both;
+  animation: orbitFade 300ms ease-in-out 600ms both;
 }
 .orbit::before {
   content: ""; position: absolute; width: 300%; aspect-ratio: 1;
@@ -38,11 +38,11 @@
     color-mix(in srgb, var(--tone) 55%, transparent) 320deg,
     var(--tone) 342deg 352deg,
     transparent 360deg);
-  animation: orbitTurn 700ms cubic-bezier(.42, 0, .58, 1) both;
+  animation: orbitTurn 900ms cubic-bezier(.3, 0, .35, 1) both;
 }
 @keyframes orbitTurn {
   from { transform: translate(-50%, -50%) rotate(0deg); }
-  to { transform: translate(-50%, -50%) rotate(360deg); }
+  to { transform: translate(-50%, -50%) rotate(450deg); }
 }
 @keyframes orbitFade { from { opacity: 1; } to { opacity: 0; } }
 @media (hover: hover) { .selector:not(:disabled) .option:hover span { border-color: var(--tone); } }
