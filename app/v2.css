@@ -825,18 +825,18 @@ html .adaptive-brand-logo {
   overflow:hidden;
   border-radius:24%;
   background-color:#0d284b;
-  background-image:url("/brand/midnight.webp");
+  background-image:url("/brand/midnight-hd.webp");
   background-position:center;
   background-repeat:no-repeat;
   background-size:108%;
   box-shadow:0 4px 14px rgba(0,0,0,.16);
   transition:box-shadow .2s ease;
 }
-html[data-theme="midnight"] .adaptive-brand-logo {background-color:#0d284b;background-image:url("/brand/midnight.webp")}
-html[data-theme="nordic"] .adaptive-brand-logo {background-color:#e8ebd9;background-image:url("/brand/nordic.webp")}
-html[data-theme="aurora"] .adaptive-brand-logo {background-color:#1e7ce4;background-image:url("/brand/aurora.webp")}
-html[data-theme="gold"] .adaptive-brand-logo {background-color:#222326;background-image:url("/brand/gold.webp")}
-html[data-theme="obsidian"] .adaptive-brand-logo {background-color:#292f38;background-image:url("/brand/obsidian.webp")}
+html[data-theme="midnight"] .adaptive-brand-logo {background-color:#0d284b;background-image:url("/brand/midnight-hd.webp")}
+html[data-theme="nordic"] .adaptive-brand-logo {background-color:#e8ebd9;background-image:url("/brand/nordic-hd.webp")}
+html[data-theme="aurora"] .adaptive-brand-logo {background-color:#1e7ce4;background-image:url("/brand/aurora-hd.webp")}
+html[data-theme="gold"] .adaptive-brand-logo {background-color:#222326;background-image:url("/brand/gold-hd.webp")}
+html[data-theme="obsidian"] .adaptive-brand-logo {background-color:#292f38;background-image:url("/brand/obsidian-hd.webp")}
 html[data-theme] .admin-login-brand .admin-login-mark .adaptive-brand-logo {
   margin:0 auto;
 }
