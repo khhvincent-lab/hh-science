@@ -19,23 +19,25 @@
 }
 .option input:checked + span::before { content: "✓"; color: var(--tone); font-size: 11px; font-weight: 800; }
 .option input:focus-visible + span { outline: 2px solid var(--tone); outline-offset: 3px; }
-/* Rotate the light behind a fixed rounded mask, never the button or text. */
+/* Motion-path distance follows the rounded perimeter at constant speed. */
 .orbit {
-  position: absolute; inset: -1px; padding: 2px; border-radius: 13px;
-  pointer-events: none; overflow: hidden;
-  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-  -webkit-mask-composite: xor;
-  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-  mask-composite: exclude;
+  position: absolute; inset: 0; border-radius: inherit;
+  pointer-events: none;
   animation: orbitFade 180ms ease-out 1200ms both;
 }
 .orbit::before {
-  content: ""; position: absolute; width: 300%; aspect-ratio: 1;
-  left: 50%; top: 50%;
-  background: conic-gradient(from 0deg, transparent 0deg 270deg, color-mix(in srgb, var(--tone) 30%, transparent) 310deg, var(--tone) 350deg, transparent 360deg);
-  animation: orbitTurn 1200ms linear both;
+  content: ""; position: absolute; left: 0; top: 0; width: 22px; height: 3px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--tone) 50%, transparent) 45%, var(--tone) 85%, color-mix(in srgb, var(--tone) 65%, white));
+  box-shadow: 0 0 5px color-mix(in srgb, var(--tone) 55%, transparent);
+  offset-path: inset(1px round 11px);
+  offset-anchor: 90% 50%;
+  offset-rotate: auto;
+  animation: orbitTravel 1200ms linear both;
 }
-@keyframes orbitTurn { from { transform: translate(-50%, -50%) rotate(0deg); } to { transform: translate(-50%, -50%) rotate(360deg); } }
+@keyframes orbitTravel { from { offset-distance: 0%; } to { offset-distance: 100%; } }
+/* Older browsers retain the static selected glow without a misplaced light. */
+@supports not (offset-path: inset(1px round 11px)) { .orbit { display: none; } }
 @keyframes orbitFade { from { opacity: 1; } to { opacity: 0; } }
 @media (hover: hover) { .selector:not(:disabled) .option:hover span { border-color: var(--tone); } }
 .selector:disabled .option { cursor: default; opacity: .55; }
