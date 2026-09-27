@@ -3,6 +3,7 @@ import {supabaseAdmin} from './supabase-admin';
 import {verifySessionToken} from './session';
 import {imageMime,validImageId} from './teaching-images';
 import type {AISolverSettings} from './ai-settings';
+import {isStudentTeachingMode} from './teaching-modes';
 export const JOB_BUCKET='solve-job-inputs';
 export class SolveInputError extends Error{constructor(message:string,public status=400,public details:Record<string,unknown>={}){super(message)}}
 export async function jobStudent(request:NextRequest){
@@ -18,7 +19,8 @@ export function validateSolveInput(raw:any){
  let size=0;
  const images=raw.images.map((v:unknown)=>{if(typeof v!=='string')throw new SolveInputError('圖片格式錯誤。');size+=v.length;if(size>4_000_000)throw new SolveInputError('圖片總容量過大，請裁切或減少張數。',413);const m=v.match(/^data:(image\/(?:png|jpeg|webp));base64,([A-Za-z0-9+/=]+)$/);if(!m||imageMime(Buffer.from(m[2],'base64'))!==m[1])throw new SolveInputError('圖片格式不支援。');return v;});
  const subject=String(raw.subject||'');if(!['physics','chemistry','biology','earth','auto'].includes(subject))throw new SolveInputError('請選擇科目。');
- return {images,subject,referenceAnswer:String(raw.referenceAnswer||'').slice(0,2000),questionNote:String(raw.questionNote||'').slice(0,4000),imageQuality:Array.isArray(raw.imageQuality)?raw.imageQuality.slice(0,5):[]};
+ if(raw.teachingMode!==undefined&&!isStudentTeachingMode(raw.teachingMode))throw new SolveInputError('請選擇精簡解答、標準詳解或深度解析。');
+ return {images,subject,...(isStudentTeachingMode(raw.teachingMode)?{teachingMode:raw.teachingMode}:{}),referenceAnswer:String(raw.referenceAnswer||'').slice(0,2000),questionNote:String(raw.questionNote||'').slice(0,4000),imageQuality:Array.isArray(raw.imageQuality)?raw.imageQuality.slice(0,5):[]};
 }
 export async function checkSubject(student:{class_id:string|null},subject:string){
  if(!student.class_id)throw new SolveInputError('尚未設定班級，請聯絡老師。',403);

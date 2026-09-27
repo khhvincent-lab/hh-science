@@ -19,6 +19,7 @@ for(const entry of ['return','home']){
     return route.fulfill({json:{job}});
    }
    const bodies={
+    '/api/teaching-mode':{mode:'standard'},
     '/api/auth/session':{authenticated:true,student:{id:'reset-test',name:'測試',campus:'高雄班',classId:'test',allowedSubjects:['chemistry'],mustChangePin:false}},
     '/api/usage':{count:1,limit:10,remaining:9},
    };
@@ -58,6 +59,7 @@ test('returning home preserves a running question',async({page})=>{
   const path=new URL(route.request().url()).pathname;
   if(route.request().method()==='PATCH')dismissed=true;
   const bodies={
+   '/api/teaching-mode':{mode:'standard'},
    '/api/auth/session':{authenticated:true,student:{id:'running-test',name:'測試',classId:'test',allowedSubjects:['chemistry'],mustChangePin:false}},
    '/api/usage':{count:0,limit:10,remaining:10},
    '/api/solve-jobs':{job:{id:'running-job',status:'running',stage:'primary'}},

@@ -1,0 +1,10 @@
+.selector { border: 0; padding: 0; margin: 12px 0 4px; min-width: 0; }
+.selector legend { color: var(--text); font-size: 13px; font-weight: 700; padding: 0; margin-bottom: 8px; }
+.options { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.option { position: relative; min-width: 0; cursor: pointer; }
+.option input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.option span { display: flex; align-items: center; justify-content: center; min-height: 44px; padding: 8px 4px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface-soft); color: var(--text-secondary); font-size: 13px; font-weight: 650; white-space: nowrap; transition: background 150ms, border-color 150ms; }
+.option input:checked + span { color: var(--action-text); background: var(--action); border-color: var(--action); }
+.option input:focus-visible + span { outline: 2px solid var(--text); outline-offset: 3px; }
+.selector:disabled .option { cursor: default; opacity: .65; }
+.selector p { font-size: 12px; line-height: 1.5; color: var(--text-secondary); margin: 7px 0 0; min-height: 18px; }

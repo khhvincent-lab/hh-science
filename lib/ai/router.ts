@@ -33,7 +33,8 @@ import {
   getAISolverSettings,
 } from "@/lib/ai-settings";
 
-import { buildTeachingContext } from "@/lib/teaching-engine";
+import { buildTeachingContext, getTeachingEngineSettings } from "@/lib/teaching-engine";
+import { isStudentTeachingMode, studentDefaultMode, type StudentTeachingMode } from "@/lib/teaching-modes";
 import {
   buildInputGuardPrompt,
   getInputGuardSettings,
@@ -53,6 +54,7 @@ import type {
 
 
 export type RouterInput = {
+  teachingMode?: StudentTeachingMode;
   studentId:
     string;
 
@@ -93,6 +95,7 @@ export type RouterResult = {
     SolveResult;
 
   route: {
+    teachingMode: StudentTeachingMode;
     mode:
       "single" |
       "multi";
@@ -683,13 +686,15 @@ export async function runAIRouter(
     ? String(gate.category)
     : input.subject;
 
+  const teachingSettings = await getTeachingEngineSettings();
+  const teachingMode = isStudentTeachingMode(input.teachingMode) ? input.teachingMode : studentDefaultMode(teachingSettings.mode);
   const teachingBase = await buildTeachingContext(teachingSubject, {
     topic: gate.topic,
     keywords: gate.keywords,
     questionSignature: gate.questionSignature,
     referenceAnswer: input.referenceAnswer,
     questionNote: input.questionNote,
-  });
+  }, { ...teachingSettings, mode: teachingMode });
 
   const imageContext = gate.allowed ? await retrieveTeachingImages(teachingSubject, [gate.topic, ...(gate.keywords || []), gate.questionSignature, input.questionNote].filter(Boolean).join(" "), input.images.length) : {refs:[],images:[],prompt:""};
   const teachingContext = teachingBase + "\n" + SCIENCE_TEMPLATE_PROMPT + imageContext.prompt;
@@ -773,6 +778,7 @@ export async function runAIRouter(
       expectJson:
         true,
       metadata: {
+        teachingMode,
         referenceProvided,
       },
     });
@@ -808,6 +814,7 @@ export async function runAIRouter(
         primary,
 
       route: {
+        teachingMode,
         mode:
           "single",
 
@@ -893,6 +900,7 @@ export async function runAIRouter(
           primary,
 
         route: {
+        teachingMode,
           mode:
             "multi",
 
@@ -979,6 +987,7 @@ export async function runAIRouter(
         expectJson:
           true,
         metadata: {
+        teachingMode,
           trigger:
             "reference_mismatch",
           primaryAnswer:
@@ -1007,6 +1016,7 @@ export async function runAIRouter(
         arbiter,
 
       route: {
+        teachingMode,
         mode:
           "multi",
 
@@ -1110,6 +1120,7 @@ export async function runAIRouter(
       expectJson:
         true,
       metadata: {
+        teachingMode,
         primaryAnswer:
           primary.answer,
       },
@@ -1141,6 +1152,7 @@ export async function runAIRouter(
         primary,
 
       route: {
+        teachingMode,
         mode:
           "multi",
 
@@ -1241,6 +1253,7 @@ export async function runAIRouter(
       expectJson:
         true,
       metadata: {
+        teachingMode,
         trigger:
           "verifier_major_error",
         verifierConfidence:
@@ -1268,6 +1281,7 @@ export async function runAIRouter(
       arbiter,
 
     route: {
+        teachingMode,
       mode:
         "multi",
 

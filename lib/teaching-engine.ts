@@ -1,6 +1,6 @@
 import { supabaseAdmin } from "@/lib/supabase-admin";
-
-export type TeachingMode = "concise" | "standard" | "deep" | "correction";
+import { buildTeachingModeInstructions, type TeachingMode } from "@/lib/teaching-modes";
+export type { TeachingMode } from "@/lib/teaching-modes";
 
 export type TeachingEngineSettings = {
   mode: TeachingMode;
@@ -290,20 +290,13 @@ async function getLegacyTeacherExamples(subject: string, limit = 3) {
     .slice(0, limit);
 }
 
-export async function buildTeachingContext(subject: string, input: TeachingRetrievalInput = {}) {
-  const settings = await getTeachingEngineSettings();
+export async function buildTeachingContext(subject: string, input: TeachingRetrievalInput = {}, resolvedSettings?: TeachingEngineSettings) {
+  const settings = resolvedSettings || await getTeachingEngineSettings();
   const [rules, examples, legacy] = await Promise.all([
     getTeacherRules(subject, input, 10),
     getTeacherExamples(subject, input, 4),
     getLegacyTeacherExamples(subject, 2),
   ]);
-
-  const modeText: Record<TeachingMode, string> = {
-    concise: "精簡解題：只保留必要觀念、核心列式與關鍵步驟，避免冗長。",
-    standard: "標準教學：答案 → 觀念解析 → 選項分析 → 關鍵觀念，兼顧精簡與可教學性。",
-    deep: "深度解析：先整理條件與核心觀念，再完整推導，必要時補充常見錯誤。",
-    correction: "訂正模式：若與參考答案或既有結果衝突，優先找出錯誤點並重建正確解法。",
-  };
 
   const baseRules = [
     settings.general.noGuessing && "資訊不足時不得猜測。",
@@ -346,7 +339,7 @@ export async function buildTeachingContext(subject: string, input: TeachingRetri
 ━━━━━━━━━━━━━━━━━━
 【H.H. Teacher Knowledge Layer】
 ━━━━━━━━━━━━━━━━━━
-解題模式：${modeText[settings.mode]}
+${buildTeachingModeInstructions(settings.mode)}
 
 通用規則：
 ${baseRules.map((rule) => `- ${rule}`).join("\n")}
