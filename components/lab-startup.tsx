@@ -4,7 +4,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import AdaptiveBrandLogo from "./adaptive-brand-logo";
 import "./lab-startup.css";
 
-export default function LabStartup({ loading, authenticated, name, englishName, children }: {
+export default function LabStartup({ loading, authenticated, children }: {
   loading: boolean; authenticated: boolean; name: string; englishName: string; children: ReactNode;
 }) {
   const [cycle, setCycle] = useState(0);
@@ -53,7 +53,7 @@ export default function LabStartup({ loading, authenticated, name, englishName, 
           <div className="lab-startup-mark"><AdaptiveBrandLogo size={94} /></div>
           {[0, 1, 2, 3].map(i => <span key={i} className={`lab-startup-particle lab-startup-particle-${i}`} />)}
         </div>
-        <div className="lab-startup-copy"><h1>{name}</h1><p>{englishName}</p><div className="lab-startup-status">{loading ? (slow ? "連線時間較長，請稍候…" : "正在確認登入狀態…") : phase === "loading" ? "正在啟動實驗室…" : authenticated ? "實驗室已就緒" : "歡迎進入實驗室"}</div>
+        <div className="lab-startup-copy"><h1>解題實驗室</h1><p>Science Lab</p><div className="lab-startup-status">{loading ? (slow ? "連線時間較長，請稍候…" : "正在確認登入狀態…") : phase === "loading" ? "正在啟動實驗室…" : authenticated ? "實驗室已就緒" : "歡迎進入實驗室"}</div>
         {loading && slow && <button type="button" onClick={() => window.location.reload()}>重新嘗試</button>}
         </div>
       </div>
