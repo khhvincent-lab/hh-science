@@ -1,6 +1,7 @@
 "use client";
 
 import { normalizeScienceMarkup, stripAnnotationCommands, stripBareAnnotationCommands } from "@/lib/science-markup";
+import { renderScienceFormula } from "@/lib/science-render";
 
 
 import { useEffect, useRef, useState } from "react";
@@ -11,7 +12,6 @@ import { REVIEW_TITLE, splitSolutionReview } from "@/lib/solution-review";
 import SolveProgress from "@/components/solve-progress";
 import {useSolveJob} from "@/components/use-solve-job";
 import { Cropper } from "react-cropper";
-import katex from "katex";
 import { captureSolutionImage } from "@/lib/solution-image-export";
 import { ExportHeader, ExportSection } from "@/components/solution-export-layout";
 import SolutionImageDownload from "@/components/solution-image-download";
@@ -255,16 +255,7 @@ function regionSortWeight(name: string) {
 }
 
 function renderKatex(formula: string, displayMode: boolean) {
-  try {
-    return katex.renderToString(formula, {
-      displayMode,
-      throwOnError: false,
-      strict: false,
-      trust: (context) => context.command === "\\htmlData",
-    });
-  } catch {
-    return formula;
-  }
+  return renderScienceFormula(formula, displayMode);
 }
 
 const stripExportAnnotationCommands = stripAnnotationCommands;

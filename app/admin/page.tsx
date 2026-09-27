@@ -1,6 +1,7 @@
 "use client";
 
 import { normalizeScienceMarkup as normalizeAdminScienceMarkup, stripAnnotationCommands, stripBareAnnotationCommands } from "@/lib/science-markup";
+import { renderScienceFormula } from "@/lib/science-render";
 
 import ChemistryAnalytics from "@/components/admin/chemistry-analytics";
 import ModelComparison, {AddComparisonButton} from "@/components/admin/model-comparison";
@@ -14,7 +15,6 @@ import WorkspaceNavigation, {workspaceFor} from "@/components/admin/workspace-na
 import "./workspaces.css";
 
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import katex from "katex";
 import ThemeToggle from "@/components/theme-toggle";
 import AdaptiveBrandLogo from "@/components/adaptive-brand-logo";
 import ScienceDiagramView from "@/components/science-diagram";
@@ -346,16 +346,7 @@ function formatAdminDate(value: string) {
 }
 
 function adminRenderKatex(formula: string, displayMode: boolean) {
-  try {
-    return katex.renderToString(formula, {
-      displayMode,
-      throwOnError: false,
-      strict: false,
-      trust: (context) => context.command === "\\htmlData",
-    });
-  } catch {
-    return formula;
-  }
+  return renderScienceFormula(formula, displayMode);
 }
 
 const stripAdminAnnotationCommands = stripAnnotationCommands;

@@ -1,6 +1,8 @@
+import { unwrapStoredScienceAnswer } from "./ai/json";
+
 /** Normalize stored AI text without interpreting LaTeX commands as JSON escapes. */
 export function normalizeScienceMarkup(text: string) {
-  const normalized = String(text || "")
+  const normalized = unwrapStoredScienceAnswer(String(text || ""))
     // A literal newline escape must not consume \\nu, \\neq, \\nabla, etc.
     .replace(/\\n(?![A-Za-z])/g, "\n")
     .replace(/\\\[/g, () => "$$")
@@ -54,7 +56,11 @@ export function stripAnnotationCommands(text: string): string {
       if (text[cursor] === "{") depth++;
       else if (text[cursor] === "}") depth--;
     }
-    if (depth) continue;
+    if (depth) {
+      // Truncated presentation wrapper: retain all payload instead of leaking metadata.
+      result += text.slice(end, match.index) + stripAnnotationCommands(text.slice(start));
+      return result;
+    }
     result += text.slice(end, match.index) + stripAnnotationCommands(text.slice(start, cursor - 1));
     end = cursor;
     marker.lastIndex = cursor;

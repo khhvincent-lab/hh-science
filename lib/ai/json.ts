@@ -37,6 +37,11 @@ function repairJsonStringEscapes(raw: string) {
       continue;
     }
 
+    if (inString && ch.charCodeAt(0) < 32) {
+      result += JSON.stringify(ch).slice(1, -1);
+      continue;
+    }
+
     if (!inString || ch !== "\\") {
       result += ch;
       continue;
@@ -46,7 +51,8 @@ function repairJsonStringEscapes(raw: string) {
 
     // Keep normal JSON escapes intact.
     if (next === '"' || next === "\\" || next === "/") {
-      result += ch;
+      result += ch + next;
+      i += 1;
       continue;
     }
 
@@ -68,7 +74,8 @@ function repairJsonStringEscapes(raw: string) {
 
       // Multi-letter sequences are almost always LaTeX/science commands.
       // This also prevents \\theta from silently becoming a tab + "heta".
-      if (command.length > 1) {
+      const ambiguousLatex = /^(?:begin|bar|beta|boldsymbol|boxed|big|bigl|bigr|frac|nu|neq|nabla|notin|rightarrow|right|rangle|rho|theta|times|text|textbf|textit|tfrac|tan|tau)$/;
+      if (command.length > 1 && (!/[bfnrt]/.test(next) || ambiguousLatex.test(command))) {
         result += "\\\\";
         continue;
       }
@@ -112,19 +119,39 @@ function tryParse<T>(text: string): T | null {
 export function parseAIJson<T = any>(raw: string): T {
   const text = stripJsonCodeFence(raw);
 
-  const direct = tryParse<T>(text);
-  if (direct !== null) return direct;
-
+  // Repair before parsing: valid JSON can silently turn \\frac into a form feed.
   const repairedDirect = tryParse<T>(repairJsonStringEscapes(text));
   if (repairedDirect !== null) return repairedDirect;
 
   const extracted = extractJsonObject(text);
 
-  const extractedParsed = tryParse<T>(extracted);
-  if (extractedParsed !== null) return extractedParsed;
-
   const repairedExtracted = tryParse<T>(repairJsonStringEscapes(extracted));
   if (repairedExtracted !== null) return repairedExtracted;
 
   throw new Error("AI 回覆 JSON 格式異常，系統已嘗試自動修復但仍無法解析，請重新嘗試。");
+}
+
+/** Plain prose is allowed, but a broken structured response is never an answer. */
+export function parseFollowupResponse(raw: string): { answer: string; diagram: unknown } {
+  const text = stripJsonCodeFence(raw);
+  let parsed: unknown;
+  try {
+    parsed = parseAIJson(text);
+  } catch (error) {
+    if (/^[\[{]/.test(text) || /"(?:answer|diagram)"\s*:/.test(text)) throw error;
+    if (!text) throw new Error("追問模型沒有回傳內容。");
+    return { answer: text, diagram: null };
+  }
+  if (!parsed || typeof parsed !== "object" || !("answer" in parsed) ||
+      typeof parsed.answer !== "string" || !parsed.answer.trim()) {
+    throw new Error("追問回答格式不完整，請重新嘗試。");
+  }
+  return { answer: parsed.answer.trim(), diagram: "diagram" in parsed ? parsed.diagram : null };
+}
+
+/** Read-only compatibility for old records containing the entire JSON response. */
+export function unwrapStoredScienceAnswer(raw: string): string {
+  if (!/^\s*(?:```(?:json)?\s*)?\{\s*"(?:answer|diagram)"\s*:/.test(raw)) return raw;
+  try { return parseFollowupResponse(raw).answer; }
+  catch { return "這筆舊回答的格式不完整，無法安全還原，請重新追問。"; }
 }

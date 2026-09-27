@@ -1,6 +1,6 @@
 'use client';
 import {useCallback,useEffect,useRef,useState} from 'react';
-import katex from 'katex';
+import {renderScienceFormula} from '@/lib/science-render';
 import {normalizeScienceMarkup,stripBareAnnotationCommands} from '@/lib/science-markup';
 import ChemicalStructureView from '@/components/chemical-structure';
 import ScienceDiagramView from '@/components/science-diagram';
@@ -27,7 +27,7 @@ function FormulaText({text}:{text:string}){
  const display=part.startsWith('$$')||part.startsWith('\\['),inline=part.startsWith('$')||part.startsWith('\\(');
  if(!display&&!inline)return <span key={i}>{part}</span>;
  const n=display||part.startsWith('\\(')?2:1;
- try{return <span key={i} dangerouslySetInnerHTML={{__html:katex.renderToString(part.slice(n,-n),{displayMode:display,throwOnError:false,trust:context=>context.command==='\\htmlData',maxExpand:500})}}/>;}catch{return <span key={i}>{part}</span>;}
+ return <span key={i} dangerouslySetInnerHTML={{__html:renderScienceFormula(part.slice(n,-n),display)}}/>;
  })}</div>;
 }
 function Review({data,onSaved}:{data:Detail;onSaved:()=>Promise<void>}){
