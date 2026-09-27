@@ -9,6 +9,7 @@ async function mockApi(page, optional) {
   await page.route('**/api/**', async route => {
     const path = new URL(route.request().url()).pathname;
     const bodies = {
+      '/api/teaching-mode': { mode: 'standard' },
       '/api/auth/session': { authenticated: true, student: { id: studentId, name: '導覽測試', campus: '高雄班', classId: 'class-test', allowedSubjects: ['chemistry'], mustChangePin: false } },
       '/api/usage': { count: 0, limit: 10, remaining: 10 },
       '/api/auth/login-options': { regions: [{ id: 'region-test', name: '高雄' }], institutions: [{ id: 'institution-test', region_id: 'region-test', name: '測試補習班' }], classes: [{ id: 'class-test', institution_id: 'institution-test', name: '測試班', allowed_subjects: ['chemistry'] }] },
