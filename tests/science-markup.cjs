@@ -14,6 +14,10 @@ assert.equal(strip(String.raw`\htmlData{annotation=a1}{\frac{1}{2}}`), String.ra
 assert.equal(strip(String.raw`\htmlData{annotation=a1}{\htmlData{annotation=a2}{2}}`), '2');
 const annotated=String.raw`$\htmlData{annotation=a1}{162}\ \mathrm{g/mol}$`;
 assert.equal(bare(annotated),annotated);
+const mixed = String.raw`平衡後的\htmlData{annotation=a7}{$[H^+]$仍下降}（趨近純水的 $10^{-7}\mathrm{M}$），因此 pH 值增大。`;
+assert.equal(bare(mixed), String.raw`平衡後的$[H^+]$仍下降（趨近純水的 $10^{-7}\mathrm{M}$），因此 pH 值增大。`);
+assert.equal(bare(String.raw`\htmlData{annotation=a8}{公式 $$\frac{K_a}{C_0}$$ 與 $x$}`), String.raw`公式 $$\frac{K_a}{C_0}$$ 與 $x$`);
+assert.equal(bare(String.raw`\htmlData{annotation=a9}{質量 $\htmlData{annotation=a1}{162}$}`), String.raw`質量 $\htmlData{annotation=a1}{162}$`);
 assert.match(katex.renderToString(annotated.slice(1,-1),{trust:c=>c.command==='\\htmlData'}),/data-annotation="a1"/);
 for(const formula of [
  String.raw`{}^{234}_{90}\mathrm{Th}\rightarrow {}^{234}_{91}\mathrm{Pa}+{}^{0}_{-1}\mathrm{e}+{}^{0}_{0}\bar{\nu}`,

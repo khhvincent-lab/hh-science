@@ -364,6 +364,8 @@ const stripAdminAnnotationCommands = stripAnnotationCommands;
 function looksLikeAdminMathExpression(text: string) {
   const value = stripAdminAnnotationCommands(normalizeAdminScienceMarkup(text || "")).trim();
   if (!value) return false;
+  // Prose containing a formula token must retain normal mobile line wrapping.
+  if (/[\u3400-\u9fff]/u.test(value)) return false;
   if (/\\[A-Za-z]+/.test(value)) return true;
   if (/[{}_^]/.test(value)) return true;
   if (/^[A-Za-z][A-Za-z0-9]*(?:_[A-Za-z0-9{}()+-]+|\^[A-Za-z0-9{}()+-]+)+$/.test(value)) return true;
@@ -7830,6 +7832,9 @@ const adminStyles = `
   }
 
   .admin-science-text {
+    min-width: 0;
+    max-width: 100%;
+    overflow-wrap: anywhere;
     color: var(--text);
     font-size: 13px;
     line-height: 1.78;
@@ -7840,6 +7845,7 @@ const adminStyles = `
   }
 
   .admin-display-formula {
+    max-width: 100%;
     overflow-x: auto;
     margin: 10px 0;
     padding: 5px 0;
