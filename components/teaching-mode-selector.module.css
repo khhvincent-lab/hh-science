@@ -15,44 +15,35 @@
   color: var(--text); font-weight: 750;
   background: color-mix(in srgb, var(--tone) 10%, var(--surface));
   border-color: color-mix(in srgb, var(--tone) 65%, var(--border));
-  box-shadow: 0 0 12px color-mix(in srgb, var(--tone) 13%, transparent);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--tone) 8%, transparent);
 }
 .option input:checked + span::before { content: "✓"; color: var(--tone); font-size: 11px; font-weight: 800; }
 .option input:focus-visible + span { outline: 2px solid var(--tone); outline-offset: 3px; }
-/* Charge, accelerate around the perimeter, then settle before fading (780ms total). */
+/* A thin LED strip stays clipped to the rounded border; no floating light or flash. */
 .orbit {
-  position: absolute; inset: 0; border-radius: inherit;
-  pointer-events: none;
+  position: absolute; inset: 0; padding: 1.5px; border-radius: inherit;
+  pointer-events: none; overflow: hidden;
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask-composite: exclude;
   animation: orbitFade 80ms ease-out 700ms both;
 }
 .orbit::before {
-  content: ""; position: absolute; left: 0; top: 0; width: 24px; height: 3px;
-  border-radius: 999px;
-  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--tone) 50%, transparent) 45%, var(--tone) 85%, color-mix(in srgb, var(--tone) 65%, white));
-  box-shadow: 0 0 5px color-mix(in srgb, var(--tone) 55%, transparent);
-  offset-path: inset(1px round 11px);
-  offset-anchor: 90% 50%;
-  offset-rotate: auto;
-  animation: orbitTravel 700ms cubic-bezier(.65, 0, .25, 1) both, orbitCharge 700ms linear both;
+  content: ""; position: absolute; width: 300%; aspect-ratio: 1;
+  left: 50%; top: 50%;
+  background: conic-gradient(from 0deg,
+    transparent 0deg 270deg,
+    color-mix(in srgb, var(--tone) 12%, transparent) 288deg,
+    color-mix(in srgb, var(--tone) 55%, transparent) 320deg,
+    var(--tone) 342deg 352deg,
+    transparent 360deg);
+  animation: orbitTurn 700ms cubic-bezier(.42, 0, .58, 1) both;
 }
-.orbit::after {
-  content: ""; position: absolute; inset: 0; border-radius: inherit;
-  border: 1px solid var(--tone);
-  box-shadow: 0 0 10px color-mix(in srgb, var(--tone) 24%, transparent);
-  animation: orbitLock 780ms ease-out both;
+@keyframes orbitTurn {
+  from { transform: translate(-50%, -50%) rotate(0deg); }
+  to { transform: translate(-50%, -50%) rotate(360deg); }
 }
-@keyframes orbitCharge {
-  0% { opacity: .5; }
-  18%, 100% { opacity: 1; }
-}
-@keyframes orbitLock {
-  0%, 65% { opacity: 0; }
-  88% { opacity: .45; }
-  100% { opacity: 0; }
-}
-@keyframes orbitTravel { from { offset-distance: 0%; } to { offset-distance: 100%; } }
-/* Older browsers retain the static selected glow without a misplaced light. */
-@supports not (offset-path: inset(1px round 11px)) { .orbit { display: none; } }
 @keyframes orbitFade { from { opacity: 1; } to { opacity: 0; } }
 @media (hover: hover) { .selector:not(:disabled) .option:hover span { border-color: var(--tone); } }
 .selector:disabled .option { cursor: default; opacity: .55; }
