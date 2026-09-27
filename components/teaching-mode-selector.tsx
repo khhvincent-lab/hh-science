@@ -56,13 +56,18 @@ export default function TeachingModeSelector({ mode, onChange, disabled, error }
   disabled?: boolean;
   error?: string;
 }) {
+  const [flash, setFlash] = useState<{ mode: StudentTeachingMode; sequence: number } | null>(null);
+  function animate(value: StudentTeachingMode) {
+    if (!disabled) setFlash(previous => ({ mode: value, sequence: (previous?.sequence ?? 0) + 1 }));
+  }
   const selected = STUDENT_TEACHING_MODES.find((item) => item.value === mode);
   return <fieldset className={styles.selector} disabled={disabled} aria-describedby="teaching-mode-description">
     <legend>解說深度</legend>
     <div className={styles.options}>
       {STUDENT_TEACHING_MODES.map((item) => <label key={item.value} className={styles.option}>
-        <input type="radio" name="teaching-mode" aria-label={item.label} value={item.value} checked={mode === item.value} onChange={() => onChange(item.value)} />
+        <input type="radio" name="teaching-mode" aria-label={item.label} value={item.value} checked={mode === item.value} onChange={() => { onChange(item.value); animate(item.value); }} onClick={() => { if (mode === item.value) animate(item.value); }} />
         <span>{item.label}</span>
+        {!disabled && mode === item.value && flash?.mode === item.value && <i key={flash.sequence} className={styles.orbit} aria-hidden="true" />}
       </label>)}
     </div>
     <p id="teaching-mode-description" aria-live="polite">{selected?.description || error || "正在讀取老師預設，也可以直接選擇。"}</p>
