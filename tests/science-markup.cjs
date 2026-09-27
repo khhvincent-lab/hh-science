@@ -25,3 +25,28 @@ for(const formula of [
  assert.doesNotThrow(()=>katex.renderToString(normalized.slice(1,-1),{throwOnError:true}));
 }
 console.log('Science markup regressions passed: commands, delimiters, nested annotations, interaction, both nuclear equations.');
+
+
+// Screenshot regression: a bare multiline Ti/O array must reach KaTeX as one block.
+const table = String.raw`\begin{array}{|c|c|c|}
+\hline
+\text{化合物} & \mathrm{Ti}\text{ 質量 (g)} & \mathrm{O}\text{ 質量 (g)} \\
+\hline
+\mathrm{TiO_2} & 1.92 & 1.28 \\
+\hline
+\text{新氧化物 }\mathrm{Ti}_x\mathrm{O}_y & 1.92 & 0.96 \\
+\hline
+\end{array}`;
+for (const environment of [table, String.raw`\begin{aligned}x&=1\\y&=2\end{aligned}`, String.raw`\begin{pmatrix}1&2\\3&4\end{pmatrix}`, String.raw`\begin{array}{c}\begin{matrix}1&2\end{matrix}\end{array}`]) {
+  const input = '前文\n' + environment + '\n後文 $n=2$';
+  const output = normalize(input);
+  assert.equal(output, '前文\n$$' + environment + '$$\n後文 $n=2$');
+  assert.equal(normalize(output), output);
+  const blocks = output.split(/(\$\$[\s\S]*?\$\$)/);
+  assert.equal(blocks.filter(b => b.startsWith('$$')).length, 1);
+  assert.doesNotThrow(() => katex.renderToString(blocks[1].slice(2,-2), {displayMode:true,throwOnError:true,strict:false}));
+  for (const delimiter of ['$', '$$']) assert.equal(normalize(delimiter + environment + delimiter), delimiter + (delimiter === '$' ? environment.replace(/\n/g,' ') : environment) + delimiter);
+}
+assert.equal(normalize(table+'\n'+table), '$$'+table+'$$\n$$'+table+'$$');
+for (const broken of [String.raw`\begin{array}{c}1`, String.raw`\begin{array}{c}1\end{matrix}`]) assert.equal(normalize(broken), broken);
+console.log('Bare math environment regressions passed: Ti/O table, nested arrays, matrices, existing delimiters, idempotence, incomplete input.');
