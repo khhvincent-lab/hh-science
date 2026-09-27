@@ -61,7 +61,7 @@ export default function TeachingModeSelector({ mode, onChange, disabled, error }
     <legend>解說深度</legend>
     <div className={styles.options}>
       {STUDENT_TEACHING_MODES.map((item) => <label key={item.value} className={styles.option}>
-        <input type="radio" name="teaching-mode" value={item.value} checked={mode === item.value} onChange={() => onChange(item.value)} />
+        <input type="radio" name="teaching-mode" aria-label={item.label} value={item.value} checked={mode === item.value} onChange={() => onChange(item.value)} />
         <span>{item.label}</span>
       </label>)}
     </div>
