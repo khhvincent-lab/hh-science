@@ -29,3 +29,6 @@
 @keyframes lab-overlay-out{0%{opacity:1}100%{opacity:0}}
 @keyframes lab-home-in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
 @media(prefers-reduced-motion:reduce){.lab-startup *,.lab-startup,.lab-startup-reveal{animation:none!important;transition:none!important}.lab-startup-enter{opacity:0}}
+
+/* Use the original full-resolution mark on high-density startup screens. */
+html[data-theme] .lab-startup .adaptive-brand-logo,html .lab-startup .adaptive-brand-logo{background-image:url("/brand-icon-original.png");background-color:#0d284b;background-size:106%;background-position:center}

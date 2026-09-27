@@ -7,7 +7,7 @@ export function useSolveJob(studentId:string|undefined,onComplete:(job:SolveJob)
  const callbacks=useRef({onComplete,onFailed});callbacks.current={onComplete,onFailed};
  const handled=useRef('');
  useEffect(()=>{let alive=true;if(!studentId){setJob(null);handled.current='';return;}
- fetch('/api/solve-jobs',{cache:'no-store'}).then(async r=>{if(!r.ok)throw Error();return r.json()}).then(d=>{if(alive)setJob(d.job||null)}).catch(()=>{if(alive)setConnectionError('暫時無法確認背景任務，請稍後重新整理。')});return()=>{alive=false;};},[studentId]);
+ fetch('/api/solve-jobs',{cache:'no-store'}).then(async r=>{if(!r.ok)throw Error();return r.json()}).then(d=>{if(alive){const restored=d.job;setJob(restored&& !['succeeded','failed'].includes(restored.status)?restored:null)}}).catch(()=>{if(alive)setConnectionError('暫時無法確認背景任務，請稍後重新整理。')});return()=>{alive=false;};},[studentId]);
  useEffect(()=>{if(!studentId||!job)return;if(['succeeded','failed'].includes(job.status)){if(handled.current!==job.id){handled.current=job.id;job.status==='succeeded'?callbacks.current.onComplete(job):callbacks.current.onFailed(job);}return;}
  let alive=true,timer:ReturnType<typeof setTimeout>;
  async function poll(){try{const r=await fetch(`/api/solve-jobs?id=${job!.id}`,{cache:'no-store'});if(!r.ok)throw Error();const d=await r.json();if(alive){if(d.job)setJob(d.job);setConnectionError('');}}catch{if(alive)setConnectionError('連線暫時中斷；背景任務仍會繼續，恢復連線後會自動更新。');}finally{if(alive)timer=setTimeout(poll,4000);}}

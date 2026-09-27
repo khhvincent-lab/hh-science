@@ -1,12 +1,14 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import AdaptiveBrandLogo from "./adaptive-brand-logo";
 import "./lab-startup.css";
 
-export default function LabStartup({ loading, authenticated, children }: {
-  loading: boolean; authenticated: boolean; name: string; englishName: string; children: ReactNode;
+export default function LabStartup({ loading, authenticated, onResume, children }: {
+  onResume?: () => void; loading: boolean; authenticated: boolean; name: string; englishName: string; children: ReactNode;
 }) {
+  const resumeCallback = useRef(onResume);
+  resumeCallback.current = onResume;
   const [cycle, setCycle] = useState(0);
   const [phase, setPhase] = useState("loading");
   const [slow, setSlow] = useState(false);
@@ -15,9 +17,9 @@ export default function LabStartup({ loading, authenticated, children }: {
     let hidden = document.visibilityState === "hidden";
     const resume = () => {
       if (document.visibilityState === "hidden") { hidden = true; return; }
-      if (hidden) { hidden = false; setPhase("loading"); setCycle(value => value + 1); }
+      if (hidden) { hidden = false; resumeCallback.current?.(); setPhase("loading"); setCycle(value => value + 1); }
     };
-    const pageshow = (event: PageTransitionEvent) => { if (event.persisted) { setPhase("loading"); setCycle(value => value + 1); } };
+    const pageshow = (event: PageTransitionEvent) => { if (event.persisted) { resumeCallback.current?.(); setPhase("loading"); setCycle(value => value + 1); } };
     document.addEventListener("visibilitychange", resume);
     window.addEventListener("pageshow", pageshow);
     return () => { document.removeEventListener("visibilitychange", resume); window.removeEventListener("pageshow", pageshow); };

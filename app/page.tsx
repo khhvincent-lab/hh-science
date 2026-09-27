@@ -2297,7 +2297,7 @@ export default function Home() {
     : 520;
 
   return (
-    <LabStartup loading={authLoading} authenticated={Boolean(student)} name={brand.name} englishName={brand.englishName}>
+    <LabStartup onResume={() => { setActiveView("solve"); setMenuOpen(false); }} loading={authLoading} authenticated={Boolean(student)} name={brand.name} englishName={brand.englishName}>
     <main data-view={activeView} className={`hh-page student-page ${tutorialOpen && tutorialPhase !== "setup" ? "student-tour-results-active" : ""} ${student && !student.mustChangePin && activeView === "solve" && !tutorialOpen ? "student-compact-ready" : ""}`}>
       <div className="student-top-glow" />
 
