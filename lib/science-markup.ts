@@ -1,6 +1,6 @@
 /** Normalize stored AI text without interpreting LaTeX commands as JSON escapes. */
 export function normalizeScienceMarkup(text: string) {
-  return String(text || "")
+  const normalized = String(text || "")
     // A literal newline escape must not consume \\nu, \\neq, \\nabla, etc.
     .replace(/\\n(?![A-Za-z])/g, "\n")
     .replace(/\\\[/g, () => "$$")
@@ -13,6 +13,33 @@ export function normalizeScienceMarkup(text: string) {
     .replace(/\*\*/g, "")
     .replace(/^---+$/gm, "")
     .trim();
+  // Preserve complete environments before paragraph renderers split into lines.
+  // Existing math delimiters stay untouched; only bare, balanced blocks are wrapped.
+  return normalized.split(/(\$\$[\s\S]*?\$\$|\$[^$]+\$)/g)
+    .map(part => part.startsWith("$") ? part : wrapBareMathEnvironments(part))
+    .join("");
+}
+
+function wrapBareMathEnvironments(text: string): string {
+  const tokens = /\\(begin|end)\{(array|aligned|alignedat|gathered|cases|matrix|pmatrix|bmatrix|Bmatrix|vmatrix|Vmatrix|smallmatrix)\}/g;
+  const stack: string[] = [];
+  let start = 0, end = 0, result = "";
+  for (let match; (match = tokens.exec(text));) {
+    if (match[1] === "begin") {
+      if (!stack.length) start = match.index;
+      stack.push(match[2]);
+    } else if (stack.length && stack[stack.length - 1] === match[2]) {
+      stack.pop();
+      if (!stack.length) {
+        result += text.slice(end, start) + "$$" + text.slice(start, tokens.lastIndex) + "$$";
+        end = tokens.lastIndex;
+      }
+    } else {
+      // Do not invent a repair for incomplete or mismatched environments.
+      stack.length = 0;
+    }
+  }
+  return result + text.slice(end);
 }
 
 /** Remove annotation wrappers from prose, preserving nested formula content. */
