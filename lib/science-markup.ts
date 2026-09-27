@@ -36,7 +36,18 @@ export function stripAnnotationCommands(text: string): string {
 }
 
 export function stripBareAnnotationCommands(text: string) {
-  return text.split(/(\$\$[\s\S]*?\$\$|\$[^$\n]+\$)/g)
-    .map(part => part.startsWith("$") && part.endsWith("$") ? part : stripAnnotationCommands(part))
-    .join("");
+  // Protect complete formulas while unwrapping prose across math boundaries.
+  // Splitting first breaks wrappers such as \\htmlData{annotation=a7}{$[H^+]$仍下降}.
+  const formulas: string[] = [];
+  let prefix = "\u0000science-math:";
+  while (text.includes(prefix)) prefix += ":";
+  const masked = text.replace(/\$\$[\s\S]*?\$\$|\$[^$\n]+\$/g, math => {
+    formulas.push(math);
+    return `${prefix}${formulas.length - 1}\u0000`;
+  });
+  let result = stripAnnotationCommands(masked);
+  formulas.forEach((math, index) => {
+    result = result.replace(`${prefix}${index}\u0000`, () => math);
+  });
+  return result;
 }
