@@ -828,7 +828,7 @@ html .adaptive-brand-logo {
   background-image:url("/brand/midnight.webp");
   background-position:center;
   background-repeat:no-repeat;
-  background-size:cover;
+  background-size:108%;
   box-shadow:0 4px 14px rgba(0,0,0,.16);
   transition:box-shadow .2s ease;
 }
