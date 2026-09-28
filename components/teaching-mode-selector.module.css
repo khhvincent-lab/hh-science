@@ -1,5 +1,8 @@
 /* One shared hue follows the active theme, including future themes. */
 .selector { --tone: var(--action); border: 0; padding: 0; margin: 12px 0 4px; min-width: 0; }
+:global(html[data-theme="racing"]) .option:nth-child(1) { --tone:#d2d8e2; }
+:global(html[data-theme="racing"]) .option:nth-child(2) { --tone:#f191a3; }
+:global(html[data-theme="racing"]) .option:nth-child(3) { --tone:#ffe34d; }
 .selector legend { color: var(--text); font-size: 13px; font-weight: 700; padding: 0; margin-bottom: 8px; }
 .options { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
 .option { position: relative; min-width: 0; cursor: pointer; border-radius: 12px; }
