@@ -7,6 +7,7 @@ import { renderScienceFormula } from "@/lib/science-render";
 import { useEffect, useRef, useState } from "react";
 import TeachingModeSelector, { useTeachingMode } from "@/components/teaching-mode-selector";
 import { isStudentTeachingMode, teachingModeLabel, type StudentTeachingMode } from "@/lib/teaching-modes";
+import { useStudentNavigation } from "@/components/use-student-navigation";
 import StudentNavIcon from "@/components/student-nav-icon";
 import { REVIEW_TITLE, splitSolutionReview } from "@/lib/solution-review";
 import SolveProgress from "@/components/solve-progress";
@@ -723,7 +724,7 @@ export default function Home() {
   const cropperRef = useRef<any>(null);
 
   const [menuOpen, setMenuOpen] = useState(false);
-  const [activeView, setActiveView] = useState<"solve" | "result" | "history">("solve");
+  const historyLoadedFor = useRef<string | null>(null);
   const [tutorialOpen, setTutorialOpen] = useState(false);
   const [tutorialStep, setTutorialStep] = useState(0);
   const [tutorialPhase, setTutorialPhase] = useState<TutorialPhase>("setup");
@@ -792,11 +793,17 @@ export default function Home() {
   const exportCardRef = useRef<HTMLDivElement | null>(null);
   const exportQuestionImageRef = useRef<HTMLImageElement | null>(null);
 
+  const { view: activeView, navigate: setActiveView, rememberPosition } = useStudentNavigation(
+    selectedHistory?.id ?? "list",
+    isSolving ? "loading" : solveData ? "complete" : questionError ? "error" : "empty",
+    student?.id ?? "",
+  );
+
   const solveTask=useSolveJob(student&&!student.mustChangePin?student.id:undefined,(job)=>{
     const data=job.result||{};
     setSolveData({teachingMode:isStudentTeachingMode(data.ai?.teachingMode)?data.ai.teachingMode:undefined,answer:data.answer||"",explanation:data.explanation||"",options:data.options||"",annotations:Array.isArray(data.annotations)?data.annotations:[],diagram:data.diagram||null,chemicalStructure:data.chemicalStructure||null,historyId:data.historyId||null});
     if(job.images?.length)setImages(job.images);
-    setPreparedShareFile(null);setExportQuestionImage("");setFollowups([]);setQuestionError("");setIsSolving(false);setActiveView("result");void loadUsage();
+    setPreparedShareFile(null);setExportQuestionImage("");setFollowups([]);setQuestionError("");setIsSolving(false);setActiveView("result", "forward");historyLoadedFor.current=null;void loadUsage();
   },(job)=>{
     const data=job.result||{};setQuestionError(data.error||"解題未能完成，請重試。");setIsSolving(false);setActiveView("result");void loadUsage();
     if(data.code==="SUBJECT_MISMATCH"){const option=allSubjectOptions.find(x=>x.value===data.detectedSubject);if(option)setSubjectSuggestion({subject:option.value,label:option.label});}
@@ -1164,7 +1171,7 @@ export default function Home() {
   }, [tutorialOpen, activeTutorialStepIndex, activeView, solveData, tutorialSequence.length]);
 
   useEffect(() => {
-    if (student && activeView === "history") {
+    if (student && activeView === "history" && historyLoadedFor.current !== student.id) {
       void loadHistory();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1457,6 +1464,7 @@ export default function Home() {
     setPinChangeError("");
     setMenuOpen(false);
     setActiveView("solve");
+    historyLoadedFor.current = null;
     setHistoryItems([]);
     setSelectedHistory(null);
     setHistoryError("");
@@ -1523,6 +1531,7 @@ export default function Home() {
         throw new Error(data.error || "讀取解題紀錄失敗。");
       }
 
+      historyLoadedFor.current = student.id;
       const nextItems = Array.isArray(data.items) ? data.items : [];
       setHistoryItems(current => append ? [...current,...nextItems.filter((item:SolveHistoryItem)=>!current.some(old=>old.id===item.id))] : nextItems);
       setHistoryPage(requestedPage);
@@ -1823,7 +1832,7 @@ export default function Home() {
     setExportQuestionImage("");
   }
 
-  function clearQuestion() {
+  function clearQuestion(motion: "tabs" | "back" = "back") {
     setSubjectSuggestion(null);
     setImages([]);
     setEditQueue([]);
@@ -1835,7 +1844,7 @@ export default function Home() {
     setQuestionNote("");
     setQuestionError("");
     setSolveData(null);
-    setActiveView("solve");
+    setActiveView("solve", motion);
     setSelectedAnnotation(null);
     setFollowupQuestion("");
     setFollowups([]);
@@ -1847,7 +1856,7 @@ export default function Home() {
     else setSubject("");
   }
 
-  async function returnToSolveHome() {
+  async function returnToSolveHome(fromTab = false) {
     // Preserve unfinished/failed drafts; completed work is already in history.
     if (solveData && !isSolving && !solveTask.running) {
       try {
@@ -1856,13 +1865,12 @@ export default function Home() {
         setQuestionError("暫時無法結束上一題，請再按一次返回首頁。");
         return;
       }
-      clearQuestion();
+      clearQuestion(fromTab ? "tabs" : "back");
       setTeacherHelpQuestion("");
       setLineShareNotice("");
     }
-    setActiveView("solve");
+    setActiveView("solve", fromTab ? "tabs" : "back");
     setMenuOpen(false);
-    window.scrollTo({top:0,behavior:"smooth"});
   }
 
   async function handleRetryQuestion() {
@@ -1882,7 +1890,7 @@ export default function Home() {
       setFollowups([]);
       setFollowupQuestion("");
       setFollowupError("");
-      setActiveView("result");
+      setActiveView("result", "forward");
       await solveTask.retry();
     } catch (error) {
       setQuestionError(error instanceof Error ? error.message : "暫時無法重試，請稍後再試。");
@@ -1905,8 +1913,8 @@ export default function Home() {
     if (!subject) return setQuestionError("請先選擇科目。");
     if (!teachingDepth.mode) return setQuestionError("請先選擇解說深度。");
 
-    setActiveView("result");
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    setActiveView("result", "forward");
+
     setIsSolving(true);
     setPreparedShareFile(null);
     setExportQuestionImage("");
@@ -2455,7 +2463,7 @@ export default function Home() {
                 <div className="v206-quota-bottomline">每日額度 {usage.limit} 題</div>
               </div>
             </div>
-            
+
           </section> : null
         ) : (
           <section className="hh-card student-login-card">
@@ -2904,7 +2912,7 @@ export default function Home() {
               <button type="button" data-tour="solve-button" onClick={handleStartSolve} disabled={isSolving || limitReached || !teachingDepth.mode} className={`hh-button-primary student-solve-button ${firstActionNudge && images.length > 0 ? "student-first-action-pulse" : ""}`}>
                 {limitReached ? "今日額度已使用完畢" : isSolving ? "分析題目中…" : "開始解題"}
               </button>
-              <button type="button" onClick={clearQuestion} className="hh-button-secondary">清除目前題目</button>
+              <button type="button" onClick={() => clearQuestion()} className="hh-button-secondary">清除目前題目</button>
             </div>
           </section>
         </div>}
@@ -2928,7 +2936,7 @@ export default function Home() {
                     setQuestionError("");
                     setSubjectSuggestion(null);
                     setActiveView("solve");
-                    window.scrollTo({ top: 0, behavior: "smooth" });
+
                   } else {
                     setQuestionError(`本班尚未開放${subjectSuggestion.label}，請聯繫老師。`);
                     setSubjectSuggestion(null);
@@ -2937,7 +2945,7 @@ export default function Home() {
                 <button type="button" className="hh-button-secondary" onClick={() => {
                   setSubjectSuggestion(null);
                   setActiveView("solve");
-                  window.scrollTo({ top: 0, behavior: "smooth" });
+
                 }}>返回檢查題目</button>
               </div>
             )}
@@ -2945,7 +2953,7 @@ export default function Home() {
           {questionError && !solveData && !isSolving && (
             <div className="student-two-actions" style={{ marginTop: 16 }}>
               <button type="button" className="hh-button-primary" onClick={() => void handleRetryQuestion()}>重試原題</button>
-              <button type="button" className="hh-button-secondary" onClick={() => { setActiveView("solve"); window.scrollTo({ top: 0, behavior: "smooth" }); }}>回到解題主頁</button>
+              <button type="button" className="hh-button-secondary" onClick={() => { setActiveView("solve", "back"); }}>回到解題主頁</button>
             </div>
           )}
           {!solveData && !isSolving && !questionError && (
@@ -3233,7 +3241,7 @@ export default function Home() {
                 <button
                   type="button"
                   className="student-history-back"
-                  onClick={() => setSelectedHistory(null)}
+                  onClick={() => { rememberPosition(); setSelectedHistory(null); }}
                 >
                   ← 返回解題紀錄
                 </button>
@@ -3376,7 +3384,7 @@ export default function Home() {
                         <button
                           type="button"
                           className="student-history-item-main"
-                          onClick={() => setSelectedHistory(item)}
+                          onClick={() => { rememberPosition(); setSelectedHistory(item); }}
                         >
                           <div className="student-history-thumb">
                             {item.imagePaths[0]?.url ? (
@@ -3441,9 +3449,9 @@ export default function Home() {
 
         {activeView === "history" && !selectedHistory && historyHasMore && <button type="button" className="hh-button-secondary" disabled={historyLoading} onClick={()=>void loadHistory(true)}>{historyLoading ? "載入中…" : "載入更多紀錄"}</button>}
         {student && !student.mustChangePin && <nav className="v2-student-bottom-nav" aria-label="學生頁面導覽">
-          <button type="button" aria-current={activeView==="solve"?"page":undefined} onClick={() => void returnToSolveHome()}><StudentNavIcon kind="home" />首頁</button>
-          <button type="button" aria-current={activeView==="result"?"page":undefined} disabled={!solveData&&!isSolving&&!questionError&&!solveTask.job} onClick={()=>{setActiveView("result");window.scrollTo({top:0,behavior:"smooth"});}}><StudentNavIcon kind="analysis" />解析</button>
-          <button type="button" aria-current={activeView==="history"?"page":undefined} onClick={()=>{setActiveView("history");window.scrollTo({top:0,behavior:"smooth"});}}><StudentNavIcon kind="history" />紀錄</button>
+          <button type="button" aria-current={activeView==="solve"?"page":undefined} onClick={() => void returnToSolveHome(true)}><StudentNavIcon kind="home" />首頁</button>
+          <button type="button" aria-current={activeView==="result"?"page":undefined} disabled={!solveData&&!isSolving&&!questionError&&!solveTask.job} onClick={()=>{setActiveView("result");}}><StudentNavIcon kind="analysis" />解析</button>
+          <button type="button" aria-current={activeView==="history"?"page":undefined} onClick={()=>{setActiveView("history");}}><StudentNavIcon kind="history" />紀錄</button>
         </nav>}
         <footer className="student-footer">
           <div className="hh-eyebrow">{brand.englishName}</div>
@@ -4247,7 +4255,7 @@ export default function Home() {
           font-weight: 600;
         }
 
-      
+
         /* Source Han Serif / 思源宋體 title system */
         .student-page .hh-display,
         .student-loading-page .hh-display,
@@ -6425,7 +6433,7 @@ export default function Home() {
             line-height: 1.4;
           }
 
-  
+
         .student-guided-tour-mini-tip {
           margin-top: 7px;
           padding: 6px 8px;

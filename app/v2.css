@@ -1109,3 +1109,11 @@ html[data-theme]{--student-canvas:radial-gradient(ellipse 75% 310px at 72% 0%,va
  html[data-theme] .student-page{background:var(--bg)!important}
  html[data-theme] .student-page .student-top-glow{inset:0;height:auto;background:var(--student-canvas);background-size:100vw 100dvh}
 }
+
+/* Keep navigation chrome still while the existing content gently changes views. */
+.v2-student-bottom-nav button {
+  transition: color 180ms ease, background-color 180ms ease, border-color 180ms ease;
+}
+@media (prefers-reduced-motion: reduce) {
+  .v2-student-bottom-nav button { transition: none; }
+}
