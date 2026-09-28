@@ -3,6 +3,7 @@
 import { normalizeScienceMarkup as normalizeAdminScienceMarkup, stripAnnotationCommands, stripBareAnnotationCommands } from "@/lib/science-markup";
 import { renderScienceFormula } from "@/lib/science-render";
 
+import LanguageEvents from "@/components/admin/language-events";
 import ChemistryAnalytics from "@/components/admin/chemistry-analytics";
 import ModelComparison, {AddComparisonButton} from "@/components/admin/model-comparison";
 import {useUrlState} from "@/components/admin/use-url-state";
@@ -54,7 +55,7 @@ async function adminTeachingFilesToDataUrls(files: FileList | null) {
   })));
 }
 
-type AdminSection = "chemistryAnalytics" | "comparison" | "dashboard" | "siteQuestions" | "usage" | "classes" | "students" | "ai" | "pin" | "analytics" | "cost" | "platform" | "teachingOverview" | "teachingQuestions" | "teachingExamples" | "teachingRuleLibrary" | "teachingCoach" | "teachingTraining" | "teachingImages" | "teachingSettings" | "teachingQueue" | "teachingRules";
+type AdminSection = "languageEvents" | "chemistryAnalytics" | "comparison" | "dashboard" | "siteQuestions" | "usage" | "classes" | "students" | "ai" | "pin" | "analytics" | "cost" | "platform" | "teachingOverview" | "teachingQuestions" | "teachingExamples" | "teachingRuleLibrary" | "teachingCoach" | "teachingTraining" | "teachingImages" | "teachingSettings" | "teachingQueue" | "teachingRules";
 
 type DashboardData = {
   today: {
@@ -458,7 +459,7 @@ export default function AdminPage() {
   const [loginLoading, setLoginLoading] = useState(false);
 
   const [chemistryRevision,setChemistryRevision] = useState(0);
-  const [activeSection, setActiveSection] = useUrlState<AdminSection>("section","dashboard",["comparison","dashboard","siteQuestions","chemistryAnalytics","usage","students","classes","pin","ai","analytics","cost","teachingOverview","teachingQuestions","teachingExamples","teachingRuleLibrary","teachingCoach","teachingTraining","teachingImages","teachingSettings","platform"],true);
+  const [activeSection, setActiveSection] = useUrlState<AdminSection>("section","dashboard",["languageEvents","comparison","dashboard","siteQuestions","chemistryAnalytics","usage","students","classes","pin","ai","analytics","cost","teachingOverview","teachingQuestions","teachingExamples","teachingRuleLibrary","teachingCoach","teachingTraining","teachingImages","teachingSettings","platform"],true);
   const [siteQuestionInitialFocus, setSiteQuestionInitialFocus] = useState<"all" | "pending">("all");
   const [calibrationTargetId, setCalibrationTargetId] = useUrlState<string>("calibration","");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -1169,9 +1170,10 @@ export default function AdminPage() {
             icon="03"
             label="班務管理"
             open={openNavGroup === "classes"}
-            active={["usage","students","classes","pin","chemistryAnalytics"].includes(activeSection)}
+            active={["usage","students","classes","pin","chemistryAnalytics","languageEvents"].includes(activeSection)}
             onToggle={() => setOpenNavGroup((current) => current === "classes" ? null : "classes")}
             items={[
+              { label: "用語提醒", active: activeSection === "languageEvents", onClick: () => { setActiveSection("languageEvents"); setMobileMenuOpen(false); } },
               { label: "專欄成效", active: activeSection === "chemistryAnalytics", onClick: () => { setActiveSection("chemistryAnalytics"); setMobileMenuOpen(false); } },
               { label: "使用狀況", active: activeSection === "usage", onClick: () => { setActiveSection("usage"); setMobileMenuOpen(false); } },
               { label: "學生管理", active: activeSection === "students" || activeSection === "pin", onClick: () => { setActiveSection("students"); setMobileMenuOpen(false); } },
@@ -1276,6 +1278,7 @@ export default function AdminPage() {
             <SiteQuestionsSection initialFocus={siteQuestionInitialFocus} canReview={adminUser?.role === "super_admin"} onCalibrate={(historyId) => { setCalibrationTargetId(historyId); setActiveSection("teachingQuestions"); setOpenNavGroup("teaching"); }} />
           )}
 
+          {activeSection === "languageEvents" && <LanguageEvents key={scopeTeacher?.id || "all"}/>}
           {activeSection === "chemistryAnalytics" && <ChemistryAnalytics key={`${scopeTeacher?.id || "all"}-${chemistryRevision}`}/>}
 
           {activeSection === "usage" && (
@@ -4946,13 +4949,14 @@ function QuickAction({
 
 function sectionEyebrow(section: AdminSection) {
   if (section === "siteQuestions") return "ALL QUESTIONS";
-  if (["chemistryAnalytics","usage","classes","students","pin"].includes(section)) return "CLASS OPERATIONS";
+  if (["languageEvents","chemistryAnalytics","usage","classes","students","pin"].includes(section)) return "CLASS OPERATIONS";
   if (["ai","analytics","cost","comparison"].includes(section)) return "AI MODEL CENTER";
   if (["teachingOverview","teachingQuestions","teachingExamples","teachingRuleLibrary","teachingCoach","teachingTraining","teachingImages","teachingSettings"].includes(section)) return "TEACHING ENGINE";
   return "OVERVIEW";
 }
 
 function sectionTitle(section: AdminSection) {
+  if (section === "languageEvents") return "用語提醒";
   if (section === "siteQuestions") return "全站題目";
   if (section === "chemistryAnalytics") return "專欄成效";
   if (section === "usage") return "使用狀況";

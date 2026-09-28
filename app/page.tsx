@@ -788,6 +788,54 @@ export default function Home() {
   const [followups, setFollowups] = useState<FollowupMessage[]>([]);
   const [followupLoading, setFollowupLoading] = useState(false);
   const [followupError, setFollowupError] = useState("");
+  const [followupLimit, setFollowupLimit] = useState(3);
+  const [followupEnabled, setFollowupEnabled] = useState(true);
+  const [languageWarningVisible, setLanguageWarningVisible] = useState(false);
+  const [followupBlockedUntil, setFollowupBlockedUntil] = useState<string | null>(null);
+  const [followupClock, setFollowupClock] = useState(0);
+  const followupSubmitting = useRef(false);
+  const followupRequest = useRef<{ question: string; historyId: string; id: string } | null>(null);
+  const followupPauseSeconds = Math.max(0, Math.ceil(((followupBlockedUntil ? Date.parse(followupBlockedUntil) : 0) - followupClock) / 1000));
+
+  useEffect(() => {
+    const historyId = solveData?.historyId;
+    setLanguageWarningVisible(false); setFollowupError('');
+    if (!historyId) return;
+    const controller = new AbortController();
+    async function refreshFollowupState() {
+      try {
+        const response = await fetch(`/api/followup?historyId=${encodeURIComponent(historyId!)}`, { cache: 'no-store', signal: controller.signal });
+        const data = await response.json();
+        if (!response.ok || controller.signal.aborted) return;
+        setFollowupLimit(data.maxPerQuestion); setFollowupEnabled(data.enabled);
+        setFollowups(data.followups); setFollowupClock(Date.now());
+        setFollowupBlockedUntil(data.moderation?.blockedUntil || null);
+      } catch { /* POST still enforces the server state if a refresh fails. */ }
+    }
+    void refreshFollowupState();
+    const onFocus = () => { if (!followupSubmitting.current) void refreshFollowupState(); };
+    window.addEventListener('focus', onFocus);
+    return () => { controller.abort(); window.removeEventListener('focus', onFocus); };
+  }, [solveData?.historyId]);
+
+  useEffect(() => {
+    if (!followupBlockedUntil) return;
+    setFollowupClock(Date.now());
+    const timer = window.setInterval(() => {
+      setFollowupClock(Date.now());
+      if (Date.now() >= Date.parse(followupBlockedUntil)) window.clearInterval(timer);
+    }, 1000);
+    const controller = new AbortController();
+    const refresh = window.setInterval(async () => {
+      if (!solveData?.historyId || followupSubmitting.current) return;
+      try {
+        const response = await fetch(`/api/followup?historyId=${encodeURIComponent(solveData.historyId)}`, { cache: 'no-store', signal: controller.signal });
+        const data = await response.json();
+        if (response.ok && !controller.signal.aborted) setFollowupBlockedUntil(data.moderation?.blockedUntil || null);
+      } catch { /* A later refresh can recover; server remains authoritative. */ }
+    }, 15000);
+    return () => { controller.abort(); window.clearInterval(timer); window.clearInterval(refresh); };
+  }, [followupBlockedUntil, solveData?.historyId]);
 
   const [isSaving, setIsSaving] = useState(false);
   const [isPreparingLine, setIsPreparingLine] = useState(false);
@@ -1994,8 +2042,9 @@ export default function Home() {
     return subjectsForStudent(student);
   })();
 
-  async function handleFollowupSubmit() {
-    const question = followupQuestion.trim();
+  async function handleFollowupSubmit(recheckImage = false) {
+    if (followupSubmitting.current || followupPauseSeconds > 0) return;
+    const question = recheckImage ? "請重新檢查原題圖片，逐一確認圖中代號、箭頭與選項，再核對剛才的解答；若有錯誤請清楚修正。" : followupQuestion.trim();
 
     if (!solveData?.historyId) {
       setFollowupError("這筆解題尚未建立追問紀錄，請重新解題後再追問。");
@@ -2007,8 +2056,13 @@ export default function Home() {
       return;
     }
 
+    followupSubmitting.current = true;
     setFollowupLoading(true);
     setFollowupError("");
+    setLanguageWarningVisible(false);
+    if (followupRequest.current?.question !== question || followupRequest.current?.historyId !== solveData.historyId) {
+      followupRequest.current = { question, historyId: solveData.historyId, id: crypto.randomUUID() };
+    }
 
     try {
       const response = await fetch("/api/followup", {
@@ -2019,12 +2073,20 @@ export default function Home() {
         body: JSON.stringify({
           historyId: solveData.historyId,
           question,
+          recheckImage,
+          requestId: followupRequest.current.id,
         }),
       });
 
       const data = await response.json();
 
+      followupRequest.current = null;
+      if (data.moderation) {
+        setFollowupClock(Date.now());
+        setFollowupBlockedUntil(data.moderation.blockedUntil || null);
+      }
       if (!response.ok) {
+        setLanguageWarningVisible(data.code === 'LANGUAGE_WARNING');
         throw new Error(data.error || "追問失敗。");
       }
 
@@ -2039,7 +2101,7 @@ export default function Home() {
         },
       ]);
 
-      setFollowupQuestion("");
+      if (!recheckImage) setFollowupQuestion("");
     } catch (error) {
       setFollowupError(
         error instanceof Error
@@ -2047,6 +2109,7 @@ export default function Home() {
           : "追問發生錯誤。",
       );
     } finally {
+      followupSubmitting.current = false;
       setFollowupLoading(false);
     }
   }
@@ -3021,7 +3084,7 @@ export default function Home() {
                   </div>
 
                   <div className="student-followup-count">
-                    {followups.length} / 3
+                    {followups.length} / {followupLimit}
                   </div>
                 </div>
 
@@ -3048,21 +3111,31 @@ export default function Home() {
                 )}
 
                 {followupError && (
-                  <div className="student-alert student-alert-danger">
+                  <div className="student-alert student-alert-danger" role="alert">
+                    <strong>{languageWarningVisible ? '用語提醒' : '追問提示'}</strong><br/>
                     {followupError}
+                    {languageWarningVisible && <p>如果你認為解答有誤，可以說：「這裡可能看錯了，請重新確認圖片。」</p>}
                   </div>
                 )}
 
+                {followupPauseSeconds > 0 && <p role="status" aria-live="off">追問暫停中 · 剩餘 {Math.floor(followupPauseSeconds / 60)} 分 {followupPauseSeconds % 60} 秒。詳解與紀錄仍可閱讀。</p>}
+                {!followupEnabled && <p>目前追問功能尚未開啟。</p>}
+                <div style={{ marginBottom: 12 }}>
+                  <button type="button" className="hh-button-secondary" disabled={followupLoading || !followupEnabled || followupPauseSeconds > 0 || followups.length >= followupLimit || !solveData.historyId} onClick={() => void handleFollowupSubmit(true)}>重新檢查原圖</button>
+                  <small style={{ display: 'block', marginTop: 6, color: 'var(--text-secondary)' }}>會使用 1 次追問；圖片讀取失敗不扣次數。</small>
+                </div>
                 <div className="student-followup-input-row">
                   <textarea
                     className="hh-textarea"
                     rows={2}
                     value={followupQuestion}
-                    disabled={followupLoading || followups.length >= 3}
+                    aria-label="追問內容"
+                    maxLength={1200}
+                    disabled={followupLoading || !followupEnabled || followups.length >= followupLimit}
                     onChange={(event) => setFollowupQuestion(event.target.value)}
                     placeholder={
-                      followups.length >= 3
-                        ? "這題已達 3 次追問上限"
+                      followups.length >= followupLimit
+                        ? `這題已達 ${followupLimit} 次追問上限`
                         : "例如：為什麼這裡不能直接用理想氣體方程式？"
                     }
                   />
@@ -3071,8 +3144,8 @@ export default function Home() {
                     type="button"
                     className="hh-button-primary"
                     disabled={
-                      followupLoading ||
-                      followups.length >= 3 ||
+                      followupLoading || !followupEnabled || followupPauseSeconds > 0 ||
+                      followups.length >= followupLimit ||
                       !followupQuestion.trim() ||
                       !solveData.historyId
                     }
