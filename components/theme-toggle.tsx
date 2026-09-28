@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 
+import { usePanelPresence } from "./use-panel-presence";
+
 type Theme = "midnight" | "nordic" | "aurora" | "gold" | "obsidian" | "racing";
 
 type ThemeOption = {
@@ -41,6 +43,7 @@ export default function ThemeToggle() {
   const [theme, setTheme] = useState<Theme>("midnight");
   const [ready, setReady] = useState(false);
   const [open, setOpen] = useState(false);
+  const present = usePanelPresence(open);
   const rootRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -100,8 +103,8 @@ export default function ThemeToggle() {
         />
       </button>
 
-      {ready && open && (
-        <div className="hh-theme-menu" role="menu" aria-label="介面主題">
+      {ready && present && (
+        <div className="hh-theme-menu" data-state={open ? "open" : "closed"} inert={!open} aria-hidden={!open} role="menu" aria-label="介面主題">
           <div className="hh-theme-menu-title">解題實驗室 2.0.5 · 外觀主題</div>
 
           {THEMES.map((item) => (

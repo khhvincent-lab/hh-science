@@ -1159,3 +1159,24 @@ html[data-theme] .student-page .student-container { max-width:960px!important; }
 @media(prefers-reduced-motion:reduce) {
   .v2-student-bottom-nav button { transition:none; }
 }
+
+/* Popup motion keeps the original placement and dimensions. */
+.student-menu-panel, .hh-theme-menu { transform-origin:top right; }
+.student-menu-panel[data-state="open"], .hh-theme-menu[data-state="open"] { animation:lab-panel-in 320ms cubic-bezier(.22,.75,.22,1) both; }
+.student-menu-panel[data-state="closed"], .hh-theme-menu[data-state="closed"] { animation:lab-panel-out 240ms ease-in both;pointer-events:none; }
+.student-menu-backdrop[data-state="open"] { animation:lab-backdrop-in 240ms ease both; }
+.student-menu-backdrop[data-state="closed"] { animation:lab-backdrop-out 240ms ease both;pointer-events:none; }
+@keyframes lab-panel-in { from {opacity:0;transform:translateY(-10px) scale(.97)} to {opacity:1;transform:translateY(0) scale(1)} }
+@keyframes lab-panel-out { from {opacity:1;transform:translateY(0) scale(1)} to {opacity:0;transform:translateY(-8px) scale(.98)} }
+@keyframes lab-backdrop-in { from {opacity:0} to {opacity:1} }
+@keyframes lab-backdrop-out { from {opacity:1} to {opacity:0} }
+.solve-progress-fold, .solve-result-unfold { display:grid;grid-template-rows:1fr;opacity:1;transition:grid-template-rows 500ms cubic-bezier(.22,.75,.22,1),opacity 500ms ease; }
+.solve-fold-inner { min-height:0;overflow:hidden; }
+.solve-progress-fold[data-open="false"], .solve-result-unfold[data-open="false"] { grid-template-rows:0fr;opacity:0; }
+.solve-result-unfold[data-open="true"] > .solve-fold-inner { animation:lab-result-in 500ms cubic-bezier(.22,.75,.22,1) both; }
+.solve-presentation[data-phase="ready"] .solve-fold-inner { overflow:visible; }
+@keyframes lab-result-in { from {opacity:0;transform:translateY(18px)} to {opacity:1;transform:translateY(0)} }
+@media(prefers-reduced-motion:reduce) {
+  .student-menu-panel[data-state], .hh-theme-menu[data-state], .student-menu-backdrop[data-state], .solve-result-unfold[data-open] > .solve-fold-inner { animation:none; }
+  .solve-progress-fold, .solve-result-unfold { transition:none; }
+}

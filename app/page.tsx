@@ -10,6 +10,8 @@ import { isStudentTeachingMode, teachingModeLabel, type StudentTeachingMode } fr
 import { useStudentNavigation } from "@/components/use-student-navigation";
 import StudentNavIcon from "@/components/student-nav-icon";
 import { REVIEW_TITLE, splitSolutionReview } from "@/lib/solution-review";
+import SolvePresentation from "@/components/solve-presentation";
+import { usePanelPresence } from "@/components/use-panel-presence";
 import SolveProgress from "@/components/solve-progress";
 import {useSolveJob} from "@/components/use-solve-job";
 import { Cropper } from "react-cropper";
@@ -724,6 +726,13 @@ export default function Home() {
   const cropperRef = useRef<any>(null);
 
   const [menuOpen, setMenuOpen] = useState(false);
+  const menuPresent = usePanelPresence(menuOpen);
+  useEffect(() => {
+    if (!menuOpen) return;
+    const close = (event: KeyboardEvent) => { if (event.key === "Escape") setMenuOpen(false); };
+    document.addEventListener("keydown", close);
+    return () => document.removeEventListener("keydown", close);
+  }, [menuOpen]);
   const historyLoadedFor = useRef<string | null>(null);
   const [tutorialOpen, setTutorialOpen] = useState(false);
   const [tutorialStep, setTutorialStep] = useState(0);
@@ -2329,16 +2338,17 @@ export default function Home() {
             </button>
           </div>
 
-          {menuOpen && (
+          {menuPresent && (
             <>
               <button
                 type="button"
                 className="student-menu-backdrop"
+                data-state={menuOpen ? "open" : "closed"} inert={!menuOpen} aria-hidden={!menuOpen}
                 aria-label="關閉選單"
                 onClick={() => setMenuOpen(false)}
               />
 
-              <div className="student-menu-panel" data-tour="menu-panel">
+              <div className="student-menu-panel" data-state={menuOpen ? "open" : "closed"} inert={!menuOpen} aria-hidden={!menuOpen} data-tour="menu-panel">
                 <button
                   type="button"
                   className={activeView === "solve" ? "active" : ""}
@@ -2954,9 +2964,8 @@ export default function Home() {
             </div>
           )}
 
-          {(isSolving || solveData) && (
-            <SolveProgress accepted={solveTask.running} completed={!isSolving && Boolean(solveData)} createdAt={solveTask.running ? solveTask.job?.createdAt : undefined} connectionError={solveTask.connectionError} />
-          )}
+          <SolvePresentation working={isSolving} completed={Boolean(solveData) && !isSolving}
+            progress={<SolveProgress accepted={solveTask.running} completed={!isSolving && Boolean(solveData)} createdAt={solveTask.running ? solveTask.job?.createdAt : undefined} connectionError={solveTask.connectionError} />}>
 
           {solveData && !isSolving && (
             <div className="student-result-stack">
@@ -3099,6 +3108,7 @@ export default function Home() {
               </div>}
             </div>
           )}
+          </SolvePresentation>
         </section>}
 
           </>

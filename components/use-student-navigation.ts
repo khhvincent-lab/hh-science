@@ -122,6 +122,8 @@ export function useStudentNavigation(detailKey: string, resultStage: string, own
       animations.current.forEach(animation => animation.cancel());
       animations.current = [];
     }
+    // The progress/result shell owns its sequential collapse and reveal.
+    if (!changedPage && view === "result") return;
     const selector = selectors[view];
     document.querySelector("main.student-page:not(.student-motion-outgoing)")?.querySelectorAll<HTMLElement>(selector).forEach(element => {
       animations.current.push(element.animate([

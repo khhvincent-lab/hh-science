@@ -9,25 +9,12 @@ export default function SolveProgress({ accepted, completed, createdAt, connecti
   connectionError: string;
 }) {
   const [progress, setProgress] = useState(0);
-  const [finishing, setFinishing] = useState(false);
   const started = useRef(0);
-  const wasWorking = useRef(false);
 
   useEffect(() => {
-    if (completed) {
-      if (!wasWorking.current) return;
-      wasWorking.current = false;
-      started.current = 0;
-      setProgress(100);
-      setFinishing(true);
-      const timer = window.setTimeout(() => setFinishing(false), 1100);
-      return () => window.clearTimeout(timer);
-    }
-    wasWorking.current = true;
-    setFinishing(false);
+    if (completed) { started.current = 0; return; }
     if (!started.current) {
       started.current = Date.now();
-      setProgress(0);
     }
     // This is an estimated reading indicator, not a measured work percentage.
     // Recover from the server timestamp and never reach 100 before success.
@@ -42,15 +29,14 @@ export default function SolveProgress({ accepted, completed, createdAt, connecti
         : 9 * (1 - Math.exp(-seconds / 5));
       setProgress(previous => Math.max(previous, Math.min(99, estimate)));
     }
-    tick();
+    const firstTick = window.setTimeout(tick, 0);
     const timer = window.setInterval(tick, 250);
-    return () => window.clearInterval(timer);
+    return () => { window.clearTimeout(firstTick); window.clearInterval(timer); };
   }, [accepted, completed, createdAt]);
 
-  if (completed && !finishing) return null;
   const percentage = completed ? 100 : Math.floor(progress);
-  return <div className={`solve-progress-card ${completed ? "solve-progress-complete" : "student-solving-card-v11"}`}>
-    {!completed && <div className="student-solving-ring" aria-hidden="true"><span /></div>}
+  return <div className="solve-progress-card student-solving-card-v11" data-completed={completed}>
+    <div className="student-solving-ring" aria-hidden="true" style={completed ? { visibility: "hidden" } : undefined}><span /></div>
     <p className="solve-progress-title" role="status">{completed ? "解析已完成" : accepted ? "已送出題目，分析題目中" : "正在送出題目，請保持頁面開啟"}</p>
     <div className="solve-progress-meter">
       <div className="solve-progress-caption"><span>{completed ? "解題完成" : "解題進度"}</span><span>{percentage}%</span></div>
@@ -58,9 +44,9 @@ export default function SolveProgress({ accepted, completed, createdAt, connecti
         <span className="solve-progress-fill" style={{ transform: `scaleX(${completed ? 1 : progress / 100})` }} />
       </div>
     </div>
-    {!completed && <>
-      <p className="solve-progress-help">{accepted ? <>任務已建立，可以離開頁面。<br />回來後會自動恢復進度。</> : "圖片送出並取得任務編號後，就可以離開頁面。"}</p>
+    <div style={completed ? { visibility: "hidden" } : undefined}>
+      <p className="solve-progress-help">{accepted || completed ? <>任務已建立，可以離開頁面。<br />回來後會自動恢復進度。</> : "圖片送出並取得任務編號後，就可以離開頁面。"}</p>
       {connectionError && <p role="status" className="solve-progress-help">{connectionError}</p>}
-    </>}
+    </div>
   </div>;
 }
