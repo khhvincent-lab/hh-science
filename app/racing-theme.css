@@ -18,11 +18,36 @@ html[data-theme] .hh-theme-swatch-racing,
 html[data-theme] .hh-theme-orb.hh-theme-swatch-racing {
   background:linear-gradient(135deg,#101114 0 42%,#a91529 42% 86%,#ffe34d 86%);
 }
-/* Reuse the existing high-resolution mark with a theme-local crimson tint. */
+/* Dedicated full-bleed artwork: no color filter or baked white corners. */
 html[data-theme="racing"] .adaptive-brand-logo {
-  background-color:#35151e;background-image:url("/brand/obsidian-hd.webp");
-  filter:sepia(.7) saturate(2.8) hue-rotate(295deg);
+  background-color:#101114;background-image:url("/brand/racing-hd.webp");
+  background-size:100%;filter:none;
 }
+/* Startup retains the shared timing/accessibility flow and fixed brand title. */
+html[data-theme="racing"] .lab-startup {
+  --primary:#cf3850;
+  background:radial-gradient(ellipse at 50% 43%,#35101c 0%,#171015 42%,#101114 75%);
+}
+html[data-theme="racing"] .lab-startup-grid {opacity:.45;}
+html[data-theme="racing"] .lab-startup-ring {border-color:#812b40;}
+html[data-theme="racing"] .lab-startup-orbit {
+  border-top-color:#cf3850;border-right-color:#7b263b;
+  filter:drop-shadow(0 0 3px #a9152970);
+}
+html[data-theme="racing"] .lab-startup-outer {
+  border-top-color:#ffe34d;border-right-color:transparent;opacity:.65;
+  filter:drop-shadow(0 0 2px #ffe34d40);
+}
+html[data-theme="racing"] .lab-startup-particle {background:#e4556d;box-shadow:0 0 5px #a91529;}
+html[data-theme="racing"] .lab-startup-particle-1 {background:#ffe34d;box-shadow:0 0 4px #ffe34d50;}
+html[data-theme="racing"] .lab-startup-ready .lab-startup-orbit {
+  border-color:#cf3850;box-shadow:0 0 18px #a9152940;
+}
+html[data-theme="racing"] .lab-startup-ready .lab-startup-outer {
+  border-color:transparent;border-top-color:#ffe34d;box-shadow:none;
+}
+html[data-theme="racing"] .lab-startup-ready .lab-startup-status {color:#ffe88c;}
+html[data-theme="racing"] .lab-startup-enter .lab-startup-ring {border-color:#e4556d;}
 html[data-theme="racing"] .student-page .student-result-card,
 html[data-theme="racing"] .student-page .solution-step {
   background:linear-gradient(145deg,#35151e,#26151c)!important;
