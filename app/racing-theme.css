@@ -1,22 +1,22 @@
-/* Sixth, opt-in theme. Dark crimson surfaces; yellow is reserved for emphasis.
+/* Sixth, opt-in theme. Black-led surfaces with crimson controls; yellow is reserved for emphasis.
    Keep bright foreground tokens separate from deep-red button fills. */
 html[data-theme="racing"] {
   color-scheme:dark;
-  --bg:#101114;--bg-soft:#1b1118;--surface:#29151d;--surface-soft:#35151e;--surface-muted:#421d29;
+  --bg:#0c0d0f;--bg-soft:#111214;--surface:#191a1e;--surface-soft:#202126;--surface-muted:#292b31;
   --primary:#ffabb5;--primary-hover:#ffd3d9;--primary-soft:#481e2b;
   --action:#a91529;--action-hover:#be2337;--action-text:#fff7f8;--action-soft:#421722;
-  --secondary:#d5a7b1;--secondary-soft:#38202a;
-  --text:#f4f4f5;--text-secondary:#d6bec6;--text-muted:#bfa3ad;
-  --border:#633040;--border-strong:#b26b7e;--accent:#ffe34d;--accent-soft:#39301c;
+  --secondary:#bfc1c9;--secondary-soft:#27282e;
+  --text:#f4f4f5;--text-secondary:#c6c7ce;--text-muted:#a8aab5;
+  --border:#37383f;--border-strong:#777985;--accent:#ffe34d;--accent-soft:#39301c;
   --danger:#ffb0b8;--danger-soft:#501d2b;--success:#afe2c6;--success-soft:#1e3930;--info:#efbdc8;--info-soft:#3c2431;
   --shadow-sm:0 7px 24px #0006;--shadow-md:0 18px 44px #0008;--shadow-lg:0 28px 76px #000a;
-  --v2-hero:#421722;--v2-highlight:#f49caa;--v2-glow:#8c1c32;--v2-hero-text:#fff5f7;
-  --v204-mist:#30131d;--v204-rim:#b85068;--v204-orbit:rgba(175,48,72,.05);
-  --v204-ambient:rgba(143,22,45,.22);--v204-sheen:rgba(255,186,196,.07);
+  --v2-hero:#1b1c20;--v2-highlight:#d65167;--v2-glow:#671b2b;--v2-hero-text:#f4f4f5;
+  --v204-mist:#17181b;--v204-rim:#64656e;--v204-orbit:rgba(165,168,180,.025);
+  --v204-ambient:rgba(110,20,38,.08);--v204-sheen:rgba(255,255,255,.035);
 }
 html[data-theme] .hh-theme-swatch-racing,
 html[data-theme] .hh-theme-orb.hh-theme-swatch-racing {
-  background:linear-gradient(135deg,#101114 0 42%,#a91529 42% 86%,#ffe34d 86%);
+  background:linear-gradient(135deg,#101114 0 70%,#a91529 70% 94%,#ffe34d 94%);
 }
 /* Dedicated full-bleed artwork: no color filter or baked white corners. */
 html[data-theme="racing"] .adaptive-brand-logo {
@@ -26,6 +26,8 @@ html[data-theme="racing"] .adaptive-brand-logo {
 /* Startup retains the shared timing/accessibility flow and fixed brand title. */
 html[data-theme="racing"] .lab-startup {
   --primary:#cf3850;
+  /* Preserve the approved startup appearance despite the darker page tokens. */
+  --bg:#101114;--text-secondary:#d6bec6;--border:#633040;--surface:#29151d;
   background:radial-gradient(ellipse at 50% 43%,#35101c 0%,#171015 42%,#101114 75%);
 }
 html[data-theme="racing"] .lab-startup-grid {opacity:.45;}
@@ -50,20 +52,20 @@ html[data-theme="racing"] .lab-startup-ready .lab-startup-status {color:#ffe88c;
 html[data-theme="racing"] .lab-startup-enter .lab-startup-ring {border-color:#e4556d;}
 html[data-theme="racing"] .student-page .student-result-card,
 html[data-theme="racing"] .student-page .solution-step {
-  background:linear-gradient(145deg,#35151e,#26151c)!important;
+  background:linear-gradient(145deg,#202126,#17181b)!important;
 }
 html[data-theme="racing"] .student-page .student-result-card-header {
   border-left:3px solid var(--accent);
 }
 html[data-theme="racing"] .student-page .student-upload-zone {
-  background:linear-gradient(145deg,#421722,#26131b)!important;
-  border-color:#b26b7e!important;
+  background:linear-gradient(145deg,#202126,#141518)!important;
+  border-color:#63646d!important;
 }
 html[data-theme="racing"] .student-page .v2-student-bottom-nav {
-  background:#2d141d!important;
+  background:#141518!important;
 }
 html[data-theme="racing"] .student-page .v2-student-bottom-nav button[aria-current="page"] {
-  color:#ffc4cd!important;background:#521c2b!important;
+  color:#ffc4cd!important;background:#35141e!important;
 }
 html[data-theme="racing"] .student-page .solve-progress-fill {
   background:linear-gradient(90deg,#a91529,#ee8395);
@@ -76,9 +78,9 @@ html[data-theme="racing"] .student-page .student-menu-panel .v207-menu-line-link
   color:var(--primary)!important;
 }
 html[data-theme="racing"] .student-page .v206-quota-card {
-  --v210-quota-bg:#35151e;--v210-quota-border:#885063;
-  --v210-quota-label:#f4e6a7;--v210-quota-text:#ffe34d;--v210-quota-muted:#e1c7cf;
-  --v210-quota-fill:#ffe34d;--v210-quota-rail:#5b3240;--v210-quota-sheen:#ffffff12;--v210-quota-shadow:#0004;
+  --v210-quota-bg:#17181c;--v210-quota-border:#55565e;
+  --v210-quota-label:#f4e6a7;--v210-quota-text:#ffe34d;--v210-quota-muted:#c6c7ce;
+  --v210-quota-fill:#ffe34d;--v210-quota-rail:#36373e;--v210-quota-sheen:#ffffff12;--v210-quota-shadow:#0004;
 }
 html[data-theme="racing"] .student-page .v206-quota-warning {
   --v210-quota-bg:#3b2c1c;--v210-quota-border:#b49a57;--v210-quota-label:#ffe4a2;
