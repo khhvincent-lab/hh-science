@@ -1117,3 +1117,25 @@ html[data-theme]{--student-canvas:radial-gradient(ellipse 75% 310px at 72% 0%,va
 @media (prefers-reduced-motion: reduce) {
   .v2-student-bottom-nav button { transition: none; }
 }
+
+/* Viewport-clipped visual copy; navigation, header and page background stay live. */
+html[data-theme] .student-motion-outgoing {
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  background: transparent !important;
+  overflow: hidden !important;
+  pointer-events: none !important;
+  z-index: 90;
+  contain: layout paint;
+}
+html[data-theme] .student-motion-outgoing * { pointer-events: none !important; }
+.v2-student-bottom-nav button { transition-duration: 300ms; }
+@media (prefers-reduced-motion: reduce) {
+  .student-motion-outgoing { display: none !important; }
+  .v2-student-bottom-nav button { transition: none; }
+}
