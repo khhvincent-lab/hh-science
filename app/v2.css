@@ -1139,3 +1139,23 @@ html[data-theme] .student-motion-outgoing * { pointer-events: none !important; }
   .student-motion-outgoing { display: none !important; }
   .v2-student-bottom-nav button { transition: none; }
 }
+
+/* One shared header geometry across home, analysis and history. */
+html[data-theme] .student-page .student-container { max-width:960px!important; }
+.v2-student-bottom-nav button { transition-duration:500ms; }
+@media(max-width:740px) {
+  html[data-theme] .student-page .student-container {
+    width:calc(100% - 24px)!important;
+    padding-top:max(10px,env(safe-area-inset-top))!important;
+  }
+  html[data-theme] .student-page .student-app-header {
+    width:100%!important;box-sizing:border-box;min-height:56px!important;
+    padding:8px 11px!important;margin:0 0 12px!important;border-radius:16px!important;
+  }
+  html[data-theme] .student-page .student-app-brand-zh { font-size:15px!important;line-height:1.25!important; }
+  html[data-theme] .student-page .student-app-brand-en { font-size:10px!important;line-height:1.2!important; }
+  html[data-theme] .student-page .v2-student-brand-icon { width:36px!important;height:36px!important;flex:0 0 36px!important; }
+}
+@media(prefers-reduced-motion:reduce) {
+  .v2-student-bottom-nav button { transition:none; }
+}

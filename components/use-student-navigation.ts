@@ -11,7 +11,7 @@ const selectors: Record<View, string> = {
   result: ".v2-result-navigation, .student-result-panel",
   history: ".student-history-shell",
 };
-const duration = 320;
+const duration = 500;
 const easing = "cubic-bezier(.22,.75,.22,1)";
 
 // A short-lived, inert visual layer lets the old page leave without delaying state or requests.

@@ -1856,19 +1856,9 @@ export default function Home() {
     else setSubject("");
   }
 
-  async function returnToSolveHome(fromTab = false) {
-    // Preserve unfinished/failed drafts; completed work is already in history.
-    if (solveData && !isSolving && !solveTask.running) {
-      try {
-        if (solveTask.job?.status === "succeeded") await solveTask.dismiss();
-      } catch {
-        setQuestionError("暫時無法結束上一題，請再按一次返回首頁。");
-        return;
-      }
-      clearQuestion(fromTab ? "tabs" : "back");
-      setTeacherHelpQuestion("");
-      setLineShareNotice("");
-    }
+  function returnToSolveHome(fromTab = false) {
+    // Navigation must not discard the current question, solution or follow-ups.
+    // Explicit clear/edit/new solve actions own resetting question state.
     setActiveView("solve", fromTab ? "tabs" : "back");
     setMenuOpen(false);
   }
