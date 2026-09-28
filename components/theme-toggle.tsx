@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
-type Theme = "midnight" | "nordic" | "aurora" | "gold" | "obsidian";
+type Theme = "midnight" | "nordic" | "aurora" | "gold" | "obsidian" | "racing";
 
 type ThemeOption = {
   id: Theme;
@@ -15,6 +15,7 @@ const THEMES: ThemeOption[] = [
   { id: "aurora", label: "極光藍境" },
   { id: "gold", label: "墨夜流金" },
   { id: "obsidian", label: "玄霧石墨" },
+  { id: "racing", label: "曜黑競速" },
 ];
 
 function normalizeTheme(value: string | null): Theme | null {
@@ -30,8 +31,9 @@ function normalizeTheme(value: string | null): Theme | null {
 
 function applyTheme(theme: Theme) {
   document.documentElement.setAttribute("data-theme", theme);
+  document.documentElement.style.colorScheme = ["midnight", "gold", "obsidian", "racing"].includes(theme) ? "dark" : "light";
   localStorage.setItem("hh-science-theme", theme);
-  const colors: Record<Theme, string> = {midnight:"#0e1726",nordic:"#e9eee7",aurora:"#dcecff",gold:"#17181b",obsidian:"#15181c"};
+  const colors: Record<Theme, string> = {midnight:"#0e1726",nordic:"#e9eee7",aurora:"#dcecff",gold:"#17181b",obsidian:"#15181c",racing:"#101114"};
   document.querySelector('meta[name="theme-color"]')?.setAttribute("content",colors[theme]);
 }
 

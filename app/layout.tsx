@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import "./v2.css";
+import "./racing-theme.css";
 import "./solution-export.css";
 import PwaRegister from "@/components/pwa-register";
 
@@ -37,13 +38,13 @@ const themeScript = `
     try {
       const saved = localStorage.getItem("hh-science-theme");
       const legacy = { white:"nordic", oatmeal:"nordic", sage:"midnight", ocean:"midnight", graphite:"obsidian", burgundy:"gold", light:"nordic", dark:"midnight" };
-      const valid = ["midnight", "nordic", "aurora", "gold", "obsidian"];
+      const valid = ["midnight", "nordic", "aurora", "gold", "obsidian", "racing"];
       const migrated = legacy[saved] || saved;
       const theme = valid.includes(migrated) ? migrated : "midnight";
       document.documentElement.dataset.theme = theme;
-      const colors = { midnight: "#0e1726", nordic: "#e9eee7", aurora: "#dcecff", gold: "#17181b", obsidian: "#15181c" };
+      const colors = { midnight: "#0e1726", nordic: "#e9eee7", aurora: "#dcecff", gold: "#17181b", obsidian: "#15181c", racing: "#101114" };
       document.querySelector('meta[name="theme-color"]')?.setAttribute("content", colors[theme]);
-      document.documentElement.style.colorScheme = ["midnight", "gold", "obsidian"].includes(theme) ? "dark" : "light";
+      document.documentElement.style.colorScheme = ["midnight", "gold", "obsidian", "racing"].includes(theme) ? "dark" : "light";
       if (saved !== theme) localStorage.setItem("hh-science-theme", theme);
     } catch {}
   })();
