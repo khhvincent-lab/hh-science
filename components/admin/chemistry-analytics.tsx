@@ -1,4 +1,5 @@
 'use client';
+import { AdminLoading } from "@/components/admin/loading-feedback";
 import {useEffect,useState} from 'react';
 import type {ReadingReport} from '@/lib/chemistry-analytics';
 import './chemistry-analytics.css';
@@ -22,7 +23,7 @@ export default function ChemistryAnalytics() {
   <header className="reading-analytics-head"><div><div className="hh-eyebrow">CHEMISTRY · READING INSIGHTS</div><h2 id="reading-analytics-title">專欄成效</h2><p>從點開文章，到完成三題，看看閱讀帶來多少練習。</p></div>
    <div className="reading-analytics-controls"><label>統計期間<select className="hh-select" value={range} onChange={e=>setRange(e.target.value)}><option value="7">最近 7 天</option><option value="30">最近 30 天</option><option value="all">上線至今</option></select></label><button type="button" className="hh-button-secondary" disabled={loading} onClick={()=>setRefresh(v=>v+1)}>重新整理</button></div>
   </header>
-  {loading&&<p role="status">正在整理閱讀與作答紀錄…</p>}
+  {loading&&<AdminLoading label="正在整理閱讀與作答紀錄…" />}
   {error&&<p role="alert">{error} <button type="button" onClick={()=>setRefresh(v=>v+1)}>重試</button></p>}
   {report&&<>
    <div className="reading-analytics-metrics">

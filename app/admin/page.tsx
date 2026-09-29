@@ -3,6 +3,8 @@
 import { normalizeScienceMarkup as normalizeAdminScienceMarkup, stripAnnotationCommands, stripBareAnnotationCommands } from "@/lib/science-markup";
 import { renderScienceFormula } from "@/lib/science-render";
 
+import { AdminLoginLoading, AdminLoading, LoadingLabel } from "@/components/admin/loading-feedback";
+
 import LanguageEvents from "@/components/admin/language-events";
 import ChemistryAnalytics from "@/components/admin/chemistry-analytics";
 import ModelComparison, {AddComparisonButton} from "@/components/admin/model-comparison";
@@ -693,7 +695,7 @@ export default function AdminPage() {
   useEffect(() => {
     async function checkSession() {
       try {
-        const response = await fetch("/api/admin/session", { cache: "no-store" });
+        const response = await fetch("/api/admin/session", { cache: "no-store", signal: AbortSignal.timeout(20000) });
         const data = await response.json();
 
         if (response.ok && data.authenticated) {
@@ -702,6 +704,7 @@ export default function AdminPage() {
           setScopeTeacher(data.scopeTeacher ?? null);
         }
       } catch {
+        setLoginError("登入狀態確認失敗，請重新登入。");
       } finally {
         setAdminReady(true);
       }
@@ -723,6 +726,7 @@ export default function AdminPage() {
   }, [activeSection, isLoggedIn, studentsLoaded, loadStudents]);
 
   async function handleLogin() {
+    if (loginLoading) return;
     if (!password) {
       setLoginError("請輸入管理員密碼。");
       return;
@@ -733,6 +737,7 @@ export default function AdminPage() {
 
     try {
       const response = await fetch("/api/admin/login", {
+        signal: AbortSignal.timeout(20000),
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username, password }),
@@ -1055,16 +1060,8 @@ export default function AdminPage() {
     return studentSummary.campuses.find((item) => item.campus === campus)?.count ?? 0;
   }
 
-  if (!adminReady) {
-    return (
-      <main className="admin-shell admin-center">
-        <div className="admin-loading-card">
-          <div className="hh-eyebrow">H.H. SCIENCE LAB</div>
-          <h1 className="hh-display">教師管理中心</h1>
-          <p>正在確認管理員登入狀態…</p>
-        </div>
-      </main>
-    );
+  if (!adminReady || loginLoading) {
+    return <AdminLoginLoading label={loginLoading ? "正在驗證登入資料…" : "正在確認登入狀態…"} />;
   }
 
   if (!isLoggedIn) {
@@ -1111,7 +1108,7 @@ export default function AdminPage() {
   }
 
   return (
-    <main className="admin-shell">
+    <main className="admin-shell admin-workspace-arrival">
       <header className="admin-mobile-header">
         <button
           type="button"
@@ -1570,7 +1567,7 @@ function DashboardSection({
   ];
 
   if (loading && !dashboard) {
-    return <div className="hh-card admin-state-card">正在讀取管理資料…</div>;
+    return <AdminLoading label="正在讀取管理資料…" skeleton />;
   }
 
   if (error && !dashboard) {
@@ -1694,7 +1691,7 @@ function DashboardSection({
               disabled={!isSuperAdmin || costAlertLoading || costAlertSaving}
               onClick={() => void saveCostAlertSetting()}
             >
-              {costAlertSaving ? "儲存中…" : "設定警示"}
+              {costAlertSaving ? <LoadingLabel /> : "設定警示"}
             </button>
           </div>
         </div>
@@ -2570,7 +2567,7 @@ function StudentsSection(props: {
             disabled={orgBusy || dirtyStudents.length === 0}
             onClick={() => void saveAllAssignments()}
           >
-            {orgBusy ? "儲存中…" : dirtyStudents.length ? `儲存全部變更 (${dirtyStudents.length})` : "沒有待儲存變更"}
+            {orgBusy ? <LoadingLabel /> : dirtyStudents.length ? `儲存全部變更 (${dirtyStudents.length})` : "沒有待儲存變更"}
           </button>
         </div>
         <div className="org-filter-row">
@@ -2596,7 +2593,7 @@ function StudentsSection(props: {
           {!showStudentResults ? (
             <div className="admin-empty student-list-gate">請先選擇班級，或直接搜尋學生姓名。</div>
           ) : props.loading ? (
-            <div className="admin-empty">讀取中…</div>
+            <AdminLoading label="讀取中…" skeleton />
           ) : filtered.length === 0 ? (
             <div className="admin-empty">找不到符合條件的學生。</div>
           ) : (
@@ -2651,7 +2648,7 @@ function StudentsSection(props: {
                           {studentClasses.map((classRow) => <option key={classRow.id} value={classRow.id}>{compactClassLabel(classRow)}</option>)}
                         </select>
                         <button className="admin-mini-button assign-save-button" disabled={orgBusy} onClick={() => void assign(student, draft)}>
-                          {orgBusy ? "儲存中…" : "儲存分班"}
+                          {orgBusy ? <LoadingLabel /> : "儲存分班"}
                         </button>
                       </div>
 
@@ -3289,7 +3286,7 @@ function AISection(props: {
           title="AI 解題設定"
           subtitle="正在讀取 v1.1 AI Router 設定…"
         />
-        <div className="admin-empty">載入中…</div>
+        <AdminLoading label="載入中…" skeleton />
       </section>
     );
   }
@@ -3564,7 +3561,7 @@ function AISection(props: {
           disabled={props.saving || !props.canEdit}
           onClick={() => void props.onSave()}
         >
-          {props.saving ? "儲存中…" : "儲存 AI 設定"}
+          {props.saving ? <LoadingLabel /> : "儲存 AI 設定"}
         </button>
       </div>
     </fieldset>
@@ -3763,7 +3760,7 @@ function PinSection(props: {
               disabled={!props.canEdit || props.loading || props.saving}
               onClick={() => void props.onSave()}
             >
-              {props.saving ? "儲存中…" : "儲存初始密碼"}
+              {props.saving ? <LoadingLabel /> : "儲存初始密碼"}
             </button>
           </div>
         </article>
@@ -3852,7 +3849,7 @@ function UsageStatusSection({ dashboard }: { dashboard: DashboardData | null }) 
     <section className="hh-card admin-panel">
       <PanelHeader eyebrow="CLASS ACTIVITY" title="班級動態" subtitle="每班一張卡，直接比較今日參與及本月累積。" />
       <div className="usage-toolbar"><input className="hh-input" aria-label="搜尋班級" placeholder="搜尋地區、補習班或班級…" value={search} onChange={event=>setSearch(event.target.value)}/><select className="hh-select" aria-label="班級排序" value={sort} onChange={event=>setSort(event.target.value as typeof sort)}><option value="today">今日解題最多</option><option value="month">本月解題最多</option><option value="name">依班級名稱</option></select></div>
-      {loading?<div className="admin-empty">正在整理班級使用狀況…</div>:<div className="usage-class-grid">{visibleRows.map(row=><article key={row.classId} className="usage-class-card"><div className="usage-class-heading"><h3>{row.label}</h3><span>{row.students} 位學生</span></div><div className="usage-class-numbers"><div><span>今日使用</span><strong>{row.todayActive}<small>人</small></strong></div><div><span>今日解題</span><strong>{row.todayQuestions}<small>題</small></strong></div><div><span>本月累積</span><strong>{row.monthQuestions}<small>題</small></strong></div></div><div className="usage-participation" aria-label={`今日使用率 ${row.students?Math.round(row.todayActive/row.students*100):0}%`}><span style={{width:`${Math.min(100,row.students?row.todayActive/row.students*100:0)}%`}}/></div><p>今日參與 {row.todayActive} / {row.students} 人</p></article>)}{!visibleRows.length&&<div className="admin-empty">沒有符合條件的班級。</div>}</div>}
+      {loading?<AdminLoading label="正在整理班級使用狀況…" skeleton />:<div className="usage-class-grid">{visibleRows.map(row=><article key={row.classId} className="usage-class-card"><div className="usage-class-heading"><h3>{row.label}</h3><span>{row.students} 位學生</span></div><div className="usage-class-numbers"><div><span>今日使用</span><strong>{row.todayActive}<small>人</small></strong></div><div><span>今日解題</span><strong>{row.todayQuestions}<small>題</small></strong></div><div><span>本月累積</span><strong>{row.monthQuestions}<small>題</small></strong></div></div><div className="usage-participation" aria-label={`今日使用率 ${row.students?Math.round(row.todayActive/row.students*100):0}%`}><span style={{width:`${Math.min(100,row.students?row.todayActive/row.students*100:0)}%`}}/></div><p>今日參與 {row.todayActive} / {row.students} 人</p></article>)}{!visibleRows.length&&<div className="admin-empty">沒有符合條件的班級。</div>}</div>}
     </section>
   </div>;
 }
@@ -3980,7 +3977,7 @@ function SiteQuestionsSection({onCalibrate,initialFocus="all",canReview=false}:{
       {filtersOpen&&<div className="site-focus-filters site-extra-filters" role="group" aria-label="其他題目篩選">{([ ["followup","有追問"],["verifier","Verifier"],["arbiter","Arbiter"],["highCost","高成本"] ] as const).map(([key,label])=><button key={key} type="button" className={focus===key?"active":""} aria-pressed={focus===key} onClick={()=>{setFocus(key);setPage(0);}}>{label}</button>)}</div>}
     </section>
     {message&&<div className="admin-notice danger">{message}</div>}
-    <section className="site-question-list">{loading?<div className="hh-card admin-panel admin-empty">正在讀取題目…</div>:visibleItems.length===0?<div className="hh-card admin-panel admin-empty">這一頁沒有符合條件的題目；可以切換期間或查看下一頁。</div>:visibleItems.map(item=><button type="button" className="hh-card site-question-row site-question-row-v214" key={item.id} onClick={()=>{setSelected(item);setSelectedId(item.id);setReviewNote(item.review?.note||"");setReviewMessage("");}}>
+    <section className="site-question-list">{loading?<AdminLoading label="正在讀取題目…" skeleton />:visibleItems.length===0?<div className="hh-card admin-panel admin-empty">這一頁沒有符合條件的題目；可以切換期間或查看下一頁。</div>:visibleItems.map(item=><button type="button" className="hh-card site-question-row site-question-row-v214" key={item.id} onClick={()=>{setSelected(item);setSelectedId(item.id);setReviewNote(item.review?.note||"");setReviewMessage("");}}>
       <span className="site-question-thumb">{item.imageUrls?.[0]?<img src={item.imageUrls[0]} alt="題目縮圖"/>:<span>SCI</span>}</span>
       <span className="site-question-copy"><span className="site-question-topline"><b>{new Date(item.createdAt).toLocaleString("zh-TW",{month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"})}</b><em className={`teaching-subject-chip teaching-subject-${item.subject}`}>{adminSubjectLabel(item.subject)}</em><span className={`site-review-status ${reviewTone(item)}`}>{reviewLabel(item)}</span>{(item.followups?.length||0)>0&&<i className="info">追問 {item.followups.length}</i>}</span><strong>{item.studentName}<small>{[item.regionName,item.institutionName,item.className].filter(Boolean).join(" · ")||item.campus}</small></strong><p>{item.questionNote||item.explanation||"點開查看題目圖片與 AI 詳解"}</p><span className="site-row-answers"><span><small>學生參考答案</small><b>{item.referenceAnswer||"未填"}</b></span><span><small>AI 最終答案</small><b className="admin-answer-preview"><AdminScienceText text={item.answer||"—"}/></b></span></span><span className="site-row-foot"><span>本題成本 {item.cost?.hasCostRecord?formatQuestionCostTwd(item.cost.totalCostUsd):"未記錄"}</span><span>查看題目 →</span></span></span>
     </button>)}</section>
@@ -4286,7 +4283,7 @@ function TeachingQuestionsSection({initialHistoryId,onInitialHistoryHandled,canE
       {filtersOpen&&<div className="teaching-filter-row"><div className="teaching-range-switch"><button type="button" className={range==="today"?"active":""} onClick={()=>setRange("today")}>今天</button><button type="button" className={range==="all"?"active":""} onClick={()=>setRange("all")}>全部</button></div><input className="hh-input" placeholder="搜尋學生、答案或解析內容…" value={q} onChange={e=>setQ(e.target.value)}/><select className="hh-select" value={subject} onChange={e=>setSubject(e.target.value)}><option value="">全部科目</option><option value="physics">物理</option><option value="chemistry">化學</option><option value="biology">生物</option><option value="earth">地球科學</option></select><label className="teaching-issue-filter"><input type="checkbox" checked={issues} onChange={e=>setIssues(e.target.checked)}/> 只看異常題</label></div>}
     </section>
     {message && <div className={`admin-notice ${message.startsWith("已")?"success":"danger"}`}>{message}</div>}
-    <section className="teaching-question-list">{loading?<div className="hh-card admin-panel admin-empty">正在讀取題目…</div>:items.length===0?<div className="hh-card admin-panel admin-empty">目前沒有符合條件的題目。</div>:items.map(item=><button type="button" className="hh-card teaching-question-row teaching-question-row-v134" key={item.id} onClick={()=>void open(item)}>
+    <section className="teaching-question-list">{loading?<AdminLoading label="正在讀取題目…" skeleton />:items.length===0?<div className="hh-card admin-panel admin-empty">目前沒有符合條件的題目。</div>:items.map(item=><button type="button" className="hh-card teaching-question-row teaching-question-row-v134" key={item.id} onClick={()=>void open(item)}>
       <span className="teaching-question-media">{item.imageUrls?.[0]?<img src={item.imageUrls[0]} alt="題目縮圖"/>:<span className="teaching-thumb-empty">SCI</span>}</span>
       <span className="teaching-question-main"><span className="teaching-row-topline"><span>{new Date(item.createdAt).toLocaleString("zh-TW", { month:"2-digit", day:"2-digit", hour:"2-digit", minute:"2-digit" })}</span><span className={`teaching-subject-chip teaching-subject-${item.subject}`}>{adminSubjectLabel(item.subject)}</span>{item.issue&&<em className="teaching-inline-issue">異常</em>}</span><strong>{item.studentName}</strong><small>{[item.regionName,item.institutionName,item.className].filter(Boolean).join(" · ")||item.campus}</small><span className="teaching-question-preview">{item.questionNote||item.explanation||"尚無題目摘要"}</span></span>
       <span className="teaching-row-answer"><small>AI 答案</small><span className="admin-answer-preview"><AdminScienceText text={item.answer||"—"} /></span><span className="teaching-row-cost-label">本題成本</span><strong className={`teaching-row-cost ${item.cost?.hasCostRecord?"":"missing"}`}>{item.cost?.hasCostRecord?formatQuestionCostTwd(item.cost.totalCostUsd):"—"}</strong><span className="teaching-calibrate-link">{canEdit?"教師校正 →":"查看 →"}</span></span>
@@ -4337,7 +4334,7 @@ function TeachingRulesSection({canEdit=true}:{canEdit?:boolean}){
     }catch(e){setMessage(e instanceof Error?e.message:"儲存失敗。");}
     finally{setSaving(false);}
   }
-  if(loading||!settings||!guard)return <div className="hh-card admin-panel admin-empty">正在載入解題規則…</div>;
+  if(loading||!settings||!guard)return <AdminLoading label="正在載入解題規則…" skeleton />;
   const modes=[{key:"concise",name:"精簡解答",desc:"保留核心觀念與必要步驟"},{key:"standard",name:"標準詳解",desc:"答案、觀念解析、選項分析兼顧可讀性"},{key:"deep",name:"深度解析",desc:"拆解中間步驟、公式依據與常見錯誤"},{key:"correction",name:"訂正模式",desc:"教師訂正用途；學生預設對應標準詳解"}];
   const general=[['noGuessing','禁止猜測'],['requestRetakeWhenIncomplete','資訊不足要求重新拍照'],['highSchoolFirst','優先使用高中課綱方法'],['keepUnits','計算保留單位'],['keepKeySteps','保留必要中間步驟'],['avoidOverreach','避免不必要超綱']];
   const guardRules=[['blockBlackImage','阻擋全黑／近乎全黑圖片'],['blockWhiteImage','阻擋全白／近乎全白圖片'],['blockUnreadable','阻擋嚴重模糊或資訊量過低圖片'],['blockNonQuestion','阻擋沒有題目內容的圖片'],['blockJokeOrIrrelevant','阻擋自拍、風景、梗圖、聊天截圖與惡搞內容'],['requireVisibleQuestionContent','必須看得到足以判斷問題的題目內容']];
@@ -4399,7 +4396,7 @@ function CostAnalyticsSection(){
       <div className="admin-analytics-range">{ranges.map(([v,l])=><button key={v} className={range===v?"active":""} onClick={()=>setRange(v)}>{l}</button>)}</div>
     </section>
     {error&&<div className="admin-notice danger">{error}</div>}
-    {loading&&!data?<div className="hh-card admin-panel admin-empty">正在整理成本資料…</div>:data&&<>
+    {loading&&!data?<AdminLoading label="正在整理成本資料…" skeleton />:data&&<>
       <section className="admin-kpi-grid cost-kpi-grid">
         <AnalyticsKpi eyebrow="TOTAL" label="全部 API 成本" value={formatTwdFromUsd(data.totals.totalCostUsd)} note={data.label}/>
         <AnalyticsKpi eyebrow="PER SOLVE" label="解題平均／題" value={formatQuestionCostTwd(linkedSolveAverageUsd)} note={`${formatInteger(linkedSolveQuestions)} 題有成本紀錄`}/>
@@ -4477,7 +4474,7 @@ function CorrectionSection() {
     <section className="hh-card admin-panel">
       <PanelHeader eyebrow="TEACHING CORRECTIONS" title="待修正題庫" subtitle="把學生真實問過、AI 解錯或解法可改善的題目留下來，整理成之後可餵回解題規則與提示詞的教師資料" />
       {message && <div className="admin-notice success">{message}</div>}
-      {loading ? <div className="admin-empty">讀取中…</div> : items.length === 0 ? <div className="admin-empty">目前沒有待修正題目。從學生解題紀錄點「加入待修正」即可。</div> : <div className="correction-list">
+      {loading ? <AdminLoading label="讀取中…" skeleton /> : items.length === 0 ? <div className="admin-empty">目前沒有待修正題目。從學生解題紀錄點「加入待修正」即可。</div> : <div className="correction-list">
         {items.map((item) => <article className="correction-card" key={item.id}>
           <div className="correction-card-head"><div><strong>{item.studentName} · {adminSubjectLabel(item.subject)}</strong><small>{item.answer || "尚無答案"}</small></div><select className="hh-select" value={item.status} onChange={(e) => void save(item,{status:e.target.value})}><option value="pending">待修正</option><option value="reviewed">已檢視</option><option value="applied">已套用規則</option></select></div>
           <select className="hh-select" value={item.issueType} onChange={(e) => void save(item,{issueType:e.target.value})}><option value="wrong_answer">答案錯誤</option><option value="better_method">解法可更好</option><option value="unclear">說明不清楚</option><option value="format">格式問題</option><option value="other">其他</option></select>
