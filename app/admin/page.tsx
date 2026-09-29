@@ -29,6 +29,13 @@ import "katex/dist/katex.min.css";
 
 const USD_TO_TWD_RATE = 32.5;
 
+// A short, requested visual dwell; slow requests incur no extra delay.
+async function finishAdminLoginAnimation(startedAt: number) {
+  const minimum = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 1200;
+  const remaining = minimum - (performance.now() - startedAt);
+  if (remaining > 0) await new Promise<void>(resolve => window.setTimeout(resolve, remaining));
+}
+
 
 async function adminTeachingFilesToDataUrls(files: FileList | null) {
   if (!files?.length) return [] as string[];
@@ -694,6 +701,7 @@ export default function AdminPage() {
 
   useEffect(() => {
     async function checkSession() {
+      const animationStarted = performance.now();
       try {
         const response = await fetch("/api/admin/session", { cache: "no-store", signal: AbortSignal.timeout(20000) });
         const data = await response.json();
@@ -706,6 +714,7 @@ export default function AdminPage() {
       } catch {
         setLoginError("登入狀態確認失敗，請重新登入。");
       } finally {
+        await finishAdminLoginAnimation(animationStarted);
         setAdminReady(true);
       }
     }
@@ -732,6 +741,7 @@ export default function AdminPage() {
       return;
     }
 
+    const animationStarted = performance.now();
     setLoginLoading(true);
     setLoginError("");
 
@@ -752,6 +762,7 @@ export default function AdminPage() {
     } catch (error) {
       setLoginError(error instanceof Error ? error.message : "登入失敗。");
     } finally {
+      await finishAdminLoginAnimation(animationStarted);
       setLoginLoading(false);
     }
   }
