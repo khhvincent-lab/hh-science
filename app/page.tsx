@@ -3521,16 +3521,17 @@ export default function Home() {
         )}
 
         {activeView === "history" && !selectedHistory && historyHasMore && <button type="button" className="hh-button-secondary" disabled={historyLoading} onClick={()=>void loadHistory(true)}>{historyLoading ? "載入中…" : "載入更多紀錄"}</button>}
-        {student && !student.mustChangePin && <nav className="v2-student-bottom-nav" aria-label="學生頁面導覽">
-          <button type="button" aria-current={activeView==="solve"?"page":undefined} onClick={() => void returnToSolveHome(true)}><StudentNavIcon kind="home" />首頁</button>
-          <button type="button" aria-current={activeView==="result"?"page":undefined} disabled={!solveData&&!isSolving&&!questionError&&!solveTask.job} onClick={()=>{setActiveView("result");}}><StudentNavIcon kind="analysis" />解析</button>
-          <button type="button" aria-current={activeView==="history"?"page":undefined} onClick={()=>{setActiveView("history");}}><StudentNavIcon kind="history" />紀錄</button>
-        </nav>}
         <footer className="student-footer">
           <div className="hh-eyebrow">{brand.englishName}</div>
           <div>{brand.name} v2.4.0</div>
         </footer>
       </div>
+
+      {student && !student.mustChangePin && <nav className="v2-student-bottom-nav" aria-label="學生頁面導覽">
+        <button type="button" aria-current={activeView==="solve"?"page":undefined} onClick={() => void returnToSolveHome(true)}><StudentNavIcon kind="home" />首頁</button>
+        <button type="button" aria-current={activeView==="result"?"page":undefined} disabled={!solveData&&!isSolving&&!questionError&&!solveTask.job} onClick={()=>{setActiveView("result");}}><StudentNavIcon kind="analysis" />解析</button>
+        <button type="button" aria-current={activeView==="history"?"page":undefined} onClick={()=>{setActiveView("history");}}><StudentNavIcon kind="history" />紀錄</button>
+      </nav>}
 
       {solveData && image && (
         <div aria-hidden="true" style={{ position: "fixed", left: "-12000px", top: 0, width: "820px", zIndex: -1000, pointerEvents: "none" }}>
@@ -3821,7 +3822,10 @@ export default function Home() {
       <style jsx global>{`
         .student-page {
           position: relative;
-          overflow-x: hidden;
+          /* Clip horizontal motion without creating a nested vertical scrollport. */
+          overflow-x: clip;
+          overflow-y: visible;
+          min-height: 100dvh;
           --student-blue: var(--info);
           --student-blue-soft: var(--info-soft);
           --student-sage: var(--action);
