@@ -3,6 +3,9 @@ import { requireAdminSession, getAccessibleStudentIds } from "@/lib/admin-access
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { answerReviewState, getAccuracyReviews } from "@/lib/accuracy-review";
 
+import { recordedTeachingMode } from "@/lib/question-mode-costs";
+import { isStudentTeachingMode, type StudentTeachingMode } from "@/lib/teaching-modes";
+
 const SOLVE_COST_ROLES = ["science_gate", "primary", "verifier", "arbiter"] as const;
 type SolveCostRole = (typeof SOLVE_COST_ROLES)[number];
 
@@ -11,6 +14,7 @@ type UsageCostRow = {
   provider: string | null;
   model: string | null;
   role: string | null;
+  metadata: unknown;
   estimated_cost_usd: number | string | null;
 };
 
@@ -43,9 +47,10 @@ async function fetchQuestionCosts(historyIds: string[]) {
     for (let offset = 0; ; offset += pageSize) {
       const { data, error } = await supabaseAdmin
         .from("api_usage")
-        .select("solve_history_id,provider,model,role,estimated_cost_usd")
+        .select("solve_history_id,provider,model,role,estimated_cost_usd,metadata")
         .in("solve_history_id", chunk)
         .in("role", [...SOLVE_COST_ROLES])
+        .order("id", { ascending: true })
         .range(offset, offset + pageSize - 1);
 
       if (error) {
@@ -62,6 +67,7 @@ async function fetchQuestionCosts(historyIds: string[]) {
     string,
     {
       totalCostUsd: number;
+      teachingModes: Set<StudentTeachingMode>;
       totalCalls: number;
       roleMap: Map<string, { role: SolveCostRole; provider: string; model: string; calls: number; costUsd: number }>;
     }
@@ -77,10 +83,13 @@ async function fetchQuestionCosts(historyIds: string[]) {
     const costUsd = Number(row.estimated_cost_usd || 0);
     const bucket = byHistory.get(historyId) || {
       totalCostUsd: 0,
+      teachingModes: new Set<StudentTeachingMode>(),
       totalCalls: 0,
       roleMap: new Map(),
     };
 
+    const mode = recordedTeachingMode(row.metadata);
+    if (mode) bucket.teachingModes.add(mode);
     bucket.totalCostUsd += Number.isFinite(costUsd) ? costUsd : 0;
     bucket.totalCalls += 1;
 
@@ -103,6 +112,10 @@ export async function GET(request: NextRequest) {
 
   const params = request.nextUrl.searchParams;
   const historyId = params.get("historyId");
+  const modeFilter = params.get("teachingMode") || "";
+  if (modeFilter && modeFilter !== "unknown" && !isStudentTeachingMode(modeFilter)) {
+    return NextResponse.json({ error: "解題方式篩選無效。" }, { status: 400 });
+  }
   const subject = params.get("subject") || "";
   const q = (params.get("q") || "").trim().toLocaleLowerCase("zh-Hant");
   const onlyIssues = params.get("issues") === "true";
@@ -148,8 +161,17 @@ export async function GET(request: NextRequest) {
       if (followupError) throw followupError;
       for (const followup of followups || []) followupIds.add(String(followup.solve_history_id));
     }
-    const batchCosts = focus === "highCost" ? await fetchQuestionCosts(batchIds) : null;
+    let batchCosts: Awaited<ReturnType<typeof fetchQuestionCosts>> | null = null;
+    if (focus === "highCost" || modeFilter) {
+      try { batchCosts = await fetchQuestionCosts(batchIds); }
+      catch { return NextResponse.json({ error: "暫時無法讀取解題方式與成本，請重試。" }, { status: 503 }); }
+    }
     for (const row of batch) {
+      if (modeFilter) {
+        const modes = batchCosts?.get(String(row.id))?.teachingModes;
+        const mode = modes?.size === 1 ? [...modes][0] : null;
+        if (modeFilter === "unknown" ? mode !== null : mode !== modeFilter) continue;
+      }
       const review = reviews.get(String(row.id));
       const answerState = answerReviewState(row.answer, row.reference_answer, review, row.options);
       const verifierVerdict = String(row.verifier_result?.verdict || "");
@@ -238,6 +260,7 @@ export async function GET(request: NextRequest) {
         institutionName: institution?.name || "",
         className: klass?.name || "",
         subject: row.subject || "auto",
+        teachingMode: costBucket?.teachingModes.size === 1 ? [...costBucket.teachingModes][0] : null,
         referenceAnswer: row.reference_answer || "",
         questionNote: row.question_note || "",
         answer: row.answer || "",

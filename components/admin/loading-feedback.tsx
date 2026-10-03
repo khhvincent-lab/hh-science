@@ -20,7 +20,8 @@ export function AdminLoginLoading({ label = "正在確認登入狀態…" }: { l
       <h1>解題實驗室</h1><p className="admin-access-english">Science Lab</p>
       <div className="admin-access-status" role="status"><LoadingLabel>{label}</LoadingLabel></div>
       <div className="admin-access-track" aria-hidden="true"><i /></div>
-      <small>{slow ? "連線時間較長，請稍候…" : "教師與管理員專屬工作台"}</small>
+      <small>{slow ? "正在整理資料，完成後會自動進入…" : "教師與管理員專屬工作台"}</small>
+      {slow && <button type="button" className="hh-button-secondary" onClick={() => window.location.reload()}>重新連線</button>}
     </section>
   </main>;
 }

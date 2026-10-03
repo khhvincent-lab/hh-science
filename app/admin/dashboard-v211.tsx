@@ -53,8 +53,10 @@ function Trend({ rows, metric }: { rows: Insights["daily"]; metric: TrendMetric 
 }
 
 export default function DashboardV211({
-  dashboard, loading, error, isSuperAdmin, onNavigate,
+  dashboard, loading, error, isSuperAdmin, onNavigate, refreshKey = 0, onReady,
 }: {
+  refreshKey?: number;
+  onReady?: () => void;
   dashboard: Dashboard | null;
   loading: boolean;
   error: string;
@@ -78,14 +80,16 @@ export default function DashboardV211({
 
   useEffect(() => {
     let active = true;
+    const controller = new AbortController();
+    const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(25000)]);
     const load = async () => {
       setExtraLoading(true);
       setExtraError("");
       try {
         const [classResponse, insightsResponse, thresholdResponse] = await Promise.all([
-          fetch("/api/admin/class-overview", { cache: "no-store" }),
-          fetch(`/api/admin/dashboard-insights?range=${range}`, { cache: "no-store" }),
-          fetch("/api/admin/cost-alert-settings", { cache: "no-store" }),
+          fetch("/api/admin/class-overview", { cache: "no-store", signal }),
+          fetch(`/api/admin/dashboard-insights?range=${range}`, { cache: "no-store", signal }),
+          fetch("/api/admin/cost-alert-settings", { cache: "no-store", signal }),
         ]);
         if (!classResponse.ok || !insightsResponse.ok) throw new Error("讀取趨勢或班級分析失敗，請按右上方「重新整理」。");
         const [classData, insightsData] = await Promise.all([classResponse.json(), insightsResponse.json()]);
@@ -106,15 +110,14 @@ export default function DashboardV211({
         if (active) setExtraLoading(false);
       }
     };
-    if (dashboard) void load();
-    return () => { active = false; };
-  }, [dashboard, range]);
+    void load();
+    return () => { active = false; controller.abort(); };
+  }, [refreshKey, range]);
 
   useEffect(() => {
-    if (!dashboard) return;
     const controller = new AbortController();
     queueMicrotask(() => { if (!controller.signal.aborted) { setAccuracyLoading(true); setAccuracyError(""); } });
-    fetch(`/api/admin/dashboard-accuracy?range=${accuracyRange}`, { cache: "no-store", signal: controller.signal })
+    fetch(`/api/admin/dashboard-accuracy?range=${accuracyRange}`, { cache: "no-store", signal: AbortSignal.any([controller.signal, AbortSignal.timeout(25000)]) })
       .then(async (response) => {
         const data = await response.json();
         if (!response.ok) throw new Error(data.error || "讀取解題正確率失敗。");
@@ -124,7 +127,11 @@ export default function DashboardV211({
       .catch((caught) => { if (!controller.signal.aborted) setAccuracyError(caught instanceof Error ? caught.message : "讀取解題正確率失敗。"); })
       .finally(() => { if (!controller.signal.aborted) setAccuracyLoading(false); });
     return () => controller.abort();
-  }, [dashboard, accuracyRange]);
+  }, [refreshKey, accuracyRange]);
+
+  useEffect(() => {
+    if (!extraLoading && !accuracyLoading) onReady?.();
+  }, [extraLoading, accuracyLoading, onReady]);
 
   const ranked = useMemo(() => [...classes].sort((a, b) => b.todayQuestions - a.todayQuestions), [classes]);
   const totalStudents = classes.reduce((sum, row) => sum + row.students, 0);

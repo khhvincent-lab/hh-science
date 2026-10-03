@@ -1,5 +1,9 @@
 "use client";
 
+import { STUDENT_TEACHING_MODES, teachingModeLabel, type StudentTeachingMode } from "@/lib/teaching-modes";
+import { summarizeModeCosts } from "@/lib/question-mode-costs";
+import "./question-modes.css";
+
 import { normalizeScienceMarkup as normalizeAdminScienceMarkup, stripAnnotationCommands, stripBareAnnotationCommands } from "@/lib/science-markup";
 import { renderScienceFormula } from "@/lib/science-render";
 
@@ -466,6 +470,12 @@ export default function AdminPage() {
   const [brand, setBrand] = useState({name:"解題實驗室", englishName:"L.H. Science Lab", adminName:"教師管理中心"});
   const [loginError, setLoginError] = useState("");
   const [loginLoading, setLoginLoading] = useState(false);
+  const [startupPending, setStartupPending] = useState(true);
+  const [dashboardDetailsReady, setDashboardDetailsReady] = useState(false);
+  const [workQueueReady, setWorkQueueReady] = useState(false);
+  const [dashboardRevision, setDashboardRevision] = useState(0);
+  const markDashboardReady = useCallback(() => setDashboardDetailsReady(true), []);
+  const markWorkQueueReady = useCallback(() => setWorkQueueReady(true), []);
 
   const [chemistryRevision,setChemistryRevision] = useState(0);
   const [activeSection, setActiveSection] = useUrlState<AdminSection>("section","dashboard",["languageEvents","comparison","dashboard","siteQuestions","chemistryAnalytics","usage","students","classes","pin","ai","analytics","cost","teachingOverview","teachingQuestions","teachingExamples","teachingRuleLibrary","teachingCoach","teachingTraining","teachingImages","teachingSettings","platform"],true);
@@ -515,13 +525,16 @@ export default function AdminPage() {
   const [busyStudentId, setBusyStudentId] = useState<string | null>(null);
   const [historyStudent, setHistoryStudent] = useState<StudentRow | null>(null);
 
+  const dashboardRequestId = useRef(0);
   const loadDashboard = useCallback(async () => {
+    const requestId = ++dashboardRequestId.current;
     setDashboardLoading(true);
     setDashboardError("");
 
     try {
-      const response = await fetch("/api/admin/dashboard", { cache: "no-store" });
+      const response = await fetch("/api/admin/dashboard", { cache: "no-store", signal: AbortSignal.timeout(25000) });
       const data = await response.json();
+      if (requestId !== dashboardRequestId.current) return;
 
       if (response.status === 401) {
         setIsLoggedIn(false);
@@ -531,9 +544,9 @@ export default function AdminPage() {
       if (!response.ok) throw new Error(data.error || "讀取儀表板失敗。");
       setDashboard(data);
     } catch (error) {
-      setDashboardError(error instanceof Error ? error.message : "讀取儀表板失敗。");
+      if (requestId === dashboardRequestId.current) setDashboardError(error instanceof Error ? error.message : "讀取儀表板失敗。");
     } finally {
-      setDashboardLoading(false);
+      if (requestId === dashboardRequestId.current) setDashboardLoading(false);
     }
   }, []);
 
@@ -680,20 +693,21 @@ export default function AdminPage() {
     if (!response.ok) { setDashboardError(data.error || "切換教師範圍失敗。"); return; }
     setScopeTeacher(teacherId ? teacherOptions.find((item:any) => item.id === teacherId) ?? null : null);
     setStudentsLoaded(false);
+    setDashboard(null);
+    setDashboardDetailsReady(false);
+    setWorkQueueReady(false);
+    setStartupPending(true);
     await loadAllAdminData();
   }
 
   const loadAllAdminData = useCallback(async () => {
+    setDashboardRevision(value => value + 1);
     await Promise.all([
       loadDashboard(),
-      loadAISolverSettings(),
-      loadStudentAuthSettings(),
+      ...(activeSection === "ai" ? [loadAISolverSettings()] : []),
+      ...(["students", "classes", "pin"].includes(activeSection) ? [loadStudentAuthSettings()] : []),
     ]);
-  }, [
-    loadDashboard,
-    loadAISolverSettings,
-    loadStudentAuthSettings,
-  ]);
+  }, [activeSection, loadDashboard, loadAISolverSettings, loadStudentAuthSettings]);
 
   useEffect(() => {
     fetch("/api/brand", { cache: "no-store" }).then((r)=>r.ok?r.json():null).then((data)=>{ if(data?.brand) setBrand(data.brand); }).catch(()=>{});
@@ -724,9 +738,22 @@ export default function AdminPage() {
 
   useEffect(() => {
     if (!isLoggedIn) return;
-    void loadAllAdminData();
+    // Start the first screen as soon as authentication succeeds, under the animation.
+    void loadDashboard();
     void loadAdminIdentity();
-  }, [isLoggedIn, loadAllAdminData, loadAdminIdentity]);
+  }, [isLoggedIn, loadDashboard, loadAdminIdentity]);
+
+  useEffect(() => {
+    if (!isLoggedIn) return;
+    if (activeSection === "ai") void loadAISolverSettings();
+    if (["students", "classes", "pin"].includes(activeSection)) void loadStudentAuthSettings();
+  }, [isLoggedIn, activeSection, loadAISolverSettings, loadStudentAuthSettings]);
+
+  useEffect(() => {
+    if (!isLoggedIn || dashboardLoading || (!dashboard && !dashboardError)) return;
+    if (activeSection === "dashboard" && (!dashboardDetailsReady || !workQueueReady)) return;
+    setStartupPending(false);
+  }, [isLoggedIn, activeSection, dashboardLoading, dashboard, dashboardError, dashboardDetailsReady, workQueueReady]);
 
   useEffect(() => {
     if (isLoggedIn && (activeSection === "students" || activeSection === "classes") && !studentsLoaded) {
@@ -743,6 +770,14 @@ export default function AdminPage() {
 
     const animationStarted = performance.now();
     setLoginLoading(true);
+    setDashboard(null);
+    setDashboardError("");
+    setStudents([]);
+    setStudentsLoaded(false);
+    setScopeTeacher(null);
+    setStartupPending(true);
+    setDashboardDetailsReady(false);
+    setWorkQueueReady(false);
     setLoginError("");
 
     try {
@@ -773,7 +808,15 @@ export default function AdminPage() {
     } catch {
     }
 
+    dashboardRequestId.current += 1;
     setIsLoggedIn(false);
+    setDashboardError("");
+    setStartupPending(true);
+    setDashboardDetailsReady(false);
+    setWorkQueueReady(false);
+    setAdminUser(null);
+    setScopeTeacher(null);
+    setTeacherOptions([]);
     setDashboard(null);
     setSettings(null);
     setStudents([]);
@@ -1071,8 +1114,10 @@ export default function AdminPage() {
     return studentSummary.campuses.find((item) => item.campus === campus)?.count ?? 0;
   }
 
-  if (!adminReady || loginLoading) {
-    return <AdminLoginLoading label={loginLoading ? "正在驗證登入資料…" : "正在確認登入狀態…"} />;
+  const preparingWorkspace = !adminReady || loginLoading || startupPending;
+  const accessLabel = isLoggedIn ? "登入成功，正在準備儀表板與分析資料…" : loginLoading ? "正在驗證登入資料…" : "正在確認登入狀態…";
+  if (!isLoggedIn && (!adminReady || loginLoading)) {
+    return <AdminLoginLoading label={accessLabel} />;
   }
 
   if (!isLoggedIn) {
@@ -1119,7 +1164,12 @@ export default function AdminPage() {
   }
 
   return (
-    <main className="admin-shell admin-workspace-arrival">
+    <>
+    {preparingWorkspace && <AdminLoginLoading label={accessLabel} />}
+    {/* Keep the authenticated screen mounted so its requests run during the intro. */}
+    <div hidden={preparingWorkspace} style={preparingWorkspace ? { display: "none" } : undefined}>
+    <main className={`admin-shell${preparingWorkspace ? "" : " admin-workspace-arrival"}`}>
+
       <header className="admin-mobile-header">
         <button
           type="button"
@@ -1272,6 +1322,9 @@ export default function AdminPage() {
           <WorkspaceNavigation section={activeSection} onNavigate={section=>setActiveSection(section as AdminSection)}/>
           {activeSection === "dashboard" && (
             <DashboardV211
+              key={`dashboard-${scopeTeacher?.id || "all"}`}
+              refreshKey={dashboardRevision}
+              onReady={markDashboardReady}
               dashboard={dashboard}
               loading={dashboardLoading}
               error={dashboardError}
@@ -1280,7 +1333,7 @@ export default function AdminPage() {
             />
           )}
 
-          {activeSection === "dashboard" && <WorkQueue/>}
+          {activeSection === "dashboard" && <WorkQueue key={`queue-${scopeTeacher?.id || "all"}`} refreshKey={dashboardRevision} onReady={markWorkQueueReady} />}
           {activeSection === "comparison" && <ModelComparison/>}
           {activeSection === "siteQuestions" && (
             <SiteQuestionsSection initialFocus={siteQuestionInitialFocus} canReview={adminUser?.role === "super_admin"} onCalibrate={(historyId) => { setCalibrationTargetId(historyId); setActiveSection("teachingQuestions"); setOpenNavGroup("teaching"); }} />
@@ -1443,6 +1496,8 @@ export default function AdminPage() {
 
       <style jsx global>{adminStyles}</style>
     </main>
+    </div>
+    </>
   );
 }
 
@@ -3882,7 +3937,7 @@ type TeachingQuestionCost = {
 
 type TeachingQuestionRow = {
   id:string; studentId:string; studentName:string; campus:string; regionName:string; institutionName:string; className:string;
-  subject:string; referenceAnswer:string; questionNote:string; answer:string; explanation:string; options:string; annotations:any[]; diagram:ScienceDiagram|null; chemicalStructure:ChemicalStructure|null; imageUrls:string[]; followups:AdminFollowup[];
+  subject:string; teachingMode?:StudentTeachingMode|null; referenceAnswer:string; questionNote:string; answer:string; explanation:string; options:string; annotations:any[]; diagram:ScienceDiagram|null; chemicalStructure:ChemicalStructure|null; imageUrls:string[]; followups:AdminFollowup[];
   createdAt:string; primaryProvider?:string|null; primaryModel?:string|null; primaryAnswer?:string|null; verifierProvider?:string|null; verifierModel?:string|null; verifierResult?:any; arbiterProvider?:string|null; arbiterModel?:string|null; arbiterAnswer?:string|null; disputeStatus:string; issue:boolean; automaticMatch?:boolean; partialMatch?:boolean; answerMismatch?:boolean; review?:{verdict:"ai_correct"|"ai_incorrect"|"invalid_question"|"unreviewed";note:string;reviewedAt:string;reviewerName:string}|null; cost:TeachingQuestionCost;
 };
 
@@ -3903,6 +3958,7 @@ function SiteQuestionsSection({onCalibrate,initialFocus="all",canReview=false}:{
   const [message,setMessage]=useState("");
   const [q,setQ]=useUrlState<string>("sq_q","");
   const [subject,setSubject]=useUrlState<string>("sq_subject","",["","physics","chemistry","biology","earth"]);
+  const [modeFilter,setModeFilter]=useUrlState<""|StudentTeachingMode|"unknown">("sq_mode","",["","concise","standard","deep","unknown"]);
   const [range,setRange]=useUrlState<"today"|"all">("sq_range",initialFocus==="pending"?"all":"today",["today","all"]);
   const [filtersOpen,setFiltersOpen]=useState(false);
   const [focus,setFocus]=useUrlState<"all"|"followup"|"issue"|"pending"|"reviewed"|"verifier"|"arbiter"|"highCost">("sq_focus",initialFocus,["all","followup","issue","pending","reviewed","verifier","arbiter","highCost"]);
@@ -3914,22 +3970,28 @@ function SiteQuestionsSection({onCalibrate,initialFocus="all",canReview=false}:{
   const [reviewBusy,setReviewBusy]=useState(false);
   const [reviewMessage,setReviewMessage]=useState("");
 
+  const listRequestId=useRef(0);
   const load=useCallback(async()=>{
+    const requestId=++listRequestId.current;
     setLoading(true); setMessage("");
     try{
       const params=new URLSearchParams({range,page:String(page),focus});
       if(q.trim())params.set("q",q.trim());
       if(subject)params.set("subject",subject);
+      if(modeFilter)params.set("teachingMode",modeFilter);
       const response=await fetch(`/api/admin/teaching-questions?${params.toString()}`,{cache:"no-store"});
       const data=await response.json();
+      if(requestId!==listRequestId.current)return;
       if(!response.ok)throw new Error(data.error||"讀取全站題目失敗。");
       setItems(Array.isArray(data.items)?data.items:[]);
       setHasMore(Boolean(data.hasMore));
-    }catch(e){setMessage(e instanceof Error?e.message:"讀取全站題目失敗。");}
-    finally{setLoading(false);}
-  },[q,subject,range,focus,page]);
+    }catch(e){if(requestId===listRequestId.current)setMessage(e instanceof Error?e.message:"讀取全站題目失敗。");}
+    finally{if(requestId===listRequestId.current)setLoading(false);}
+  },[q,subject,range,focus,page,modeFilter]);
   useEffect(()=>{void load();},[load]);
   const visibleItems=items;
+  const modeCosts=summarizeModeCosts(items);
+  const unknownModeCount=items.filter(item=>!item.teachingMode).length;
   const pendingCount=items.filter(item=>item.answerMismatch).length;
   const reviewLabel=(item:TeachingQuestionRow)=>item.review?.verdict==="invalid_question"?"題目有誤 · 已排除統計":item.review?.verdict==="ai_correct"?"已確認 AI 正確":item.review?.verdict==="ai_incorrect"?"已確認 AI 答錯":item.answerMismatch?(item.partialMatch?"部分答案相符，待覆核":"答案待核對"):item.issue?"需注意":!item.referenceAnswer?.trim()?"未納入統計":"已比對";
   const reviewTone=(item:TeachingQuestionRow)=>item.review?.verdict&&item.review.verdict!=="unreviewed"?item.review.verdict:item.answerMismatch?"pending":"neutral";
@@ -3960,7 +4022,7 @@ function SiteQuestionsSection({onCalibrate,initialFocus="all",canReview=false}:{
       <section className="hh-card admin-panel site-question-identity-card">
         <div className="site-question-identity-main"><div><div className="hh-eyebrow">STUDENT QUESTION</div><h2 className="hh-display">{selected.studentName} · {adminSubjectLabel(selected.subject)}</h2><p>{[selected.regionName,selected.institutionName,selected.className].filter(Boolean).join(" · ")||selected.campus} · {new Date(selected.createdAt).toLocaleString("zh-TW")}</p></div><span className={`site-review-status ${reviewTone(selected)}`}>{reviewLabel(selected)}</span></div>
         {selected.imageUrls?.length>0&&<div className="site-question-images">{selected.imageUrls.map((url,index)=><img key={url} src={url} alt={`學生題目 ${index+1}`}/>)}</div>}
-        <div className="site-question-meta-grid"><article><span>學生提供答案</span><strong>{selected.referenceAnswer||"未提供"}</strong></article><article><span>AI 最終答案</span><div className="admin-formula-value"><AdminScienceText text={selected.answer||"—"} /></div></article><article><span>本題成本</span><strong>{selected.cost?.hasCostRecord?formatQuestionCostTwd(selected.cost.totalCostUsd):"—"}</strong></article></div>
+        <div className="site-question-meta-grid"><article><span>解題方式</span><strong className={`question-mode-chip mode-${selected.teachingMode||"unknown"}`}>{teachingModeLabel(selected.teachingMode)||"未記錄"}</strong></article><article><span>學生提供答案</span><strong>{selected.referenceAnswer||"未提供"}</strong></article><article><span>AI 最終答案</span><div className="admin-formula-value"><AdminScienceText text={selected.answer||"—"} /></div></article><article><span>本題成本</span><strong>{selected.cost?.hasCostRecord?formatQuestionCostTwd(selected.cost.totalCostUsd):"—"}</strong></article></div>
         {selected.questionNote&&<div className="site-question-note"><span>學生補充敘述</span><p>{selected.questionNote}</p></div>}
       </section>
 
@@ -3985,12 +4047,18 @@ function SiteQuestionsSection({onCalibrate,initialFocus="all",canReview=false}:{
       <div className="site-workbench-heading"><div><div className="hh-eyebrow">QUESTION WORKBENCH</div><h2 className="hh-display">全站題目</h2><p>先核對答案，再檢視解法、學生追問與模型成本。學生原填答案會保留。</p></div><div className="site-workbench-summary"><strong>{visibleItems.length}</strong><span>本頁題目</span>{pendingCount>0&&<small>{pendingCount} 題待核對</small>}</div></div>
       <div className="site-focus-filters" role="group" aria-label="題目狀態篩選">{([ ["all","全部題目"],["pending","答案待核對"],["issue","需注意"],["reviewed","已覆核"] ] as const).map(([key,label])=><button key={key} type="button" className={focus===key?"active":""} aria-pressed={focus===key} onClick={()=>{setFocus(key);setPage(0);if(key==="pending"||key==="reviewed")setRange("all");}}>{label}</button>)}<button type="button" className={filtersOpen?"active":""} aria-expanded={filtersOpen} onClick={()=>setFiltersOpen(value=>!value)}>更多篩選 {filtersOpen?"−":"＋"}</button></div>
       <div className="site-workbench-search"><input className="hh-input" aria-label="搜尋學生、題目或答案" placeholder="搜尋學生、題目或答案…" value={q} onChange={event=>{setQ(event.target.value);setPage(0);}}/><select className="hh-select" aria-label="科目" value={subject} onChange={event=>{setSubject(event.target.value);setPage(0);}}><option value="">全部科目</option><option value="physics">物理</option><option value="chemistry">化學</option><option value="biology">生物</option><option value="earth">地球科學</option></select><div className="teaching-range-switch"><button type="button" className={range==="today"?"active":""} onClick={()=>{setRange("today");setPage(0);}}>今天</button><button type="button" className={range==="all"?"active":""} onClick={()=>{setRange("all");setPage(0);}}>全部時間</button></div></div>
+      <div className="site-focus-filters question-mode-filters" role="group" aria-label="解題方式篩選">{([{value:"",label:"全部解題方式"},...STUDENT_TEACHING_MODES,{value:"unknown",label:"未記錄"}] as const).map(mode=><button type="button" key={mode.value} className={modeFilter===mode.value?"active":""} aria-pressed={modeFilter===mode.value} onClick={()=>{setModeFilter(mode.value);setPage(0);}}>{mode.label}</button>)}</div>
       {filtersOpen&&<div className="site-focus-filters site-extra-filters" role="group" aria-label="其他題目篩選">{([ ["followup","有追問"],["verifier","Verifier"],["arbiter","Arbiter"],["highCost","高成本"] ] as const).map(([key,label])=><button key={key} type="button" className={focus===key?"active":""} aria-pressed={focus===key} onClick={()=>{setFocus(key);setPage(0);}}>{label}</button>)}</div>}
     </section>
     {message&&<div className="admin-notice danger">{message}</div>}
+    {!loading&&!message&&<section className="hh-card admin-panel question-mode-comparison" aria-label="本頁解題方式成本比較">
+      <div className="hh-eyebrow">MODE & COST</div><h3>本頁成本比較</h3><p className="hh-muted">依目前篩選後的本頁 {items.length} 題統計，非全站總平均；僅計入有成本紀錄的題目，不含學生追問。</p>
+      <div className="question-mode-cost-grid">{modeCosts.map(mode=><article key={mode.value}><span className={`question-mode-chip mode-${mode.value}`}>{mode.label}</span><strong>{mode.averageCostUsd===null?"—":formatQuestionCostTwd(mode.averageCostUsd)}<small>／題</small></strong><p>{mode.questions} 題 · {mode.costSamples} 題有成本紀錄</p><small>總成本 {mode.costSamples?formatQuestionCostTwd(mode.totalCostUsd):"—"}</small></article>)}</div>
+      <p className="hh-muted">{unknownModeCount>0?`${unknownModeCount} 題未記錄解題方式，未納入三種模式比較。`:""}金額為模型 API 估算成本（1 美元＝32.5 元）；模型、題目難度與覆核次數也會影響成本，平均差異不代表單由解題方式造成。</p>
+    </section>}
     <section className="site-question-list">{loading?<AdminLoading label="正在讀取題目…" skeleton />:visibleItems.length===0?<div className="hh-card admin-panel admin-empty">這一頁沒有符合條件的題目；可以切換期間或查看下一頁。</div>:visibleItems.map(item=><button type="button" className="hh-card site-question-row site-question-row-v214" key={item.id} onClick={()=>{setSelected(item);setSelectedId(item.id);setReviewNote(item.review?.note||"");setReviewMessage("");}}>
       <span className="site-question-thumb">{item.imageUrls?.[0]?<img src={item.imageUrls[0]} alt="題目縮圖"/>:<span>SCI</span>}</span>
-      <span className="site-question-copy"><span className="site-question-topline"><b>{new Date(item.createdAt).toLocaleString("zh-TW",{month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"})}</b><em className={`teaching-subject-chip teaching-subject-${item.subject}`}>{adminSubjectLabel(item.subject)}</em><span className={`site-review-status ${reviewTone(item)}`}>{reviewLabel(item)}</span>{(item.followups?.length||0)>0&&<i className="info">追問 {item.followups.length}</i>}</span><strong>{item.studentName}<small>{[item.regionName,item.institutionName,item.className].filter(Boolean).join(" · ")||item.campus}</small></strong><p>{item.questionNote||item.explanation||"點開查看題目圖片與 AI 詳解"}</p><span className="site-row-answers"><span><small>學生參考答案</small><b>{item.referenceAnswer||"未填"}</b></span><span><small>AI 最終答案</small><b className="admin-answer-preview"><AdminScienceText text={item.answer||"—"}/></b></span></span><span className="site-row-foot"><span>本題成本 {item.cost?.hasCostRecord?formatQuestionCostTwd(item.cost.totalCostUsd):"未記錄"}</span><span>查看題目 →</span></span></span>
+      <span className="site-question-copy"><span className="site-question-topline"><b>{new Date(item.createdAt).toLocaleString("zh-TW",{month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"})}</b><em className={`teaching-subject-chip teaching-subject-${item.subject}`}>{adminSubjectLabel(item.subject)}</em><span className={`site-review-status ${reviewTone(item)}`}>{reviewLabel(item)}</span>{(item.followups?.length||0)>0&&<i className="info">追問 {item.followups.length}</i>}</span><strong>{item.studentName}<small>{[item.regionName,item.institutionName,item.className].filter(Boolean).join(" · ")||item.campus}</small></strong><p>{item.questionNote||item.explanation||"點開查看題目圖片與 AI 詳解"}</p><span className="site-row-answers"><span><small>學生參考答案</small><b>{item.referenceAnswer||"未填"}</b></span><span><small>AI 最終答案</small><b className="admin-answer-preview"><AdminScienceText text={item.answer||"—"}/></b></span></span><span className="site-row-foot"><span className={`question-mode-chip mode-${item.teachingMode||"unknown"}`}>{teachingModeLabel(item.teachingMode)||"方式未記錄"}</span><span>本題成本 {item.cost?.hasCostRecord?formatQuestionCostTwd(item.cost.totalCostUsd):"未記錄"}</span><span>查看題目 →</span></span></span>
     </button>)}</section>
     {(hasMore||page>0)&&<nav className="site-pagination" aria-label="題目分頁"><button type="button" disabled={loading||page===0} onClick={()=>setPage(value=>Math.max(0,value-1))}>← 上一頁</button><span>第 {page+1} 頁</span><button type="button" disabled={loading||!hasMore} onClick={()=>setPage(value=>value+1)}>下一頁 →</button></nav>}
   </div>;
