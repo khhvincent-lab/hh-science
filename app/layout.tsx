@@ -4,6 +4,7 @@ import "./v2.css";
 import "./racing-theme.css";
 import "./collections-theme.css";
 import "./f1-livery.css";
+import "./f1-premium.css";
 import "./solution-export.css";
 import PwaRegister from "@/components/pwa-register";
 

@@ -26,12 +26,17 @@ export default function LabStartup({ loading, authenticated, onResume, children 
   }, []);
 
   useEffect(() => {
-    if (loading) return;
+    if (loading) {
+      const reset = window.setTimeout(() => setPhase("loading"), 0);
+      return () => window.clearTimeout(reset);
+    }
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const racing = document.documentElement.dataset.theme?.startsWith("f1-");
     const timers = [
-      window.setTimeout(() => setPhase("ready"), reduced ? 0 : 650),
-      window.setTimeout(() => setPhase("enter"), reduced ? 100 : 1050),
-      window.setTimeout(() => setPhase("done"), reduced ? 250 : 2000),
+      ...(racing ? [window.setTimeout(() => setPhase("four"), reduced ? 60 : 350)] : []),
+      window.setTimeout(() => setPhase("ready"), racing ? (reduced ? 120 : 700) : (reduced ? 0 : 650)),
+      window.setTimeout(() => setPhase("enter"), racing ? (reduced ? 180 : 1050) : (reduced ? 100 : 1050)),
+      window.setTimeout(() => setPhase("done"), racing ? (reduced ? 350 : 2000) : (reduced ? 250 : 2000)),
     ];
     return () => timers.forEach(window.clearTimeout);
   }, [loading, cycle]);
@@ -55,7 +60,11 @@ export default function LabStartup({ loading, authenticated, onResume, children 
           <div className="lab-startup-mark"><AdaptiveBrandLogo size={94} /></div>
           {[0, 1, 2, 3].map(i => <span key={i} className={`lab-startup-particle lab-startup-particle-${i}`} />)}
         </div>
-        <div className="lab-startup-copy"><h1>解題實驗室</h1><p>Science Lab</p><div className="lab-startup-status">{loading ? (slow ? "連線時間較長，請稍候…" : "正在確認登入狀態…") : phase === "loading" ? "正在啟動實驗室…" : authenticated ? "實驗室已就緒" : "歡迎進入實驗室"}</div>
+        <div className="lab-startup-copy">
+          <div className="f1-start-lights" aria-hidden="true" data-lit={loading || phase === "loading" ? 3 : phase === "four" ? 4 : 5}>
+            {[0, 1, 2, 3, 4].map(i => <span key={i} className={i < (loading || phase === "loading" ? 3 : phase === "four" ? 4 : 5) ? "is-lit" : ""} />)}
+          </div>
+          <h1>解題實驗室</h1><p>Science Lab</p><div className="lab-startup-status">{loading ? (slow ? "連線時間較長，請稍候…" : "正在確認登入狀態…") : phase === "loading" || phase === "four" ? "正在啟動實驗室…" : authenticated ? "實驗室已就緒" : "歡迎進入實驗室"}</div>
         {loading && slow && <button type="button" onClick={() => window.location.reload()}>重新嘗試</button>}
         </div>
       </div>
