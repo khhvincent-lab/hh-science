@@ -19,10 +19,9 @@ export default function AdaptiveBrandLogo({
       aria-hidden={label ? undefined : true}
     >
       <svg className="iphone-brand-mark" viewBox="0 0 64 64" fill="none" aria-hidden="true">
-        <path d="M19 14h14M22 15v15a17 17 0 1 0 8 0V15" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
-        <path d="M12 43c7-6 14 6 24 0a12 12 0 0 1-24 0Z" fill="currentColor" opacity=".65" />
-        <g transform="rotate(16 47 39)"><path d="M43 24h10M44 25v25a4 4 0 0 0 8 0V25" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" /><path d="M46 40h4v10a2 2 0 0 1-4 0Z" fill="currentColor" opacity=".65" /></g>
-        <circle cx="41" cy="13" r="4" fill="currentColor" opacity=".8" /><circle cx="39" cy="23" r="2" fill="currentColor" opacity=".5" />
+        <path d="M24 13h16M27 14v15L16 47c-2 3 0 5 3 5h26c3 0 5-2 3-5L37 29V14" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+        <path d="m25 37-7 11c-.5 1 0 1.5 1 1.5h26c1 0 1.5-.5 1-1.5l-7-11c-5 3-9-3-14 0Z" fill="currentColor" opacity=".75" />
+        <circle cx="31" cy="32" r="1.8" fill="currentColor" />
       </svg>
       <svg className="f1-brand-mark" viewBox="0 0 64 64" fill="none" aria-hidden="true">
         <path className="f1-badge-panel" d="M0 0h64v64H0z" />

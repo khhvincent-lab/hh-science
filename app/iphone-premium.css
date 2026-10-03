@@ -112,3 +112,47 @@ html[data-theme] .hh-theme-swatch-iphone-glacier{background:linear-gradient(145d
 html[data-theme] .hh-theme-swatch-iphone-silver{background:linear-gradient(145deg,#fff,#d9dde3 45%,#939ba8)!important}
 html[data-theme] .hh-theme-swatch-iphone-black{background:linear-gradient(145deg,#737b87,#333943 45%,#101216)!important}
 @media(prefers-reduced-transparency:reduce){html[data-theme^="iphone-"] .student-page .student-app-header,html[data-theme^="iphone-"] .student-page .v2-student-bottom-nav{background:var(--surface)!important;backdrop-filter:none;-webkit-backdrop-filter:none}}
+
+/* Quiet glass controls: a readable tinted core, polished rim and soft reflection. */
+html[data-theme^="iphone-"] .adaptive-brand-logo{
+ background:linear-gradient(145deg,var(--surface-soft),var(--surface))!important;
+ color:var(--primary)!important;border-color:var(--border)!important;border-radius:24%!important;
+ box-shadow:inset 0 1px var(--phone-shine),0 2px 5px var(--phone-shadow)!important;
+}
+html[data-theme^="iphone-"] .adaptive-brand-logo::after{display:none}
+html[data-theme^="iphone-"] .student-page .hh-button-primary,
+html[data-theme^="iphone-"] .student-page .student-solve-button,
+html[data-theme^="iphone-"] .admin-login-page .hh-button-primary{
+ background:linear-gradient(175deg,#ffffff18,transparent 48%,#0000000d),color-mix(in srgb,var(--action) 96%,transparent)!important;
+ color:var(--action-text)!important;border:1px solid color-mix(in srgb,var(--action) 65%,var(--phone-rim))!important;
+ box-shadow:inset 0 1px #ffffff40,inset 0 -1px #00000018,0 5px 14px var(--phone-shadow)!important;
+ backdrop-filter:blur(16px) saturate(140%);-webkit-backdrop-filter:blur(16px) saturate(140%);
+}
+html[data-theme^="iphone-"] .student-page .hh-button-secondary,
+html[data-theme^="iphone-"] .student-page .student-menu-button,
+html[data-theme^="iphone-"] .hh-theme-toggle{
+ background:linear-gradient(155deg,var(--phone-shine),transparent 55%),color-mix(in srgb,var(--surface) 72%,transparent)!important;
+ color:var(--text)!important;border:1px solid color-mix(in srgb,var(--border) 70%,var(--phone-rim))!important;
+ border-radius:14px!important;box-shadow:inset 0 1px var(--phone-rim),inset 0 -1px #00000008,0 3px 10px var(--phone-shadow)!important;
+ backdrop-filter:blur(16px) saturate(140%);-webkit-backdrop-filter:blur(16px) saturate(140%);
+}
+html[data-theme^="iphone-"] .student-page .student-menu-button span{background:var(--text)!important}
+html[data-theme^="iphone-"] .student-page .student-menu-panel,
+html[data-theme^="iphone-"] .hh-theme-menu{
+ background:linear-gradient(150deg,var(--phone-shine),transparent 48%),color-mix(in srgb,var(--surface) 88%,transparent)!important;
+ border:1px solid var(--phone-rim)!important;border-radius:22px!important;
+ box-shadow:inset 0 1px var(--phone-shine),0 18px 48px var(--phone-shadow)!important;
+ backdrop-filter:blur(28px) saturate(135%);-webkit-backdrop-filter:blur(28px) saturate(135%);
+}
+html[data-theme^="iphone-"] .student-page .student-menu-panel>button{color:var(--text);border-radius:12px}
+html[data-theme^="iphone-"] .student-page .student-menu-panel>button.active,
+html[data-theme^="iphone-"] .student-page .student-menu-panel>button:hover{background:var(--primary-soft);color:var(--primary)}
+html[data-theme^="iphone-"] .student-page .student-menu-panel>button.student-menu-logout{color:var(--danger)}
+html[data-theme^="iphone-"] :is(.hh-button-primary,.hh-button-secondary,.student-menu-button,.hh-theme-toggle):focus-visible{outline:2px solid var(--primary);outline-offset:3px}
+@media(prefers-reduced-transparency:reduce){
+ html[data-theme^="iphone-"] :is(.student-menu-panel,.hh-theme-menu,.student-menu-button,.hh-theme-toggle,.hh-button-secondary){background:var(--surface)!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
+ html[data-theme^="iphone-"] .student-page .hh-button-primary{background:var(--action)!important;backdrop-filter:none;-webkit-backdrop-filter:none}
+}
+/* Keep fixed menu backdrops attached to the viewport while overlays are open. */
+html[data-theme^="iphone-"] .student-page .student-app-header:has(.student-menu-panel),
+html[data-theme^="iphone-"] .student-page .student-app-header:has(.hh-theme-menu){backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
