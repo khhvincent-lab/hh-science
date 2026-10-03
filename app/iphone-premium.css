@@ -1,0 +1,114 @@
+/* Science Lab interpretation of Burgundy, Glacier, Silver and Black finishes.
+   Contrast colors are chosen for a reading interface, not sampled product paint. */
+.iphone-brand-mark{display:none}
+html[data-theme="iphone-burgundy"]{
+ --surface:#291d20;--surface-soft:#34272a;--surface-muted:#413235;--bg-soft:#21171a;
+ --text:#fff4f3;--text-primary:var(--text);--text-secondary:#d3bfc0;--text-muted:#bfaaad;
+ --primary:#e6b9bd;--primary-hover:#f4d4d6;--primary-soft:#402b31;
+ --action:#88434b;--action-hover:#77363e;--action-text:#fff7f5;--action-soft:#422b31;
+ --accent:#d5a1a6;--accent-soft:#402b31;--secondary:#c9adb0;--secondary-soft:#382a2e;
+ --border:#60434a;--border-strong:#9e737b;--info:var(--primary);--info-soft:var(--primary-soft);
+ --phone-finish:linear-gradient(145deg,#a8777c 0%,#743f48 28%,#512a32 64%,#361d24 100%);
+ --phone-hero:radial-gradient(ellipse at 85% -15%,#c48a8d55,transparent 58%),linear-gradient(140deg,#582c35,#321e25 65%,#21171b);
+ --phone-glass:#2b1e22eb;--phone-rim:#f7c7ca38;--phone-shine:#ffe5df19;--phone-shadow:#09040655;--phone-icon:#fff2ed;
+ --phone-light:#bc838b;--phone-hero-text:#fff5f3;--phone-hero-muted:#e4c6ca;
+ --v2-hero:#4b2931;--v2-highlight:#e6b9bd;--v2-glow:#8c4a53;--v2-hero-text:#fff5f3;
+}
+html[data-theme="iphone-glacier"]{
+ --surface:#f5f9fc;--surface-soft:#eaf0f6;--surface-muted:#dee7ef;--bg-soft:#dce6ef;
+ --text:#233547;--text-primary:var(--text);--text-secondary:#526779;--text-muted:#5b7082;
+ --primary:#345d7e;--primary-hover:#244864;--primary-soft:#dce8f2;
+ --action:#456f93;--action-hover:#365c7d;--action-text:#fff;--action-soft:#dce7f0;
+ --accent:#456f93;--accent-soft:#e0eaf3;--secondary:#617b90;--secondary-soft:#e2ebf2;
+ --border:#c0cfdc;--border-strong:#859eb4;--info:var(--primary);--info-soft:var(--primary-soft);
+ --phone-finish:linear-gradient(145deg,#f2f7fc 0%,#d0e0ed 28%,#a9c0d4 64%,#819eB9 100%);
+ --phone-hero:radial-gradient(ellipse at 85% -15%,#ffffffd9,transparent 60%),linear-gradient(140deg,#dce9f4,#c4d7e7 65%,#b5ccdf);
+ --phone-glass:#f5f9fced;--phone-rim:#ffffffc9;--phone-shine:#ffffffa0;--phone-shadow:#29476719;--phone-icon:#234866;
+ --phone-light:#a3bfd8;--phone-hero-text:#203e58;--phone-hero-muted:#45647e;
+ --v2-hero:#c4d7e7;--v2-highlight:#345d7e;--v2-glow:#a3bfd8;--v2-hero-text:#203e58;
+}
+html[data-theme="iphone-silver"]{
+ --surface:#fcfcfd;--surface-soft:#f0f1f3;--surface-muted:#e5e7ea;--bg-soft:#e5e7eb;
+ --text:#24262b;--text-primary:var(--text);--text-secondary:#5d616a;--text-muted:#656a74;
+ --primary:#3f4249;--primary-hover:#202329;--primary-soft:#e5e7eb;
+ --action:#30343b;--action-hover:#20242a;--action-text:#fff;--action-soft:#e5e7eb;
+ --accent:#515965;--accent-soft:#e7e9ec;--secondary:#717781;--secondary-soft:#e9ebee;
+ --border:#cdd0d6;--border-strong:#959ca7;--info:var(--primary);--info-soft:var(--primary-soft);
+ --phone-finish:linear-gradient(145deg,#fff 0%,#e7e9ed 28%,#c4c9d1 64%,#939ba8 100%);
+ --phone-hero:radial-gradient(ellipse at 85% -15%,#fff,transparent 60%),linear-gradient(140deg,#f4f5f7,#dde0e5 65%,#c6ccd5);
+ --phone-glass:#ffffffed;--phone-rim:#fffffff0;--phone-shine:#ffffffb0;--phone-shadow:#242c3a16;--phone-icon:#393f49;
+ --phone-light:#b4bcc9;--phone-hero-text:#2c313a;--phone-hero-muted:#535d6b;
+ --v2-hero:#dde0e5;--v2-highlight:#515965;--v2-glow:#b4bcc9;--v2-hero-text:#2c313a;
+}
+html[data-theme="iphone-black"]{
+ --surface:#1b1c20;--surface-soft:#24262b;--surface-muted:#303238;--bg-soft:#121317;
+ --text:#f3f3f5;--text-primary:var(--text);--text-secondary:#c0c1c8;--text-muted:#a8abb4;
+ --primary:#d8d9df;--primary-hover:#f3f3f6;--primary-soft:#303137;
+ --action:#d1d2d8;--action-hover:#bfc1c9;--action-text:#191b20;--action-soft:#303137;
+ --accent:#c4c7d1;--accent-soft:#2d3037;--secondary:#aeb2bc;--secondary-soft:#292c33;
+ --border:#3f424a;--border-strong:#707682;--info:var(--primary);--info-soft:var(--primary-soft);
+ --phone-finish:linear-gradient(145deg,#626873 0%,#343941 28%,#1c1f25 64%,#101216 100%);
+ --phone-hero:radial-gradient(ellipse at 85% -15%,#8893a340,transparent 60%),linear-gradient(140deg,#30353e,#1c2027 65%,#101216);
+ --phone-glass:#1b1d22ed;--phone-rim:#dde2ed30;--phone-shine:#ffffff15;--phone-shadow:#00000055;--phone-icon:#ecedf1;
+ --phone-light:#747f93;--phone-hero-text:#f5f6fa;--phone-hero-muted:#c4cbd8;
+ --v2-hero:#252a33;--v2-highlight:#d8d9df;--v2-glow:#747f93;--v2-hero-text:#f5f6fa;
+}
+html[data-theme^="iphone-"]{
+ --v204-orbit:transparent;--v204-ambient:color-mix(in srgb,var(--phone-light) 12%,transparent);--v204-sheen:var(--phone-shine);
+ --student-canvas:radial-gradient(ellipse 90% 480px at 80% -90px,color-mix(in srgb,var(--phone-light) 23%,transparent),transparent 80%),var(--bg);
+}
+html[data-theme^="iphone-"] .student-page{background:var(--student-canvas)!important}
+html[data-theme^="iphone-"] .student-top-glow{display:none}
+html[data-theme^="iphone-"] .student-page .student-app-header{
+ background:var(--phone-glass)!important;border:1px solid var(--phone-rim)!important;border-radius:21px!important;
+ box-shadow:inset 0 1px var(--phone-shine),0 6px 22px var(--phone-shadow)!important;backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);
+}
+html[data-theme^="iphone-"] .student-page .student-brand-intro{
+ position:relative;isolation:isolate;overflow:hidden;margin:18px 0!important;padding:25px 22px!important;border:1px solid var(--phone-rim);border-radius:25px;
+ background:var(--phone-hero);box-shadow:inset 0 1px var(--phone-shine),0 12px 30px var(--phone-shadow);
+}
+html[data-theme^="iphone-"] .student-page .student-brand-intro::before{content:"";position:absolute;z-index:-1;right:-80px;top:-100px;width:270px;height:270px;border:1px solid var(--phone-rim);border-radius:50%;box-shadow:0 0 0 24px #ffffff05,0 0 0 48px #ffffff03;pointer-events:none}
+html[data-theme^="iphone-"] .student-page .student-brand-intro .hh-display{color:var(--phone-hero-text)!important;font-family:inherit;letter-spacing:-.035em;font-weight:720;font-size:clamp(28px,7vw,40px);margin:10px 0!important}
+html[data-theme^="iphone-"] .student-page .student-brand-intro .hh-eyebrow,
+html[data-theme^="iphone-"] .student-page .student-brand-intro p{color:var(--phone-hero-muted)!important;font-size:11px;line-height:1.8}
+html[data-theme^="iphone-"] .student-page .student-welcome-card{
+ background:var(--phone-hero)!important;border:1px solid var(--phone-rim)!important;border-radius:23px!important;box-shadow:inset 0 1px var(--phone-shine),0 10px 24px var(--phone-shadow)!important;
+}
+html[data-theme^="iphone-"] .student-page .student-welcome-card::before,
+html[data-theme^="iphone-"] .student-page .student-welcome-card::after{display:none}
+html[data-theme^="iphone-"] .student-page .student-welcome-title{color:var(--phone-hero-text)!important;font-family:inherit}
+html[data-theme^="iphone-"] .student-page .student-welcome-label,
+html[data-theme^="iphone-"] .student-page .student-welcome-main .student-muted{color:var(--phone-hero-muted)!important}
+html[data-theme^="iphone-"] .student-page .student-avatar{background:color-mix(in srgb,var(--surface) 70%,transparent);color:var(--primary);border:1px solid var(--phone-rim);border-radius:15px}
+html[data-theme^="iphone-"] .student-page .student-panel,
+html[data-theme^="iphone-"] .student-page .student-login-card{background:var(--surface)!important;border:1px solid var(--border)!important;border-radius:23px!important;box-shadow:inset 0 1px var(--phone-shine),0 8px 23px var(--phone-shadow)!important}
+html[data-theme^="iphone-"] .student-page .hh-input,
+html[data-theme^="iphone-"] .student-page .student-upload-zone{background:var(--surface-soft)!important;border-color:var(--border)!important;border-radius:13px!important;color:var(--text)!important}
+html[data-theme^="iphone-"] .student-page .hh-button-primary,
+html[data-theme^="iphone-"] .student-page .student-solve-button{background:var(--action)!important;color:var(--action-text)!important;border-radius:14px!important;box-shadow:inset 0 1px #ffffff26,0 5px 14px var(--phone-shadow)!important}
+html[data-theme^="iphone-"] .student-page .student-feature-mark{background:var(--primary-soft)!important;color:var(--primary)!important;border-radius:11px;box-shadow:inset 0 1px var(--phone-shine)}
+html[data-theme^="iphone-"] .student-page .student-upload-icon{color:var(--primary)!important;background:var(--primary-soft)!important}
+html[data-theme^="iphone-"] .student-page .v2-student-bottom-nav{background:var(--phone-glass)!important;border:1px solid var(--phone-rim)!important;border-radius:24px!important;box-shadow:inset 0 1px var(--phone-shine),0 8px 28px var(--phone-shadow)!important;backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px)}
+html[data-theme^="iphone-"] .student-page .v2-student-bottom-nav button[aria-current="page"]{background:var(--primary-soft)!important;color:var(--primary)!important;border-radius:17px}
+/* A vector glassware symbol inside a color-matched ceramic tile. */
+html[data-theme^="iphone-"] .adaptive-brand-logo{background:var(--phone-finish)!important;color:var(--phone-icon)!important;border:1px solid var(--phone-rim)!important;border-radius:27%!important;box-shadow:inset 0 1px #ffffff55,inset 0 -1px #00000015,0 3px 9px var(--phone-shadow)!important}
+html[data-theme^="iphone-"] .adaptive-brand-logo::before{display:none!important}
+html[data-theme^="iphone-"] .iphone-brand-mark{display:block;width:100%;height:100%}
+html[data-theme^="iphone-"] .adaptive-brand-logo::after{content:"";position:absolute;inset:0;background:linear-gradient(145deg,#ffffff22,transparent 46%);pointer-events:none}
+html[data-theme^="iphone-"] .admin-login-page{background:var(--student-canvas)!important}
+html[data-theme^="iphone-"] .admin-login-card{border-radius:27px!important;box-shadow:0 25px 75px var(--phone-shadow)!important}
+html[data-theme^="iphone-"] .admin-login-brand{background:var(--phone-hero)!important}
+html[data-theme^="iphone-"] .admin-login-brand .admin-login-title{font-family:inherit;color:var(--phone-hero-text)!important;letter-spacing:-.04em;font-weight:700}
+html[data-theme^="iphone-"] .admin-login-brand p,
+html[data-theme^="iphone-"] .admin-login-brand .hh-eyebrow,
+html[data-theme^="iphone-"] .admin-login-brand .v2-login-theme{color:var(--phone-hero-muted)!important}
+html[data-theme^="iphone-"] .lab-startup{background:radial-gradient(ellipse at 50% 43%,color-mix(in srgb,var(--phone-light) 15%,var(--bg)),var(--bg) 70%)!important}
+html[data-theme^="iphone-"] .lab-startup-grid{opacity:.2}
+html[data-theme^="iphone-"] .lab-startup-orbit{filter:drop-shadow(0 0 2px var(--primary))}
+html[data-theme^="iphone-"] .lab-startup-copy h1{font-family:inherit;font-weight:600;letter-spacing:.12em}
+html[data-theme^="iphone-"] .admin-access-card{border:1px solid var(--phone-rim);border-radius:25px;background:var(--phone-glass);box-shadow:0 20px 60px var(--phone-shadow)}
+html[data-theme] .hh-theme-swatch-iphone-burgundy{background:linear-gradient(145deg,#b58588,#743f48 45%,#361d24)!important}
+html[data-theme] .hh-theme-swatch-iphone-glacier{background:linear-gradient(145deg,#f2f7fc,#c5d9e9 45%,#819eb9)!important}
+html[data-theme] .hh-theme-swatch-iphone-silver{background:linear-gradient(145deg,#fff,#d9dde3 45%,#939ba8)!important}
+html[data-theme] .hh-theme-swatch-iphone-black{background:linear-gradient(145deg,#737b87,#333943 45%,#101216)!important}
+@media(prefers-reduced-transparency:reduce){html[data-theme^="iphone-"] .student-page .student-app-header,html[data-theme^="iphone-"] .student-page .v2-student-bottom-nav{background:var(--surface)!important;backdrop-filter:none;-webkit-backdrop-filter:none}}

@@ -5,6 +5,7 @@ import "./racing-theme.css";
 import "./collections-theme.css";
 import "./f1-livery.css";
 import "./f1-premium.css";
+import "./iphone-premium.css";
 import "./solution-export.css";
 import PwaRegister from "@/components/pwa-register";
 
