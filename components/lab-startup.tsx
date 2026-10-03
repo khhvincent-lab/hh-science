@@ -33,10 +33,14 @@ export default function LabStartup({ loading, authenticated, onResume, children 
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const racing = document.documentElement.dataset.theme?.startsWith("f1-");
     const timers = [
-      ...(racing ? [window.setTimeout(() => setPhase("four"), reduced ? 60 : 350)] : []),
-      window.setTimeout(() => setPhase("ready"), racing ? (reduced ? 120 : 700) : (reduced ? 0 : 650)),
-      window.setTimeout(() => setPhase("enter"), racing ? (reduced ? 180 : 1050) : (reduced ? 100 : 1050)),
-      window.setTimeout(() => setPhase("done"), racing ? (reduced ? 350 : 2000) : (reduced ? 250 : 2000)),
+      ...(racing ? [
+        window.setTimeout(() => setPhase("two"), reduced ? 100 : 300),
+        window.setTimeout(() => setPhase("three"), reduced ? 200 : 600),
+        window.setTimeout(() => setPhase("four"), reduced ? 300 : 900),
+      ] : []),
+      window.setTimeout(() => setPhase("ready"), racing ? (reduced ? 400 : 1200) : (reduced ? 500 : 1150)),
+      window.setTimeout(() => setPhase("enter"), racing ? (reduced ? 680 : 1550) : (reduced ? 600 : 1550)),
+      window.setTimeout(() => setPhase("done"), racing ? (reduced ? 850 : 2500) : (reduced ? 750 : 2500)),
     ];
     return () => timers.forEach(window.clearTimeout);
   }, [loading, cycle]);
@@ -48,6 +52,7 @@ export default function LabStartup({ loading, authenticated, onResume, children 
   }, [loading]);
 
   const active = phase !== "done" || loading;
+  const litCount = loading || phase === "loading" ? 1 : phase === "two" ? 2 : phase === "three" ? 3 : phase === "four" ? 4 : 5;
   return <>
     <div className={`lab-startup-content ${active ? "lab-startup-covered" : ""} ${phase === "enter" ? "lab-startup-reveal" : ""}`} inert={active} aria-hidden={active || undefined}>
       {!loading && children}
@@ -61,10 +66,10 @@ export default function LabStartup({ loading, authenticated, onResume, children 
           {[0, 1, 2, 3].map(i => <span key={i} className={`lab-startup-particle lab-startup-particle-${i}`} />)}
         </div>
         <div className="lab-startup-copy">
-          <div className="f1-start-lights" aria-hidden="true" data-lit={loading || phase === "loading" ? 3 : phase === "four" ? 4 : 5}>
-            {[0, 1, 2, 3, 4].map(i => <span key={i} className={i < (loading || phase === "loading" ? 3 : phase === "four" ? 4 : 5) ? "is-lit" : ""} />)}
+          <div className="f1-start-lights" aria-hidden="true" data-lit={litCount}>
+            {[0, 1, 2, 3, 4].map(i => <span key={i} className={i < litCount ? "is-lit" : ""} />)}
           </div>
-          <h1>解題實驗室</h1><p>Science Lab</p><div className="lab-startup-status">{loading ? (slow ? "連線時間較長，請稍候…" : "正在確認登入狀態…") : phase === "loading" || phase === "four" ? "正在啟動實驗室…" : authenticated ? "實驗室已就緒" : "歡迎進入實驗室"}</div>
+          <h1>解題實驗室</h1><p>Science Lab</p><div className="lab-startup-status">{loading ? (slow ? "連線時間較長，請稍候…" : "正在確認登入狀態…") : litCount < 5 ? "正在啟動實驗室…" : authenticated ? "實驗室已就緒" : "歡迎進入實驗室"}</div>
         {loading && slow && <button type="button" onClick={() => window.location.reload()}>重新嘗試</button>}
         </div>
       </div>

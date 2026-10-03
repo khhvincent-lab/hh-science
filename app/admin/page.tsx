@@ -31,7 +31,7 @@ const USD_TO_TWD_RATE = 32.5;
 
 // A short, requested visual dwell; slow requests incur no extra delay.
 async function finishAdminLoginAnimation(startedAt: number) {
-  const minimum = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 1200;
+  const minimum = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 500 : 1700;
   const remaining = minimum - (performance.now() - startedAt);
   if (remaining > 0) await new Promise<void>(resolve => window.setTimeout(resolve, remaining));
 }
