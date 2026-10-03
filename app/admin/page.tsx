@@ -474,6 +474,14 @@ export default function AdminPage() {
   const [dashboardDetailsReady, setDashboardDetailsReady] = useState(false);
   const [workQueueReady, setWorkQueueReady] = useState(false);
   const [dashboardRevision, setDashboardRevision] = useState(0);
+  const adminMainRef = useRef<HTMLElement>(null);
+  const questionRefreshRef = useRef<(() => Promise<void>) | null>(null);
+  const registerQuestionRefresh = useCallback((refresh: (() => Promise<void>) | null) => {
+    questionRefreshRef.current = refresh;
+  }, []);
+  const refreshLock = useRef(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [pullDistance, setPullDistance] = useState(0);
   const markDashboardReady = useCallback(() => setDashboardDetailsReady(true), []);
   const markWorkQueueReady = useCallback(() => setWorkQueueReady(true), []);
 
@@ -708,6 +716,69 @@ export default function AdminPage() {
       ...(["students", "classes", "pin"].includes(activeSection) ? [loadStudentAuthSettings()] : []),
     ]);
   }, [activeSection, loadDashboard, loadAISolverSettings, loadStudentAuthSettings]);
+
+  const refreshAdmin = useCallback(async () => {
+    if (refreshLock.current) return;
+    refreshLock.current = true;
+    setRefreshing(true);
+    try {
+      if (activeSection === "siteQuestions") await questionRefreshRef.current?.();
+      else if (activeSection === "chemistryAnalytics") setChemistryRevision(v => v + 1);
+      else if (activeSection === "students" || activeSection === "classes") await loadStudents();
+      else await loadAllAdminData();
+    } finally {
+      refreshLock.current = false;
+      setRefreshing(false);
+    }
+  }, [activeSection, loadStudents, loadAllAdminData]);
+
+  useEffect(() => {
+    const root = adminMainRef.current;
+    if (!root || !isLoggedIn || startupPending || mobileMenuOpen ||
+        !["dashboard", "siteQuestions", "usage"].includes(activeSection)) return;
+    let start: { x: number; y: number } | null = null;
+    let distance = 0;
+    const reset = () => { start = null; distance = 0; setPullDistance(0); };
+    const atTop = (target: EventTarget | null) => {
+      if (window.scrollY > 1) return false;
+      for (let el = target instanceof Element ? target : null; el; el = el.parentElement) {
+        if (el.scrollTop > 1) return false;
+      }
+      return true;
+    };
+    const onStart = (event: TouchEvent) => {
+      if (event.touches.length !== 1 || refreshLock.current || !atTop(event.target) ||
+          (event.target instanceof Element && event.target.closest("input,textarea,select,button,a,[contenteditable],[role=dialog]"))) return;
+      start = { x: event.touches[0].clientX, y: event.touches[0].clientY };
+    };
+    const onMove = (event: TouchEvent) => {
+      if (!start) return;
+      if (event.touches.length !== 1) { reset(); return; }
+      const dy = event.touches[0].clientY - start.y;
+      const dx = Math.abs(event.touches[0].clientX - start.x);
+      if (dy < 0 || dx > Math.max(10, dy) || !atTop(event.target)) { reset(); return; }
+      if (dy < 8) return;
+      if (!event.cancelable) { reset(); return; }
+      event.preventDefault();
+      distance = Math.min(100, dy * 0.5);
+      setPullDistance(distance);
+    };
+    const onEnd = () => {
+      const ready = distance >= 64;
+      reset();
+      if (ready) void refreshAdmin();
+    };
+    root.addEventListener("touchstart", onStart, { passive: true });
+    root.addEventListener("touchmove", onMove, { passive: false });
+    root.addEventListener("touchend", onEnd);
+    root.addEventListener("touchcancel", reset);
+    return () => {
+      root.removeEventListener("touchstart", onStart);
+      root.removeEventListener("touchmove", onMove);
+      root.removeEventListener("touchend", onEnd);
+      root.removeEventListener("touchcancel", reset);
+    };
+  }, [isLoggedIn, startupPending, mobileMenuOpen, activeSection, refreshAdmin]);
 
   useEffect(() => {
     fetch("/api/brand", { cache: "no-store" }).then((r)=>r.ok?r.json():null).then((data)=>{ if(data?.brand) setBrand(data.brand); }).catch(()=>{});
@@ -1292,7 +1363,7 @@ export default function AdminPage() {
         </div>
       </aside>
 
-      <section className="admin-main">
+      <section className="admin-main" ref={adminMainRef}>
         <header className="admin-topbar">
           <div>
             <div className="hh-eyebrow">{sectionEyebrow(activeSection)}</div>
@@ -1307,17 +1378,20 @@ export default function AdminPage() {
             <button
               type="button"
               className="hh-button-secondary"
-              onClick={() => {
-                if (activeSection === "chemistryAnalytics") setChemistryRevision(v=>v+1);
-                else if (activeSection === "students" || activeSection === "classes") void loadStudents();
-                else void loadAllAdminData();
-              }}
+              onClick={() => void refreshAdmin()}
+              disabled={refreshing}
+              aria-busy={refreshing}
             >
-              重新整理
+              {refreshing ? "正在更新…" : "重新整理"}
             </button>
           </div>
         </header>
 
+        <div className="admin-pull-refresh" role="status" aria-live="polite"
+          style={{ height: refreshing ? 48 : pullDistance, opacity: refreshing || pullDistance > 0 ? 1 : 0 }}>
+          <span aria-hidden="true" className={refreshing ? "admin-refresh-spinner" : ""}>↻</span>
+          {refreshing ? "正在載入最新資料…" : pullDistance >= 64 ? "放開即可重新整理" : "下拉重新整理"}
+        </div>
         <div className={`admin-content admin-workspace workspace-${workspaceFor(activeSection)}`}>
           <WorkspaceNavigation section={activeSection} onNavigate={section=>setActiveSection(section as AdminSection)}/>
           {activeSection === "dashboard" && (
@@ -1336,7 +1410,7 @@ export default function AdminPage() {
           {activeSection === "dashboard" && <WorkQueue key={`queue-${scopeTeacher?.id || "all"}`} refreshKey={dashboardRevision} onReady={markWorkQueueReady} />}
           {activeSection === "comparison" && <ModelComparison/>}
           {activeSection === "siteQuestions" && (
-            <SiteQuestionsSection initialFocus={siteQuestionInitialFocus} canReview={adminUser?.role === "super_admin"} onCalibrate={(historyId) => { setCalibrationTargetId(historyId); setActiveSection("teachingQuestions"); setOpenNavGroup("teaching"); }} />
+            <SiteQuestionsSection registerRefresh={registerQuestionRefresh} initialFocus={siteQuestionInitialFocus} canReview={adminUser?.role === "super_admin"} onCalibrate={(historyId) => { setCalibrationTargetId(historyId); setActiveSection("teachingQuestions"); setOpenNavGroup("teaching"); }} />
           )}
 
           {activeSection === "languageEvents" && <LanguageEvents key={scopeTeacher?.id || "all"}/>}
@@ -3951,7 +4025,7 @@ function teachingCostRoleLabel(role: TeachingQuestionCostRole["role"]) {
 }
 
 
-function SiteQuestionsSection({onCalibrate,initialFocus="all",canReview=false}:{onCalibrate:(historyId:string)=>void;initialFocus?:"all"|"pending";canReview?:boolean}) {
+function SiteQuestionsSection({onCalibrate,initialFocus="all",canReview=false,registerRefresh}:{registerRefresh:(refresh:(()=>Promise<void>)|null)=>void;onCalibrate:(historyId:string)=>void;initialFocus?:"all"|"pending";canReview?:boolean}) {
   const [items,setItems]=useState<TeachingQuestionRow[]>([]);
   const [selected,setSelected]=useState<TeachingQuestionRow|null>(null);
   const [loading,setLoading]=useState(true);
@@ -3979,7 +4053,7 @@ function SiteQuestionsSection({onCalibrate,initialFocus="all",canReview=false}:{
       if(q.trim())params.set("q",q.trim());
       if(subject)params.set("subject",subject);
       if(modeFilter)params.set("teachingMode",modeFilter);
-      const response=await fetch(`/api/admin/teaching-questions?${params.toString()}`,{cache:"no-store"});
+      const response=await fetch(`/api/admin/teaching-questions?${params.toString()}`,{cache:"no-store",signal:AbortSignal.timeout(25000)});
       const data=await response.json();
       if(requestId!==listRequestId.current)return;
       if(!response.ok)throw new Error(data.error||"讀取全站題目失敗。");
@@ -3989,6 +4063,7 @@ function SiteQuestionsSection({onCalibrate,initialFocus="all",canReview=false}:{
     finally{if(requestId===listRequestId.current)setLoading(false);}
   },[q,subject,range,focus,page,modeFilter]);
   useEffect(()=>{void load();},[load]);
+  useEffect(()=>{registerRefresh(load);return()=>registerRefresh(null);},[load,registerRefresh]);
   const visibleItems=items;
   const modeCosts=summarizeModeCosts(items);
   const unknownModeCount=items.filter(item=>!item.teachingMode).length;
@@ -5245,6 +5320,11 @@ const adminStyles = `
     color: var(--text);
   }
 
+  .admin-pull-refresh { display:flex; align-items:center; justify-content:center; gap:9px; overflow:hidden; color:var(--primary); font-size:12px; font-weight:700; transition:height .18s ease,opacity .18s ease; }
+  .admin-pull-refresh > span { font-size:22px; }
+  .admin-refresh-spinner { animation:admin-refresh-spin .8s linear infinite; }
+  @keyframes admin-refresh-spin { to { transform:rotate(360deg); } }
+  @media(prefers-reduced-motion:reduce) { .admin-pull-refresh { transition:none; } .admin-refresh-spinner { animation:none; } }
   .admin-main {
     min-width: 0;
     min-height: 100vh;
