@@ -1,3 +1,4 @@
+import { resolveAdminDateRange } from "@/lib/admin-date-range";
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdminSession, getAccessibleStudentIds } from "@/lib/admin-access";
 import { supabaseAdmin } from "@/lib/supabase-admin";
@@ -122,13 +123,8 @@ export async function GET(request: NextRequest) {
   const focus = params.get("focus") || "all";
   const page = Math.min(1000, Math.max(0, Number.parseInt(params.get("page") || "0", 10) || 0));
   const pageSize = 40;
-  const range = params.get("range") === "all" ? "all" : "today";
-  const today = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Taipei",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(new Date());
+  const rawRange = params.get("range");
+  const period = resolveAdminDateRange(rawRange === "all" || rawRange === "yesterday" ? rawRange : "today");
 
   const matched: any[] = [];
   for (let offset = 0; matched.length <= (page + 1) * pageSize; offset += 200) {
@@ -146,7 +142,7 @@ export async function GET(request: NextRequest) {
 
     if (accessible !== null) query = query.in("student_id", accessible);
     if (historyId) query = query.eq("id", historyId);
-    if (!historyId && range === "today") query = query.gte("created_at", `${today}T00:00:00+08:00`);
+    if (!historyId && period.startAt) query = query.gte("created_at", period.startAt).lt("created_at", period.endAt);
     if (subject) query = query.eq("subject", subject);
 
     const { data, error } = await query;

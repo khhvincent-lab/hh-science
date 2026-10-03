@@ -228,7 +228,7 @@ type AdminHistoryItem = {
   followups: AdminFollowup[];
 };
 
-type AnalyticsRange = "today" | "7d" | "30d" | "month";
+type AnalyticsRange = "today" | "7d" | "30d" | "month" | "all";
 
 type AnalyticsRoleMetric = {
   role: string;
@@ -261,7 +261,7 @@ type SolveCostGroupMetric = {
 type AnalyticsData = {
   range: AnalyticsRange;
   label: string;
-  startAt: string;
+  startAt: string | null;
   endAt: string;
   generatedAt: string;
   totals: {
@@ -270,6 +270,8 @@ type AnalyticsData = {
     totalCostUsd: number;
     averageCostPerSolveUsd: number;
   };
+  modeCosts: ReturnType<typeof summarizeModeCosts>;
+  unknownModeQuestions: number;
   solveCosts: {
     includedRoles: string[];
     withReference: SolveCostGroupMetric;
@@ -3959,7 +3961,7 @@ function SiteQuestionsSection({onCalibrate,initialFocus="all",canReview=false}:{
   const [q,setQ]=useUrlState<string>("sq_q","");
   const [subject,setSubject]=useUrlState<string>("sq_subject","",["","physics","chemistry","biology","earth"]);
   const [modeFilter,setModeFilter]=useUrlState<""|StudentTeachingMode|"unknown">("sq_mode","",["","concise","standard","deep","unknown"]);
-  const [range,setRange]=useUrlState<"today"|"all">("sq_range",initialFocus==="pending"?"all":"today",["today","all"]);
+  const [range,setRange]=useUrlState<"today"|"yesterday"|"all">("sq_range",initialFocus==="pending"?"all":"today",["today","yesterday","all"]);
   const [filtersOpen,setFiltersOpen]=useState(false);
   const [focus,setFocus]=useUrlState<"all"|"followup"|"issue"|"pending"|"reviewed"|"verifier"|"arbiter"|"highCost">("sq_focus",initialFocus,["all","followup","issue","pending","reviewed","verifier","arbiter","highCost"]);
   const [page,setPage]=useUrlState<number>("sq_page",0);
@@ -4044,17 +4046,25 @@ function SiteQuestionsSection({onCalibrate,initialFocus="all",canReview=false}:{
 
   return <div className="admin-stack site-questions-v21">
     <section className="hh-card admin-panel site-workbench-hero">
-      <div className="site-workbench-heading"><div><div className="hh-eyebrow">QUESTION WORKBENCH</div><h2 className="hh-display">全站題目</h2><p>先核對答案，再檢視解法、學生追問與模型成本。學生原填答案會保留。</p></div><div className="site-workbench-summary"><strong>{visibleItems.length}</strong><span>本頁題目</span>{pendingCount>0&&<small>{pendingCount} 題待核對</small>}</div></div>
-      <div className="site-focus-filters" role="group" aria-label="題目狀態篩選">{([ ["all","全部題目"],["pending","答案待核對"],["issue","需注意"],["reviewed","已覆核"] ] as const).map(([key,label])=><button key={key} type="button" className={focus===key?"active":""} aria-pressed={focus===key} onClick={()=>{setFocus(key);setPage(0);if(key==="pending"||key==="reviewed")setRange("all");}}>{label}</button>)}<button type="button" className={filtersOpen?"active":""} aria-expanded={filtersOpen} onClick={()=>setFiltersOpen(value=>!value)}>更多篩選 {filtersOpen?"−":"＋"}</button></div>
-      <div className="site-workbench-search"><input className="hh-input" aria-label="搜尋學生、題目或答案" placeholder="搜尋學生、題目或答案…" value={q} onChange={event=>{setQ(event.target.value);setPage(0);}}/><select className="hh-select" aria-label="科目" value={subject} onChange={event=>{setSubject(event.target.value);setPage(0);}}><option value="">全部科目</option><option value="physics">物理</option><option value="chemistry">化學</option><option value="biology">生物</option><option value="earth">地球科學</option></select><div className="teaching-range-switch"><button type="button" className={range==="today"?"active":""} onClick={()=>{setRange("today");setPage(0);}}>今天</button><button type="button" className={range==="all"?"active":""} onClick={()=>{setRange("all");setPage(0);}}>全部時間</button></div></div>
-      <div className="site-focus-filters question-mode-filters" role="group" aria-label="解題方式篩選">{([{value:"",label:"全部解題方式"},...STUDENT_TEACHING_MODES,{value:"unknown",label:"未記錄"}] as const).map(mode=><button type="button" key={mode.value} className={modeFilter===mode.value?"active":""} aria-pressed={modeFilter===mode.value} onClick={()=>{setModeFilter(mode.value);setPage(0);}}>{mode.label}</button>)}</div>
-      {filtersOpen&&<div className="site-focus-filters site-extra-filters" role="group" aria-label="其他題目篩選">{([ ["followup","有追問"],["verifier","Verifier"],["arbiter","Arbiter"],["highCost","高成本"] ] as const).map(([key,label])=><button key={key} type="button" className={focus===key?"active":""} aria-pressed={focus===key} onClick={()=>{setFocus(key);setPage(0);}}>{label}</button>)}</div>}
+      <div className="site-workbench-heading"><div><div className="hh-eyebrow">QUESTION WORKBENCH</div><h2 className="hh-display">全站題目</h2></div><div className="site-workbench-summary"><strong>{visibleItems.length}</strong><span>本頁題目</span>{pendingCount>0&&<small>{pendingCount} 題待核對</small>}</div></div>
+      <div className="site-focus-filters" role="group" aria-label="題目狀態篩選">{([ ["all","全部題目"],["pending","答案待核對"],["issue","需注意"],["reviewed","已覆核"] ] as const).map(([key,label])=><button key={key} type="button" className={focus===key?"active":""} aria-pressed={focus===key} onClick={()=>{setFocus(key);setPage(0);if(key==="pending"||key==="reviewed")setRange("all");}}>{label}</button>)}<button type="button" className={filtersOpen?"active":""} aria-expanded={filtersOpen} onClick={()=>setFiltersOpen(value=>!value)}>篩選{subject||modeFilter||["followup","verifier","arbiter","highCost"].includes(focus)?" •":""} {filtersOpen?"−":"＋"}</button></div>
+      <div className="site-workbench-search compact-question-search">
+        <input className="hh-input" aria-label="搜尋學生、題目或答案" placeholder="搜尋學生、題目或答案…" value={q} onChange={event=>{setQ(event.target.value);setPage(0);}}/>
+        <div className="teaching-range-switch" role="group" aria-label="題目時間">{([["today","今天"],["yesterday","昨天"],["all","全部時間"]] as const).map(([key,label])=><button key={key} type="button" aria-pressed={range===key} className={range===key?"active":""} onClick={()=>{setRange(key);setPage(0);}}>{label}</button>)}</div>
+      </div>
+      {filtersOpen&&<div className="compact-question-filters">
+        <label>科目<select className="hh-select" value={subject} onChange={event=>{setSubject(event.target.value);setPage(0);}}><option value="">全部科目</option><option value="physics">物理</option><option value="chemistry">化學</option><option value="biology">生物</option><option value="earth">地科</option></select></label>
+        <label>解題方式<select className="hh-select" value={modeFilter} onChange={event=>{setModeFilter(event.target.value as typeof modeFilter);setPage(0);}}><option value="">全部解題方式</option>{STUDENT_TEACHING_MODES.map(mode=><option key={mode.value} value={mode.value}>{mode.label}</option>)}<option value="unknown">未記錄</option></select></label>
+        <div className="site-focus-filters site-extra-filters" role="group" aria-label="其他題目篩選">{([["followup","有追問"],["verifier","Verifier"],["arbiter","Arbiter"],["highCost","高成本"]] as const).map(([key,label])=><button key={key} type="button" className={focus===key?"active":""} aria-pressed={focus===key} onClick={()=>{setFocus(focus===key?"all":key);setPage(0);}}>{label}</button>)}</div>
+      </div>}
+      {(subject||modeFilter||["followup","verifier","arbiter","highCost"].includes(focus))&&<div className="compact-active-filters"><span>{[subject?adminSubjectLabel(subject):"",modeFilter?(teachingModeLabel(modeFilter)||"方式未記錄"):"",({followup:"有追問",verifier:"Verifier",arbiter:"Arbiter",highCost:"高成本"} as Record<string,string>)[focus]].filter(Boolean).join(" · ")}</span><button type="button" onClick={()=>{setSubject("");setModeFilter("");if(["followup","verifier","arbiter","highCost"].includes(focus))setFocus("all");setPage(0);}}>清除篩選</button></div>}
+
     </section>
     {message&&<div className="admin-notice danger">{message}</div>}
     {!loading&&!message&&<section className="hh-card admin-panel question-mode-comparison" aria-label="本頁解題方式成本比較">
-      <div className="hh-eyebrow">MODE & COST</div><h3>本頁成本比較</h3><p className="hh-muted">依目前篩選後的本頁 {items.length} 題統計，非全站總平均；僅計入有成本紀錄的題目，不含學生追問。</p>
-      <div className="question-mode-cost-grid">{modeCosts.map(mode=><article key={mode.value}><span className={`question-mode-chip mode-${mode.value}`}>{mode.label}</span><strong>{mode.averageCostUsd===null?"—":formatQuestionCostTwd(mode.averageCostUsd)}<small>／題</small></strong><p>{mode.questions} 題 · {mode.costSamples} 題有成本紀錄</p><small>總成本 {mode.costSamples?formatQuestionCostTwd(mode.totalCostUsd):"—"}</small></article>)}</div>
-      <p className="hh-muted">{unknownModeCount>0?`${unknownModeCount} 題未記錄解題方式，未納入三種模式比較。`:""}金額為模型 API 估算成本（1 美元＝32.5 元）；模型、題目難度與覆核次數也會影響成本，平均差異不代表單由解題方式造成。</p>
+      <div className="compact-cost-heading"><h3>本頁成本比較</h3><span>本頁 {items.length} 題 · 平均／題</span></div>
+      <div className="question-mode-cost-grid">{modeCosts.map(mode=><article key={mode.value}><span className={`question-mode-chip mode-${mode.value}`}>{mode.label}</span><strong>{mode.averageCostUsd===null?"—":formatQuestionCostTwd(mode.averageCostUsd)}</strong><small>{mode.costSamples} 題有成本</small></article>)}</div>
+      <details className="compact-cost-details"><summary>統計明細與說明</summary><div>{modeCosts.map(mode=><p key={mode.value}>{mode.label}：{mode.questions} 題，總成本 {mode.costSamples?formatQuestionCostTwd(mode.totalCostUsd):"—"}</p>)}<p>僅統計篩選後本頁；有成本紀錄才納入平均，不含學生追問。{unknownModeCount>0?`${unknownModeCount} 題未記錄方式，未納入比較。`:""}</p><p>API 估算成本，1 美元＝32.5 元。模型、題目難度與覆核次數也會影響平均。</p></div></details>
     </section>}
     <section className="site-question-list">{loading?<AdminLoading label="正在讀取題目…" skeleton />:visibleItems.length===0?<div className="hh-card admin-panel admin-empty">這一頁沒有符合條件的題目；可以切換期間或查看下一頁。</div>:visibleItems.map(item=><button type="button" className="hh-card site-question-row site-question-row-v214" key={item.id} onClick={()=>{setSelected(item);setSelectedId(item.id);setReviewNote(item.review?.note||"");setReviewMessage("");}}>
       <span className="site-question-thumb">{item.imageUrls?.[0]?<img src={item.imageUrls[0]} alt="題目縮圖"/>:<span>SCI</span>}</span>
@@ -4437,18 +4447,21 @@ function CostAnalyticsSection(){
   const [data,setData]=useState<AnalyticsData|null>(null);
   const [loading,setLoading]=useState(true);
   const [error,setError]=useState("");
+  const requestIdRef=useRef(0);
   const load=useCallback(async()=>{
+    const requestId=++requestIdRef.current;
     setLoading(true);setError("");
     try{
       const r=await fetch(`/api/admin/analytics?range=${range}`,{cache:"no-store"});
       const d=await r.json();
+      if(requestId!==requestIdRef.current)return;
       if(!r.ok)throw new Error(d.error||"讀取成本分析失敗。");
       setData(d);
-    }catch(e){setError(e instanceof Error?e.message:"讀取成本分析失敗。");}
-    finally{setLoading(false);}
+    }catch(e){if(requestId===requestIdRef.current)setError(e instanceof Error?e.message:"讀取成本分析失敗。");}
+    finally{if(requestId===requestIdRef.current)setLoading(false);}
   },[range]);
   useEffect(()=>{void load();},[load]);
-  const ranges:[AnalyticsRange,string][]=[["today","今天"],["7d","7 天"],["30d","30 天"],["month","本月"]];
+  const ranges:[AnalyticsRange,string][]=[["today","今天"],["7d","7 天"],["30d","30 天"],["month","本月"],["all","全部時間"]];
   const linkedSolveQuestions=data?(data.solveCosts.withReference.costedQuestions+data.solveCosts.withoutReference.costedQuestions):0;
   const linkedSolveCostUsd=data?(data.solveCosts.withReference.totalCostUsd+data.solveCosts.withoutReference.totalCostUsd):0;
   const linkedSolveAverageUsd=linkedSolveQuestions>0?linkedSolveCostUsd/linkedSolveQuestions:null;
@@ -4472,14 +4485,21 @@ function CostAnalyticsSection(){
   return <div className="admin-stack">
     <section className="hh-card admin-panel admin-analytics-toolbar">
       <div><div className="hh-eyebrow">COST ANALYTICS</div><h2 className="hh-display">成本分析</h2></div>
-      <div className="admin-analytics-range">{ranges.map(([v,l])=><button key={v} className={range===v?"active":""} onClick={()=>setRange(v)}>{l}</button>)}</div>
+      <div className="admin-analytics-range analytics-five-ranges">{ranges.map(([v,l])=><button key={v} className={range===v?"active":""} onClick={()=>setRange(v)}>{l}</button>)}</div>
     </section>
     {error&&<div className="admin-notice danger">{error}</div>}
-    {loading&&!data?<AdminLoading label="正在整理成本資料…" skeleton />:data&&<>
+    {loading?<AdminLoading label="正在整理成本資料…" skeleton />:data&&!error&&<>
       <section className="admin-kpi-grid cost-kpi-grid">
         <AnalyticsKpi eyebrow="TOTAL" label="全部 API 成本" value={formatTwdFromUsd(data.totals.totalCostUsd)} note={data.label}/>
         <AnalyticsKpi eyebrow="PER SOLVE" label="解題平均／題" value={formatQuestionCostTwd(linkedSolveAverageUsd)} note={`${formatInteger(linkedSolveQuestions)} 題有成本紀錄`}/>
         <AnalyticsKpi eyebrow="CALLS" label="模型呼叫" value={`${formatInteger(data.totals.apiCalls)} 次`} note="包含全部 AI 角色"/>
+      </section>
+
+      <section className="hh-card admin-panel question-mode-comparison analytics-mode-comparison">
+        <div className="compact-cost-heading"><h3>解題方式成本分析</h3><span>{data.label}</span></div>
+        <p className="hh-muted">所選期間內全部可查看題目；僅計解題成本，不含追問。</p>
+        <div className="question-mode-cost-grid">{(data.modeCosts||[]).map(mode=><article key={mode.value}><span className={`question-mode-chip mode-${mode.value}`}>{mode.label}</span><strong>{mode.averageCostUsd===null?"—":formatQuestionCostTwd(mode.averageCostUsd)}</strong><small>平均／題</small><p>{mode.questions} 題 · {mode.costSamples} 題有成本</p><small>總計 {mode.costSamples?formatQuestionCostTwd(mode.totalCostUsd):"—"}</small></article>)}</div>
+        <details className="compact-cost-details"><summary>統計說明{data.unknownModeQuestions>0?` · ${data.unknownModeQuestions} 題方式未記錄`:""}</summary><p>未記錄或紀錄衝突的解題方式不納入三種方式比較；沒有成本紀錄的題目不以 0 元計算平均。API 估算成本以 1 美元＝32.5 元換算；模型、題目難度與覆核次數也會影響成本，平均差異不代表單由解題方式造成。</p></details>
       </section>
 
       <section className="hh-card admin-panel solve-cost-breakdown-panel">
@@ -4577,7 +4597,9 @@ function AnalyticsSection() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  const analyticsRequestId = useRef(0);
   const loadAnalytics = useCallback(async () => {
+    const requestId = ++analyticsRequestId.current;
     setLoading(true);
     setError("");
     try {
@@ -4586,13 +4608,14 @@ function AnalyticsSection() {
         fetch(`/api/admin/latency-analytics?range=${encodeURIComponent(range)}`, { cache: "no-store" }),
       ]);
       const [payload, latencyPayload] = await Promise.all([response.json(), latencyResponse.json()]);
+      if (requestId !== analyticsRequestId.current) return;
       if (!response.ok) throw new Error(payload.error || "讀取 AI 數據分析失敗。");
       setData(payload);
       setLatency(latencyResponse.ok ? latencyPayload : null);
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : "讀取 AI 數據分析失敗。");
+      if (requestId === analyticsRequestId.current) setError(loadError instanceof Error ? loadError.message : "讀取 AI 數據分析失敗。");
     } finally {
-      setLoading(false);
+      if (requestId === analyticsRequestId.current) setLoading(false);
     }
   }, [range]);
 
@@ -4617,6 +4640,7 @@ function AnalyticsSection() {
     { value: "7d", label: "7 天" },
     { value: "30d", label: "30 天" },
     { value: "month", label: "本月" },
+    { value: "all", label: "全部時間" },
   ];
 
   return (
@@ -4626,7 +4650,7 @@ function AnalyticsSection() {
           <div className="hh-eyebrow">AI ANALYTICS</div>
           <h2 className="hh-display">AI 數據分析</h2>
         </div>
-        <div className="admin-analytics-range">
+        <div className="admin-analytics-range analytics-five-ranges">
           {ranges.map((item) => (
             <button key={item.value} type="button" className={range === item.value ? "active" : ""} onClick={() => setRange(item.value)}>
               {item.label}
@@ -4636,9 +4660,9 @@ function AnalyticsSection() {
       </section>
 
       {error && <div className="admin-notice danger">{error}</div>}
-      {!data && loading && <section className="hh-card admin-panel admin-empty">正在整理 AI 數據…</section>}
+      {loading && <section className="hh-card admin-panel admin-empty">正在整理 AI 數據…</section>}
 
-      {data && (
+      {data && !loading && !error && (
         <>
           <section className="hh-card admin-panel admin-data-table-panel">
             <PanelHeader eyebrow="OVERVIEW" title="使用與成本" subtitle={data.label} />

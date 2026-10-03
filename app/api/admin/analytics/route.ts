@@ -14,12 +14,9 @@ import {
 } from "@/lib/ai/answer-normalization";
 
 
-type AnalyticsRange =
-  | "today"
-  | "7d"
-  | "30d"
-  | "month";
-
+import { resolveAdminDateRange as resolveRange } from "@/lib/admin-date-range";
+import { recordedTeachingMode, summarizeModeCosts } from "@/lib/question-mode-costs";
+import type { StudentTeachingMode } from "@/lib/teaching-modes";
 
 const SOLVE_COST_ROLES = [
   "science_gate",
@@ -32,6 +29,7 @@ type SolveCostRole =
   (typeof SOLVE_COST_ROLES)[number];
 
 type SolveCostUsageRow = {
+  metadata: unknown;
   solve_history_id: string | null;
   provider: string | null;
   model: string | null;
@@ -71,230 +69,9 @@ type HistoryRow = {
 
 
 
-function getTaiwanParts(
-  date:
-    Date,
-) {
-  const parts =
-    new Intl.DateTimeFormat(
-      "en-CA",
-      {
-        timeZone:
-          "Asia/Taipei",
-        year:
-          "numeric",
-        month:
-          "2-digit",
-        day:
-          "2-digit",
-      },
-    ).formatToParts(
-      date,
-    );
-
-  return {
-    year:
-      Number(
-        parts.find(
-          (part) =>
-            part.type ===
-            "year",
-        )?.value ||
-        0,
-      ),
-
-    month:
-      Number(
-        parts.find(
-          (part) =>
-            part.type ===
-            "month",
-        )?.value ||
-        0,
-      ),
-
-    day:
-      Number(
-        parts.find(
-          (part) =>
-            part.type ===
-            "day",
-        )?.value ||
-        0,
-      ),
-  };
-}
-
-
-function taiwanDateString(
-  year:
-    number,
-  month:
-    number,
-  day:
-    number,
-) {
-  return `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-}
-
-
-function addCalendarDays(
-  year:
-    number,
-  month:
-    number,
-  day:
-    number,
-  amount:
-    number,
-) {
-  const shifted =
-    new Date(
-      Date.UTC(
-        year,
-        month - 1,
-        day + amount,
-      ),
-    );
-
-  return {
-    year:
-      shifted.getUTCFullYear(),
-
-    month:
-      shifted.getUTCMonth() +
-      1,
-
-    day:
-      shifted.getUTCDate(),
-  };
-}
-
-
-function resolveRange(
-  value:
-    string | null,
-) {
-  const range:
-    AnalyticsRange =
-    value === "today" ||
-    value === "30d" ||
-    value === "month"
-      ? value
-      : "7d";
-
-  const today =
-    getTaiwanParts(
-      new Date(),
-    );
-
-  let start =
-    today;
-
-  let label =
-    "";
-
-  if (
-    range ===
-    "today"
-  ) {
-    label =
-      `${taiwanDateString(today.year, today.month, today.day)}（台灣時間）`;
-  }
-
-  if (
-    range ===
-    "7d"
-  ) {
-    start =
-      addCalendarDays(
-        today.year,
-        today.month,
-        today.day,
-        -6,
-      );
-
-    label =
-      `最近 7 天（含今天）`;
-  }
-
-  if (
-    range ===
-    "30d"
-  ) {
-    start =
-      addCalendarDays(
-        today.year,
-        today.month,
-        today.day,
-        -29,
-      );
-
-    label =
-      `最近 30 天（含今天）`;
-  }
-
-  if (
-    range ===
-    "month"
-  ) {
-    start = {
-      year:
-        today.year,
-      month:
-        today.month,
-      day:
-        1,
-    };
-
-    label =
-      `${today.year} 年 ${today.month} 月`;
-  }
-
-  const tomorrow =
-    addCalendarDays(
-      today.year,
-      today.month,
-      today.day,
-      1,
-    );
-
-  const startDate =
-    taiwanDateString(
-      start.year,
-      start.month,
-      start.day,
-    );
-
-  const endDateExclusive =
-    taiwanDateString(
-      tomorrow.year,
-      tomorrow.month,
-      tomorrow.day,
-    );
-
-  return {
-    range,
-    label,
-
-    startAt:
-      `${startDate}T00:00:00+08:00`,
-
-    endAt:
-      `${endDateExclusive}T00:00:00+08:00`,
-
-    startDay:
-      startDate,
-
-    endDayExclusive:
-      endDateExclusive,
-  };
-}
-
-
 async function fetchHistoryRows(
   startAt:
-    string,
+    string | null,
   endAt:
     string,
 ) {
@@ -311,11 +88,7 @@ async function fetchHistoryRows(
     offset +=
       pageSize
   ) {
-    const {
-      data,
-      error,
-    } =
-      await supabaseAdmin
+    let query = supabaseAdmin
         .from(
           "solve_history",
         )
@@ -338,10 +111,6 @@ async function fetchHistoryRows(
           created_at
           `,
         )
-        .gte(
-          "created_at",
-          startAt,
-        )
         .lt(
           "created_at",
           endAt,
@@ -353,12 +122,16 @@ async function fetchHistoryRows(
               true,
           },
         )
+        .order("id")
         .range(
           offset,
           offset +
             pageSize -
             1,
         );
+
+    if (startAt !== null) query = query.gte("created_at", startAt);
+    const { data, error } = await query;
 
     if (error) {
       throw new Error(
@@ -388,7 +161,7 @@ async function fetchHistoryRows(
 
 async function fetchUsageRows(
   startDay:
-    string,
+    string | null,
   endDayExclusive:
     string,
 ) {
@@ -405,11 +178,7 @@ async function fetchUsageRows(
     offset +=
       pageSize
   ) {
-    const {
-      data,
-      error,
-    } =
-      await supabaseAdmin
+    let query = supabaseAdmin
         .from(
           "ai_usage_by_role",
         )
@@ -423,10 +192,6 @@ async function fetchUsageRows(
           estimated_cost_usd
           `,
         )
-        .gte(
-          "usage_day",
-          `${startDay}T00:00:00+08:00`,
-        )
         .lt(
           "usage_day",
           `${endDayExclusive}T00:00:00+08:00`,
@@ -438,12 +203,16 @@ async function fetchUsageRows(
               true,
           },
         )
+        .order("provider").order("model").order("role")
         .range(
           offset,
           offset +
             pageSize -
             1,
         );
+
+    if (startDay !== null) query = query.gte("usage_day", `${startDay}T00:00:00+08:00`);
+    const { data, error } = await query;
 
     if (error) {
       throw new Error(
@@ -471,16 +240,18 @@ async function fetchUsageRows(
 }
 
 
-async function fetchTeacherUsageRows(studentIds: string[], startAt: string, endAt: string): Promise<UsageRow[]> {
+async function fetchTeacherUsageRows(studentIds: string[], startAt: string | null, endAt: string): Promise<UsageRow[]> {
   if (!studentIds.length) return [];
   const grouped = new Map<string, UsageRow>();
   for (let start = 0; start < studentIds.length; start += 120) {
     const chunk = studentIds.slice(start, start + 120);
     for (let offset = 0;; offset += 1000) {
-      const {data,error} = await supabaseAdmin.from("api_usage")
+      let query = supabaseAdmin.from("api_usage")
         .select("provider,model,role,estimated_cost_usd,created_at")
-        .in("student_id",chunk).gte("created_at",startAt).lt("created_at",endAt)
-        .order("created_at").range(offset,offset+999);
+        .in("student_id",chunk).lt("created_at",endAt)
+        .order("created_at").order("id").range(offset,offset+999);
+      if (startAt !== null) query = query.gte("created_at",startAt);
+      const {data,error} = await query;
       if(error) throw new Error(`讀取教師模型成本失敗：${error.message}`);
       for(const row of data??[]) {
         const usageDay = new Intl.DateTimeFormat("en-CA",{timeZone:"Asia/Taipei",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date(row.created_at));
@@ -522,6 +293,7 @@ async function fetchSolveCostRows(
         await supabaseAdmin
           .from("api_usage")
           .select(`
+            metadata,
             solve_history_id,
             provider,
             model,
@@ -530,6 +302,7 @@ async function fetchSolveCostRows(
           `)
           .in("solve_history_id", ids)
           .in("role", [...SOLVE_COST_ROLES])
+          .order("id")
           .range(
             offset,
             offset + pageSize - 1,
@@ -675,6 +448,22 @@ export async function GET(
       );
     }
 
+
+    const modesByHistory = new Map<string, Set<StudentTeachingMode>>();
+    for (const row of solveCostRows) {
+      const mode = recordedTeachingMode(row.metadata);
+      if (!row.solve_history_id || !mode) continue;
+      const modes = modesByHistory.get(row.solve_history_id) || new Set<StudentTeachingMode>();
+      modes.add(mode);
+      modesByHistory.set(row.solve_history_id, modes);
+    }
+    const modeItems = historyRows.map(row => {
+      const modes = modesByHistory.get(row.id);
+      return { teachingMode: modes?.size === 1 ? [...modes][0] : null,
+        cost: { hasCostRecord: solveCostByHistory.has(row.id), totalCostUsd: solveCostByHistory.get(row.id) ?? null } };
+    });
+    const modeCosts = summarizeModeCosts(modeItems);
+    const unknownModeQuestions = modeItems.filter(row => row.teachingMode === null).length;
 
     const withReferenceCost = {
       questions: 0,
@@ -1308,6 +1097,8 @@ export async function GET(
             : 0,
       },
 
+      modeCosts,
+      unknownModeQuestions,
       solveCosts: {
         includedRoles: [...SOLVE_COST_ROLES],
         withReference: serializeSolveCostGroup(withReferenceCost),
