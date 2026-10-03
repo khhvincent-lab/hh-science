@@ -1,4 +1,4 @@
-.admin-pull-refresh{display:none;align-items:center;justify-content:center;gap:8px;color:var(--text-secondary);font-size:11px;transition:height .2s ease;overflow:hidden}
+.admin-pull-refresh{display:none;align-items:center;justify-content:center;gap:8px;color:var(--text-secondary);font-size:11px;transition:height .2s ease,opacity .2s ease;overflow:hidden;white-space:nowrap}
 .admin-pull-refresh.is-pulling{transition:none;color:var(--accent-sky)}
 .admin-pull-refresh.is-busy{color:var(--accent-sky)}
 .admin-pull-refresh-icon{display:inline-block;font-size:18px;transition:transform .18s ease}

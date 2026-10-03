@@ -64,8 +64,8 @@ export default function AdminPullRefresh({ onRefresh, busy }: {
       document.documentElement.style.overscrollBehaviorY = oldOverscroll;
     };
   }, [onRefresh, busy]);
-  const label = busy ? "正在更新資料…" : failed ? "更新失敗，請再試一次" : distance >= 56 ? "放開即可更新" : "在頁面頂端下拉更新";
-  return <div ref={anchor} className={`admin-pull-refresh${busy ? " is-busy" : ""}${distance ? " is-pulling" : ""}`} style={{ height: busy ? 56 : 26 + distance * 0.5 }} role="status" aria-live="polite">
+  const label = busy ? "正在更新資料…" : failed ? "更新失敗，請再試一次" : distance >= 56 ? "放開即可更新" : "繼續下拉即可更新";
+  return <div ref={anchor} className={`admin-pull-refresh${busy ? " is-busy" : ""}${distance ? " is-pulling" : ""}`} style={{ height: busy ? 56 : failed ? 32 : distance, opacity: busy || failed ? 1 : Math.min(1, distance / 28) }} role="status" aria-live="polite" aria-hidden={!busy && !failed && distance === 0}>
     <span className="admin-pull-refresh-icon" aria-hidden="true" style={{ transform: `rotate(${distance >= 56 ? 180 : 0}deg)` }}>{busy ? "↻" : "↓"}</span><span>{label}</span>
   </div>;
 }
