@@ -14,6 +14,7 @@ import SolvePresentation from "@/components/solve-presentation";
 import { usePanelPresence } from "@/components/use-panel-presence";
 import SolveProgress from "@/components/solve-progress";
 import {useSolveJob} from "@/components/use-solve-job";
+import CropCollapse, { type CropCollapseSnapshot } from "@/components/crop-collapse";
 import { Cropper } from "react-cropper";
 import { captureSolutionImage } from "@/lib/solution-image-export";
 import { ExportHeader, ExportSection } from "@/components/solution-export-layout";
@@ -723,6 +724,8 @@ export default function Home() {
   const [editingImage, setEditingImage] = useState("");
   const [editingExistingIndex, setEditingExistingIndex] = useState<number | null>(null);
   const [isCropping, setIsCropping] = useState(false);
+  const [cropCollapse, setCropCollapse] = useState<CropCollapseSnapshot | null>(null);
+  const imageEditorRef = useRef<HTMLDivElement | null>(null);
   const cropperRef = useRef<any>(null);
 
   const [menuOpen, setMenuOpen] = useState(false);
@@ -1811,17 +1814,9 @@ export default function Home() {
     img.src = editingImage;
   }
 
-  // v2.0.3: cropper lives in a fixed mobile workspace; closing it must not
-  // subtract its former inline height from the page's scroll position.
-  function restoreUploadViewportAfterCrop(_beforeBottom: number | null, _beforeScrollY: number) {
-    // Keep the upload / thumbnail section in its current viewport position.
-  }
-
   function finishCurrentImageEdit() {
-    if (!editingImage) return;
+    if (!editingImage || cropCollapse) return;
 
-    const uploadPanelBottomBefore = uploadPanelRef.current?.getBoundingClientRect().bottom ?? null;
-    const scrollYBefore = window.scrollY;
     let finalImage = editingImage;
     const cropper = cropperRef.current?.cropper;
 
@@ -1838,6 +1833,11 @@ export default function Home() {
       }
     }
 
+    const isLastImage = editingExistingIndex !== null || editQueueIndex + 1 >= editQueue.length;
+    if (isLastImage && imageEditorRef.current) {
+      setCropCollapse({ image: finalImage, rect: imageEditorRef.current.getBoundingClientRect() });
+    }
+
     if (editingExistingIndex !== null) {
       setImages((current) =>
         current.map((item, index) =>
@@ -1849,7 +1849,6 @@ export default function Home() {
       setEditingImage("");
       setIsCropping(false);
       setQuestionError("");
-      restoreUploadViewportAfterCrop(uploadPanelBottomBefore, scrollYBefore);
       return;
     }
 
@@ -1869,7 +1868,6 @@ export default function Home() {
     setEditingImage("");
     setIsCropping(false);
     setQuestionError("");
-    restoreUploadViewportAfterCrop(uploadPanelBottomBefore, scrollYBefore);
   }
 
   function cancelImageEdit() {
@@ -2844,7 +2842,7 @@ export default function Home() {
             )}
 
             {isCropping && editingImage && (
-              <div className="student-image-editor" data-tour="image-editor" role="dialog" aria-modal="true" aria-label="題目圖片編輯">
+              <div ref={imageEditorRef} className="student-image-editor" data-tour="image-editor" role="dialog" aria-modal="true" aria-label="題目圖片編輯">
                 <div className="student-image-editor-head">
                   <div>
                     <div className="hh-eyebrow">
@@ -3527,7 +3525,8 @@ export default function Home() {
         </footer>
       </div>
 
-      {student && !student.mustChangePin && <nav className="v2-student-bottom-nav" aria-label="學生頁面導覽">
+      {cropCollapse && <CropCollapse snapshot={cropCollapse} target={uploadPanelRef} onDone={() => setCropCollapse(null)} />}
+      {student && !student.mustChangePin && !isCropping && !cropCollapse && <nav className="v2-student-bottom-nav" aria-label="學生頁面導覽">
         <button type="button" aria-current={activeView==="solve"?"page":undefined} onClick={() => void returnToSolveHome(true)}><StudentNavIcon kind="home" />首頁</button>
         <button type="button" aria-current={activeView==="result"?"page":undefined} disabled={!solveData&&!isSolving&&!questionError&&!solveTask.job} onClick={()=>{setActiveView("result");}}><StudentNavIcon kind="analysis" />解析</button>
         <button type="button" aria-current={activeView==="history"?"page":undefined} onClick={()=>{setActiveView("history");}}><StudentNavIcon kind="history" />紀錄</button>

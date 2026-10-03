@@ -456,7 +456,7 @@ html[data-theme] .student-modal-card .student-modal-info { font-size:14px;line-h
     position:fixed!important;inset:0!important;z-index:100!important;
     box-sizing:border-box;width:100vw!important;max-width:none!important;
     min-height:0!important;height:100dvh!important;
-    margin:0!important;padding:calc(env(safe-area-inset-top) + 16px) 14px calc(env(safe-area-inset-bottom) + 16px)!important;
+    margin:0!important;padding:calc(env(safe-area-inset-top) + 16px) 14px calc(env(safe-area-inset-bottom) + 76px)!important;
     background:var(--bg)!important;color:var(--text)!important;
     overflow-y:auto!important;overscroll-behavior:contain;
     display:flex!important;flex-direction:column;gap:10px;
@@ -467,8 +467,8 @@ html[data-theme] .student-modal-card .student-modal-info { font-size:14px;line-h
   html[data-theme] .student-page .student-crop-frame { width:100%!important;max-height:52dvh!important;flex:1 0 auto;min-height:150px; }
   html[data-theme] .student-page .student-crop-frame .cropper-container { max-height:52dvh!important; }
   html[data-theme] .student-page .student-editor-tip { margin:0!important;font-size:11px;line-height:1.5; }
-  html[data-theme] .student-page .student-image-editor .student-two-actions { display:grid!important;grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important;gap:9px!important;margin-top:auto!important;padding:8px 0 0;flex-shrink:0; }
-  html[data-theme] .student-page .student-image-editor .student-two-actions button { min-height:43px; }
+  html[data-theme] .student-page .student-image-editor .student-two-actions { display:grid!important;grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important;gap:9px!important;margin-top:auto!important;padding:12px 0 0;flex-shrink:0;position:sticky;bottom:0;background:var(--bg);z-index:2; }
+  html[data-theme] .student-page .student-image-editor .student-two-actions button { min-height:48px; touch-action:manipulation; }
 }
 
 
