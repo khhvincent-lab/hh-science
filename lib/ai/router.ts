@@ -16,6 +16,7 @@ import {
 
 import {
   buildArbiterPrompt,
+  buildQuestionScopeInstructions,
   buildPrimaryPrompt,
   buildScienceGatePrompt,
   buildVerifierPrompt,
@@ -697,7 +698,9 @@ export async function runAIRouter(
   }, { ...teachingSettings, mode: teachingMode });
 
   const imageContext = gate.allowed ? await retrieveTeachingImages(teachingSubject, [gate.topic, ...(gate.keywords || []), gate.questionSignature, input.questionNote].filter(Boolean).join(" "), input.images.length) : {refs:[],images:[],prompt:""};
-  const teachingContext = teachingBase + "\n" + SCIENCE_TEMPLATE_PROMPT + imageContext.prompt;
+  // Carry the student's scope through primary, verification and both arbitration paths.
+  const teachingContext = teachingBase + "\n" + SCIENCE_TEMPLATE_PROMPT + imageContext.prompt
+    + "\n" + buildQuestionScopeInstructions(input.questionNote);
   const solveImages = [...input.images, ...imageContext.images];
 
   if (
