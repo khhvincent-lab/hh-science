@@ -60,3 +60,16 @@ html[data-theme^="f1-"] .lab-startup{background:radial-gradient(ellipse at 50% 3
 html[data-theme^="f1-"] .lab-startup-grid{opacity:.38}
 html[data-theme^="f1-"] .lab-startup-copy h1{font-size:22px;letter-spacing:.13em;font-weight:650;margin-top:14px}
 @media(prefers-reduced-motion:reduce){.f1-start-lights span{transition:none}}
+
+/* Approved metal-flask artwork. The original render supplies the entire badge. */
+html[data-theme="f1-mercedes"]{--f1-art:url('/brand/f1-metal-teams.webp');--f1-art-size:353% 147%;--f1-art-position:5.35% 45.5%}
+html[data-theme="f1-mclaren"]{--f1-art:url('/brand/f1-metal-teams.webp');--f1-art-size:353% 147%;--f1-art-position:94.65% 45.5%}
+html[data-theme="f1-redbull"]{--f1-art:url('/brand/f1-metal-redbull.webp');--f1-art-size:150.3% 125.3%;--f1-art-position:50% 49.7%}
+html[data-theme="f1-ferrari"]{--f1-art:url('/brand/f1-metal-ferrari.webp');--f1-art-size:150.3% 125.3%;--f1-art-position:50% 49.7%}
+html[data-theme^="f1-"] .adaptive-brand-logo{
+ background-image:var(--f1-art)!important;background-size:var(--f1-art-size)!important;
+ background-position:var(--f1-art-position)!important;background-repeat:no-repeat!important;
+ border:0!important;border-radius:24%!important;box-shadow:0 2px 7px #0005!important;
+}
+html[data-theme^="f1-"] .adaptive-brand-logo .f1-brand-mark,
+html[data-theme^="f1-"] .adaptive-brand-logo::after{display:none!important}
