@@ -1,0 +1,8 @@
+.admin-pull-refresh{display:none;align-items:center;justify-content:center;gap:8px;color:var(--text-secondary);font-size:11px;transition:height .2s ease;overflow:hidden}
+.admin-pull-refresh.is-pulling{transition:none;color:var(--accent-sky)}
+.admin-pull-refresh.is-busy{color:var(--accent-sky)}
+.admin-pull-refresh-icon{display:inline-block;font-size:18px;transition:transform .18s ease}
+.admin-pull-refresh.is-busy .admin-pull-refresh-icon{animation:admin-refresh-spin .85s linear infinite}
+@keyframes admin-refresh-spin{to{transform:rotate(360deg)}}
+@media(pointer:coarse){.admin-pull-refresh{display:flex}}
+@media(prefers-reduced-motion:reduce){.admin-pull-refresh,.admin-pull-refresh-icon{transition:none}.admin-pull-refresh.is-busy .admin-pull-refresh-icon{animation:none}}

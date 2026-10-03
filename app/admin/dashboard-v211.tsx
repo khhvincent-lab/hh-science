@@ -1,5 +1,6 @@
 "use client";
 
+import { listenAdminRefresh } from "@/components/admin/refresh";
 import { AdminLoading, LoadingLabel } from "@/components/admin/loading-feedback";
 import { useEffect, useMemo, useState } from "react";
 import {useUrlState} from "@/components/admin/use-url-state";
@@ -81,8 +82,8 @@ export default function DashboardV211({
   useEffect(() => {
     let active = true;
     const controller = new AbortController();
-    const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(25000)]);
     const load = async () => {
+      const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(25000)]);
       setExtraLoading(true);
       setExtraError("");
       try {
@@ -111,13 +112,15 @@ export default function DashboardV211({
       }
     };
     void load();
-    return () => { active = false; controller.abort(); };
+    const stopRefresh = listenAdminRefresh(load);
+    return () => { stopRefresh(); active = false; controller.abort(); };
   }, [refreshKey, range]);
 
   useEffect(() => {
     const controller = new AbortController();
+    const load = () => {
     queueMicrotask(() => { if (!controller.signal.aborted) { setAccuracyLoading(true); setAccuracyError(""); } });
-    fetch(`/api/admin/dashboard-accuracy?range=${accuracyRange}`, { cache: "no-store", signal: AbortSignal.any([controller.signal, AbortSignal.timeout(25000)]) })
+    return fetch(`/api/admin/dashboard-accuracy?range=${accuracyRange}`, { cache: "no-store", signal: AbortSignal.any([controller.signal, AbortSignal.timeout(25000)]) })
       .then(async (response) => {
         const data = await response.json();
         if (!response.ok) throw new Error(data.error || "讀取解題正確率失敗。");
@@ -126,7 +129,10 @@ export default function DashboardV211({
       .then((data) => { if (!controller.signal.aborted) setAccuracy(data); })
       .catch((caught) => { if (!controller.signal.aborted) setAccuracyError(caught instanceof Error ? caught.message : "讀取解題正確率失敗。"); })
       .finally(() => { if (!controller.signal.aborted) setAccuracyLoading(false); });
-    return () => controller.abort();
+    };
+    void load();
+    const stopRefresh = listenAdminRefresh(load);
+    return () => { stopRefresh(); controller.abort(); };
   }, [refreshKey, accuracyRange]);
 
   useEffect(() => {

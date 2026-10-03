@@ -3,6 +3,8 @@
 import { STUDENT_TEACHING_MODES, teachingModeLabel, type StudentTeachingMode } from "@/lib/teaching-modes";
 import { summarizeModeCosts } from "@/lib/question-mode-costs";
 import "./question-modes.css";
+import AdminPullRefresh from "@/components/admin/pull-refresh";
+import { useAdminRefresh, refreshAdminPanels } from "@/components/admin/refresh";
 
 import { normalizeScienceMarkup as normalizeAdminScienceMarkup, stripAnnotationCommands, stripBareAnnotationCommands } from "@/lib/science-markup";
 import { renderScienceFormula } from "@/lib/science-render";
@@ -475,6 +477,8 @@ export default function AdminPage() {
   const [startupPending, setStartupPending] = useState(true);
   const [dashboardDetailsReady, setDashboardDetailsReady] = useState(false);
   const [workQueueReady, setWorkQueueReady] = useState(false);
+  const [refreshBusy, setRefreshBusy] = useState(false);
+  const refreshLock = useRef(false);
   const [dashboardRevision, setDashboardRevision] = useState(0);
   const markDashboardReady = useCallback(() => setDashboardDetailsReady(true), []);
   const markWorkQueueReady = useCallback(() => setWorkQueueReady(true), []);
@@ -550,6 +554,15 @@ export default function AdminPage() {
     } finally {
       if (requestId === dashboardRequestId.current) setDashboardLoading(false);
     }
+  }, []);
+
+  useAdminRefresh(loadDashboard, isLoggedIn && activeSection === "dashboard");
+  const refreshVisiblePanels = useCallback(async () => {
+    if (refreshLock.current) return;
+    refreshLock.current = true;
+    setRefreshBusy(true);
+    try { await refreshAdminPanels(); }
+    finally { refreshLock.current = false; setRefreshBusy(false); }
   }, []);
 
   const loadSettings = useCallback(async () => {
@@ -1295,6 +1308,7 @@ export default function AdminPage() {
       </aside>
 
       <section className="admin-main">
+        {!mobileMenuOpen && (activeSection === "dashboard" || activeSection === "siteQuestions") && <AdminPullRefresh key={activeSection} onRefresh={refreshVisiblePanels} busy={refreshBusy} />}
         <header className="admin-topbar">
           <div>
             <div className="hh-eyebrow">{sectionEyebrow(activeSection)}</div>
@@ -1309,13 +1323,15 @@ export default function AdminPage() {
             <button
               type="button"
               className="hh-button-secondary"
+              disabled={refreshBusy}
               onClick={() => {
-                if (activeSection === "chemistryAnalytics") setChemistryRevision(v=>v+1);
+                if (activeSection === "dashboard" || activeSection === "siteQuestions") void refreshVisiblePanels();
+                else if (activeSection === "chemistryAnalytics") setChemistryRevision(v=>v+1);
                 else if (activeSection === "students" || activeSection === "classes") void loadStudents();
                 else void loadAllAdminData();
               }}
             >
-              重新整理
+              {refreshBusy ? "更新中…" : "重新整理"}
             </button>
           </div>
         </header>
@@ -3981,7 +3997,7 @@ function SiteQuestionsSection({onCalibrate,initialFocus="all",canReview=false}:{
       if(q.trim())params.set("q",q.trim());
       if(subject)params.set("subject",subject);
       if(modeFilter)params.set("teachingMode",modeFilter);
-      const response=await fetch(`/api/admin/teaching-questions?${params.toString()}`,{cache:"no-store"});
+      const response=await fetch(`/api/admin/teaching-questions?${params.toString()}`,{cache:"no-store",signal:AbortSignal.timeout(25000)});
       const data=await response.json();
       if(requestId!==listRequestId.current)return;
       if(!response.ok)throw new Error(data.error||"讀取全站題目失敗。");
@@ -3991,6 +4007,7 @@ function SiteQuestionsSection({onCalibrate,initialFocus="all",canReview=false}:{
     finally{if(requestId===listRequestId.current)setLoading(false);}
   },[q,subject,range,focus,page,modeFilter]);
   useEffect(()=>{void load();},[load]);
+  useAdminRefresh(load);
   const visibleItems=items;
   const modeCosts=summarizeModeCosts(items);
   const unknownModeCount=items.filter(item=>!item.teachingMode).length;
@@ -4121,7 +4138,7 @@ function TeachingQuestionsSection({initialHistoryId,onInitialHistoryHandled,canE
       if(issues) params.set("issues","true");
       if(initialHistoryId) params.set("historyId",initialHistoryId);
       params.set("range",range);
-      const response=await fetch(`/api/admin/teaching-questions?${params.toString()}`,{cache:"no-store"});
+      const response=await fetch(`/api/admin/teaching-questions?${params.toString()}`,{cache:"no-store",signal:AbortSignal.timeout(25000)});
       const data=await response.json();
       if(!response.ok) throw new Error(data.error||"讀取全站題目失敗。");
       setItems(Array.isArray(data.items)?data.items:[]);
