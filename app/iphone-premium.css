@@ -156,3 +156,15 @@ html[data-theme^="iphone-"] :is(.hh-button-primary,.hh-button-secondary,.student
 /* Keep fixed menu backdrops attached to the viewport while overlays are open. */
 html[data-theme^="iphone-"] .student-page .student-app-header:has(.student-menu-panel),
 html[data-theme^="iphone-"] .student-page .student-app-header:has(.hh-theme-menu){-webkit-backdrop-filter:none!important;backdrop-filter:none!important}
+
+/* Approved four-color artwork, shared as one image to keep theme changes instant. */
+html[data-theme="iphone-burgundy"]{--iphone-art-position:11.3% 8.2%}
+html[data-theme="iphone-glacier"]{--iphone-art-position:88.4% 8.2%}
+html[data-theme="iphone-silver"]{--iphone-art-position:11.3% 84.2%}
+html[data-theme="iphone-black"]{--iphone-art-position:88.4% 84.2%}
+html[data-theme^="iphone-"] .adaptive-brand-logo{
+ background-image:url('/brand/iphone-glass-approved.webp')!important;
+ background-size:246% 246%!important;background-position:var(--iphone-art-position)!important;background-repeat:no-repeat!important;
+ border:0!important;border-radius:24%!important;box-shadow:0 2px 6px var(--phone-shadow)!important;
+}
+html[data-theme^="iphone-"] .adaptive-brand-logo .iphone-brand-mark{display:none!important}
