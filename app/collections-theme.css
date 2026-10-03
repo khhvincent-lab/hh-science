@@ -8,7 +8,7 @@ html[data-theme="iphone-burgundy"] {
  --secondary:#cdb5c2;--secondary-soft:color-mix(in srgb,#efb3cb 12%,#2b1b25);--accent:#e5bda1;--accent-soft:color-mix(in srgb,#e5bda1 12%,#2b1b25);
  --border:color-mix(in srgb,#cdb5c2 28%,#2b1b25);--border-strong:color-mix(in srgb,#cdb5c2 65%,#2b1b25);
  --danger:#ffacbc;--danger-soft:#43202c;--success:#91dcc0;--success-soft:#173b30;--info:#efb3cb;--info-soft:color-mix(in srgb,#efb3cb 12%,#2b1b25);
- --shadow-sm:0 7px 24px #00040;--shadow-md:0 18px 44px #00055;--shadow-lg:0 28px 76px #00070;
+ --shadow-sm:0 7px 24px #00000040;--shadow-md:0 18px 44px #00000055;--shadow-lg:0 28px 76px #00000070;
  --v2-hero:#2b1b25;--v2-highlight:#efb3cb;--v2-glow:#a84f70;--v2-hero-text:#fff2f7;
  --v204-mist:#190f16;--v204-rim:var(--border-strong);--v204-orbit:color-mix(in srgb,#efb3cb 5%,transparent);--v204-ambient:color-mix(in srgb,#a84f70 9%,transparent);--v204-sheen:color-mix(in srgb,#fff2f7 4%,transparent);
  --collection-logo:url("/brand/racing-hd.webp");--collection-logo-filter:hue-rotate(332deg) saturate(.48);
@@ -24,7 +24,7 @@ html[data-theme="iphone-glacier"] {
  --secondary:#526f7e;--secondary-soft:color-mix(in srgb,#285f7a 12%,#f7fbfd);--accent:#3d7484;--accent-soft:color-mix(in srgb,#3d7484 12%,#f7fbfd);
  --border:color-mix(in srgb,#526f7e 28%,#f7fbfd);--border-strong:color-mix(in srgb,#526f7e 65%,#f7fbfd);
  --danger:#a52b43;--danger-soft:#fce8ee;--success:#246c50;--success-soft:#e0f1e8;--info:#285f7a;--info-soft:color-mix(in srgb,#285f7a 12%,#f7fbfd);
- --shadow-sm:0 7px 24px #00012;--shadow-md:0 18px 44px #00020;--shadow-lg:0 28px 76px #00028;
+ --shadow-sm:0 7px 24px #00000012;--shadow-md:0 18px 44px #00000020;--shadow-lg:0 28px 76px #00000028;
  --v2-hero:#f7fbfd;--v2-highlight:#285f7a;--v2-glow:#336b86;--v2-hero-text:#193c4e;
  --v204-mist:#e8f1f5;--v204-rim:var(--border-strong);--v204-orbit:color-mix(in srgb,#285f7a 5%,transparent);--v204-ambient:color-mix(in srgb,#336b86 9%,transparent);--v204-sheen:color-mix(in srgb,#193c4e 4%,transparent);
  --collection-logo:url("/brand/aurora-hd.webp");--collection-logo-filter:saturate(.48);
@@ -40,7 +40,7 @@ html[data-theme="iphone-silver"] {
  --secondary:#596473;--secondary-soft:color-mix(in srgb,#424f62 12%,#ffffff);--accent:#606e81;--accent-soft:color-mix(in srgb,#606e81 12%,#ffffff);
  --border:color-mix(in srgb,#596473 28%,#ffffff);--border-strong:color-mix(in srgb,#596473 65%,#ffffff);
  --danger:#a52b43;--danger-soft:#fce8ee;--success:#246c50;--success-soft:#e0f1e8;--info:#424f62;--info-soft:color-mix(in srgb,#424f62 12%,#ffffff);
- --shadow-sm:0 7px 24px #00012;--shadow-md:0 18px 44px #00020;--shadow-lg:0 28px 76px #00028;
+ --shadow-sm:0 7px 24px #00000012;--shadow-md:0 18px 44px #00000020;--shadow-lg:0 28px 76px #00000028;
  --v2-hero:#ffffff;--v2-highlight:#424f62;--v2-glow:#48566b;--v2-hero-text:#252c36;
  --v204-mist:#eceef1;--v204-rim:var(--border-strong);--v204-orbit:color-mix(in srgb,#424f62 5%,transparent);--v204-ambient:color-mix(in srgb,#48566b 9%,transparent);--v204-sheen:color-mix(in srgb,#252c36 4%,transparent);
  --collection-logo:url("/brand/obsidian-hd.webp");--collection-logo-filter:saturate(0) brightness(1.65);
@@ -56,7 +56,7 @@ html[data-theme="iphone-black"] {
  --secondary:#afb5c0;--secondary-soft:color-mix(in srgb,#d3d8e2 12%,#191b20);--accent:#abb5c5;--accent-soft:color-mix(in srgb,#abb5c5 12%,#191b20);
  --border:color-mix(in srgb,#afb5c0 28%,#191b20);--border-strong:color-mix(in srgb,#afb5c0 65%,#191b20);
  --danger:#ffacbc;--danger-soft:#43202c;--success:#91dcc0;--success-soft:#173b30;--info:#d3d8e2;--info-soft:color-mix(in srgb,#d3d8e2 12%,#191b20);
- --shadow-sm:0 7px 24px #00040;--shadow-md:0 18px 44px #00055;--shadow-lg:0 28px 76px #00070;
+ --shadow-sm:0 7px 24px #00000040;--shadow-md:0 18px 44px #00000055;--shadow-lg:0 28px 76px #00000070;
  --v2-hero:#191b20;--v2-highlight:#d3d8e2;--v2-glow:#c6cdd8;--v2-hero-text:#f1f3f6;
  --v204-mist:#090a0c;--v204-rim:var(--border-strong);--v204-orbit:color-mix(in srgb,#d3d8e2 5%,transparent);--v204-ambient:color-mix(in srgb,#c6cdd8 9%,transparent);--v204-sheen:color-mix(in srgb,#f1f3f6 4%,transparent);
  --collection-logo:url("/brand/obsidian-hd.webp");--collection-logo-filter:saturate(0) brightness(.85);
@@ -65,64 +65,64 @@ html[data-theme] .hh-theme-swatch-iphone-black,html[data-theme] .hh-theme-orb.hh
 
 html[data-theme="f1-mercedes"] {
  color-scheme:dark;
- --bg:#0a1113;--bg-soft:color-mix(in srgb,#75e1d1 12%,#172226);--surface:#172226;--surface-soft:color-mix(in srgb,#75e1d1 12%,#172226);--surface-muted:color-mix(in srgb,#75e1d1 18%,#172226);
- --text:#eefafa;--text-primary:#eefafa;--text-secondary:#aec5c9;--text-muted:#aec5c9;
- --primary:#75e1d1;--primary-hover:color-mix(in srgb,#75e1d1 85%,#eefafa);--primary-soft:color-mix(in srgb,#75e1d1 12%,#172226);--primary-contrast:#052723;
- --action:#29c7b2;--action-hover:color-mix(in srgb,var(--action) 90%,#000);--action-text:#052723;--action-soft:color-mix(in srgb,#75e1d1 12%,#172226);
- --secondary:#aec5c9;--secondary-soft:color-mix(in srgb,#75e1d1 12%,#172226);--accent:#cdd5dd;--accent-soft:color-mix(in srgb,#cdd5dd 12%,#172226);
- --border:color-mix(in srgb,#aec5c9 28%,#172226);--border-strong:color-mix(in srgb,#aec5c9 65%,#172226);
- --danger:#ffacbc;--danger-soft:#43202c;--success:#91dcc0;--success-soft:#173b30;--info:#75e1d1;--info-soft:color-mix(in srgb,#75e1d1 12%,#172226);
- --shadow-sm:0 7px 24px #00040;--shadow-md:0 18px 44px #00055;--shadow-lg:0 28px 76px #00070;
- --v2-hero:#172226;--v2-highlight:#75e1d1;--v2-glow:#29c7b2;--v2-hero-text:#eefafa;
- --v204-mist:#0a1113;--v204-rim:var(--border-strong);--v204-orbit:color-mix(in srgb,#75e1d1 5%,transparent);--v204-ambient:color-mix(in srgb,#29c7b2 9%,transparent);--v204-sheen:color-mix(in srgb,#eefafa 4%,transparent);
+ --bg:#0a1113;--bg-soft:color-mix(in srgb,#38edcf 12%,#191d20);--surface:#191d20;--surface-soft:color-mix(in srgb,#38edcf 12%,#191d20);--surface-muted:color-mix(in srgb,#38edcf 18%,#191d20);
+ --text:#eefafa;--text-primary:#eefafa;--text-secondary:#bcc7cd;--text-muted:#bcc7cd;
+ --primary:#38edcf;--primary-hover:color-mix(in srgb,#38edcf 85%,#eefafa);--primary-soft:color-mix(in srgb,#38edcf 12%,#191d20);--primary-contrast:#052723;
+ --action:#00d2b4;--action-hover:color-mix(in srgb,var(--action) 90%,#000);--action-text:#052723;--action-soft:color-mix(in srgb,#38edcf 12%,#191d20);
+ --secondary:#bcc7cd;--secondary-soft:color-mix(in srgb,#38edcf 12%,#191d20);--accent:#cdd5dd;--accent-soft:color-mix(in srgb,#cdd5dd 12%,#191d20);
+ --border:color-mix(in srgb,#bcc7cd 28%,#191d20);--border-strong:color-mix(in srgb,#bcc7cd 65%,#191d20);
+ --danger:#ffacbc;--danger-soft:#43202c;--success:#91dcc0;--success-soft:#173b30;--info:#38edcf;--info-soft:color-mix(in srgb,#38edcf 12%,#191d20);
+ --shadow-sm:0 7px 24px #00000040;--shadow-md:0 18px 44px #00000055;--shadow-lg:0 28px 76px #00000070;
+ --v2-hero:#191d20;--v2-highlight:#38edcf;--v2-glow:#00d2b4;--v2-hero-text:#eefafa;
+ --v204-mist:#0a1113;--v204-rim:var(--border-strong);--v204-orbit:color-mix(in srgb,#38edcf 5%,transparent);--v204-ambient:color-mix(in srgb,#00d2b4 9%,transparent);--v204-sheen:color-mix(in srgb,#eefafa 4%,transparent);
  --collection-logo:url("/brand/racing-hd.webp");--collection-logo-filter:hue-rotate(163deg);
 }
 html[data-theme] .hh-theme-swatch-f1-mercedes,html[data-theme] .hh-theme-orb.hh-theme-swatch-f1-mercedes {background:linear-gradient(135deg,#0a1113 0 48%,#29c7b2 48% 83%,#cdd5dd 83%)}
 
 html[data-theme="f1-redbull"] {
  color-scheme:dark;
- --bg:#0a1025;--bg-soft:color-mix(in srgb,#9cbfff 12%,#18233e);--surface:#18233e;--surface-soft:color-mix(in srgb,#9cbfff 12%,#18233e);--surface-muted:color-mix(in srgb,#9cbfff 18%,#18233e);
+ --bg:#0a1025;--bg-soft:color-mix(in srgb,#b4cfff 12%,#101e3e);--surface:#101e3e;--surface-soft:color-mix(in srgb,#b4cfff 12%,#101e3e);--surface-muted:color-mix(in srgb,#b4cfff 18%,#101e3e);
  --text:#f1f5ff;--text-primary:#f1f5ff;--text-secondary:#b5c3e0;--text-muted:#b5c3e0;
- --primary:#9cbfff;--primary-hover:color-mix(in srgb,#9cbfff 85%,#f1f5ff);--primary-soft:color-mix(in srgb,#9cbfff 12%,#18233e);--primary-contrast:#ffffff;
- --action:#e12a49;--action-hover:color-mix(in srgb,var(--action) 90%,#000);--action-text:#ffffff;--action-soft:color-mix(in srgb,#9cbfff 12%,#18233e);
- --secondary:#b5c3e0;--secondary-soft:color-mix(in srgb,#9cbfff 12%,#18233e);--accent:#ffdb45;--accent-soft:color-mix(in srgb,#ffdb45 12%,#18233e);
- --border:color-mix(in srgb,#b5c3e0 28%,#18233e);--border-strong:color-mix(in srgb,#b5c3e0 65%,#18233e);
- --danger:#ffacbc;--danger-soft:#43202c;--success:#91dcc0;--success-soft:#173b30;--info:#9cbfff;--info-soft:color-mix(in srgb,#9cbfff 12%,#18233e);
- --shadow-sm:0 7px 24px #00040;--shadow-md:0 18px 44px #00055;--shadow-lg:0 28px 76px #00070;
- --v2-hero:#18233e;--v2-highlight:#9cbfff;--v2-glow:#e12a49;--v2-hero-text:#f1f5ff;
- --v204-mist:#0a1025;--v204-rim:var(--border-strong);--v204-orbit:color-mix(in srgb,#9cbfff 5%,transparent);--v204-ambient:color-mix(in srgb,#e12a49 9%,transparent);--v204-sheen:color-mix(in srgb,#f1f5ff 4%,transparent);
+ --primary:#b4cfff;--primary-hover:color-mix(in srgb,#b4cfff 85%,#f1f5ff);--primary-soft:color-mix(in srgb,#b4cfff 12%,#101e3e);--primary-contrast:#ffffff;
+ --action:#c91435;--action-hover:color-mix(in srgb,var(--action) 90%,#000);--action-text:#ffffff;--action-soft:color-mix(in srgb,#b4cfff 12%,#101e3e);
+ --secondary:#b5c3e0;--secondary-soft:color-mix(in srgb,#b4cfff 12%,#101e3e);--accent:#ffce00;--accent-soft:color-mix(in srgb,#ffce00 12%,#101e3e);
+ --border:color-mix(in srgb,#b5c3e0 28%,#101e3e);--border-strong:color-mix(in srgb,#b5c3e0 65%,#101e3e);
+ --danger:#ffacbc;--danger-soft:#43202c;--success:#91dcc0;--success-soft:#173b30;--info:#b4cfff;--info-soft:color-mix(in srgb,#b4cfff 12%,#101e3e);
+ --shadow-sm:0 7px 24px #00000040;--shadow-md:0 18px 44px #00000055;--shadow-lg:0 28px 76px #00000070;
+ --v2-hero:#101e3e;--v2-highlight:#b4cfff;--v2-glow:#c91435;--v2-hero-text:#f1f5ff;
+ --v204-mist:#0a1025;--v204-rim:var(--border-strong);--v204-orbit:color-mix(in srgb,#b4cfff 5%,transparent);--v204-ambient:color-mix(in srgb,#c91435 9%,transparent);--v204-sheen:color-mix(in srgb,#f1f5ff 4%,transparent);
  --collection-logo:url("/brand/aurora-hd.webp");--collection-logo-filter:saturate(1.25) brightness(.8);
 }
 html[data-theme] .hh-theme-swatch-f1-redbull,html[data-theme] .hh-theme-orb.hh-theme-swatch-f1-redbull {background:linear-gradient(135deg,#0a1025 0 48%,#e12a49 48% 83%,#ffdb45 83%)}
 
 html[data-theme="f1-ferrari"] {
  color-scheme:dark;
- --bg:#0d0d10;--bg-soft:color-mix(in srgb,#ffadb9 12%,#1e1b20);--surface:#1e1b20;--surface-soft:color-mix(in srgb,#ffadb9 12%,#1e1b20);--surface-muted:color-mix(in srgb,#ffadb9 18%,#1e1b20);
- --text:#fff4f4;--text-primary:#fff4f4;--text-secondary:#cbb9c0;--text-muted:#cbb9c0;
- --primary:#ffadb9;--primary-hover:color-mix(in srgb,#ffadb9 85%,#fff4f4);--primary-soft:color-mix(in srgb,#ffadb9 12%,#1e1b20);--primary-contrast:#ffffff;
- --action:#ac142d;--action-hover:color-mix(in srgb,var(--action) 90%,#000);--action-text:#ffffff;--action-soft:color-mix(in srgb,#ffadb9 12%,#1e1b20);
- --secondary:#cbb9c0;--secondary-soft:color-mix(in srgb,#ffadb9 12%,#1e1b20);--accent:#ffe04b;--accent-soft:color-mix(in srgb,#ffe04b 12%,#1e1b20);
- --border:color-mix(in srgb,#cbb9c0 28%,#1e1b20);--border-strong:color-mix(in srgb,#cbb9c0 65%,#1e1b20);
- --danger:#ffacbc;--danger-soft:#43202c;--success:#91dcc0;--success-soft:#173b30;--info:#ffadb9;--info-soft:color-mix(in srgb,#ffadb9 12%,#1e1b20);
- --shadow-sm:0 7px 24px #00040;--shadow-md:0 18px 44px #00055;--shadow-lg:0 28px 76px #00070;
- --v2-hero:#1e1b20;--v2-highlight:#ffadb9;--v2-glow:#ac142d;--v2-hero-text:#fff4f4;
- --v204-mist:#0d0d10;--v204-rim:var(--border-strong);--v204-orbit:color-mix(in srgb,#ffadb9 5%,transparent);--v204-ambient:color-mix(in srgb,#ac142d 9%,transparent);--v204-sheen:color-mix(in srgb,#fff4f4 4%,transparent);
+ --bg:#0d0d10;--bg-soft:color-mix(in srgb,#ffaaa5 12%,#1c1c1f);--surface:#1c1c1f;--surface-soft:color-mix(in srgb,#ffaaa5 12%,#1c1c1f);--surface-muted:color-mix(in srgb,#ffaaa5 18%,#1c1c1f);
+ --text:#fff4f4;--text-primary:#fff4f4;--text-secondary:#c6c6cc;--text-muted:#c6c6cc;
+ --primary:#ffaaa5;--primary-hover:color-mix(in srgb,#ffaaa5 85%,#fff4f4);--primary-soft:color-mix(in srgb,#ffaaa5 12%,#1c1c1f);--primary-contrast:#ffffff;
+ --action:#d20b24;--action-hover:color-mix(in srgb,var(--action) 90%,#000);--action-text:#ffffff;--action-soft:color-mix(in srgb,#ffaaa5 12%,#1c1c1f);
+ --secondary:#c6c6cc;--secondary-soft:color-mix(in srgb,#ffaaa5 12%,#1c1c1f);--accent:#ffe000;--accent-soft:color-mix(in srgb,#ffe000 12%,#1c1c1f);
+ --border:color-mix(in srgb,#c6c6cc 28%,#1c1c1f);--border-strong:color-mix(in srgb,#c6c6cc 65%,#1c1c1f);
+ --danger:#ffacbc;--danger-soft:#43202c;--success:#91dcc0;--success-soft:#173b30;--info:#ffaaa5;--info-soft:color-mix(in srgb,#ffaaa5 12%,#1c1c1f);
+ --shadow-sm:0 7px 24px #00000040;--shadow-md:0 18px 44px #00000055;--shadow-lg:0 28px 76px #00000070;
+ --v2-hero:#1c1c1f;--v2-highlight:#ffaaa5;--v2-glow:#d20b24;--v2-hero-text:#fff4f4;
+ --v204-mist:#0d0d10;--v204-rim:var(--border-strong);--v204-orbit:color-mix(in srgb,#ffaaa5 5%,transparent);--v204-ambient:color-mix(in srgb,#d20b24 9%,transparent);--v204-sheen:color-mix(in srgb,#fff4f4 4%,transparent);
  --collection-logo:url("/brand/racing-hd.webp");--collection-logo-filter:none;
 }
 html[data-theme] .hh-theme-swatch-f1-ferrari,html[data-theme] .hh-theme-orb.hh-theme-swatch-f1-ferrari {background:linear-gradient(135deg,#0d0d10 0 48%,#ac142d 48% 83%,#ffe04b 83%)}
 
 html[data-theme="f1-mclaren"] {
  color-scheme:dark;
- --bg:#111214;--bg-soft:color-mix(in srgb,#ffb873 12%,#202125);--surface:#202125;--surface-soft:color-mix(in srgb,#ffb873 12%,#202125);--surface-muted:color-mix(in srgb,#ffb873 18%,#202125);
- --text:#faf6ef;--text-primary:#faf6ef;--text-secondary:#c5bdb1;--text-muted:#c5bdb1;
- --primary:#ffb873;--primary-hover:color-mix(in srgb,#ffb873 85%,#faf6ef);--primary-soft:color-mix(in srgb,#ffb873 12%,#202125);--primary-contrast:#251400;
- --action:#ff8700;--action-hover:color-mix(in srgb,var(--action) 90%,#000);--action-text:#251400;--action-soft:color-mix(in srgb,#ffb873 12%,#202125);
- --secondary:#c5bdb1;--secondary-soft:color-mix(in srgb,#ffb873 12%,#202125);--accent:#73dfd0;--accent-soft:color-mix(in srgb,#73dfd0 12%,#202125);
- --border:color-mix(in srgb,#c5bdb1 28%,#202125);--border-strong:color-mix(in srgb,#c5bdb1 65%,#202125);
- --danger:#ffacbc;--danger-soft:#43202c;--success:#91dcc0;--success-soft:#173b30;--info:#ffb873;--info-soft:color-mix(in srgb,#ffb873 12%,#202125);
- --shadow-sm:0 7px 24px #00040;--shadow-md:0 18px 44px #00055;--shadow-lg:0 28px 76px #00070;
- --v2-hero:#202125;--v2-highlight:#ffb873;--v2-glow:#ff8700;--v2-hero-text:#faf6ef;
- --v204-mist:#111214;--v204-rim:var(--border-strong);--v204-orbit:color-mix(in srgb,#ffb873 5%,transparent);--v204-ambient:color-mix(in srgb,#ff8700 9%,transparent);--v204-sheen:color-mix(in srgb,#faf6ef 4%,transparent);
+ --bg:#111214;--bg-soft:color-mix(in srgb,#ffad51 12%,#202124);--surface:#202124;--surface-soft:color-mix(in srgb,#ffad51 12%,#202124);--surface-muted:color-mix(in srgb,#ffad51 18%,#202124);
+ --text:#faf6ef;--text-primary:#faf6ef;--text-secondary:#c9c9cc;--text-muted:#c9c9cc;
+ --primary:#ffad51;--primary-hover:color-mix(in srgb,#ffad51 85%,#faf6ef);--primary-soft:color-mix(in srgb,#ffad51 12%,#202124);--primary-contrast:#251400;
+ --action:#ff8000;--action-hover:color-mix(in srgb,var(--action) 90%,#000);--action-text:#251400;--action-soft:color-mix(in srgb,#ffad51 12%,#202124);
+ --secondary:#c9c9cc;--secondary-soft:color-mix(in srgb,#ffad51 12%,#202124);--accent:#58d9ce;--accent-soft:color-mix(in srgb,#58d9ce 12%,#202124);
+ --border:color-mix(in srgb,#c9c9cc 28%,#202124);--border-strong:color-mix(in srgb,#c9c9cc 65%,#202124);
+ --danger:#ffacbc;--danger-soft:#43202c;--success:#91dcc0;--success-soft:#173b30;--info:#ffad51;--info-soft:color-mix(in srgb,#ffad51 12%,#202124);
+ --shadow-sm:0 7px 24px #00000040;--shadow-md:0 18px 44px #00000055;--shadow-lg:0 28px 76px #00000070;
+ --v2-hero:#202124;--v2-highlight:#ffad51;--v2-glow:#ff8000;--v2-hero-text:#faf6ef;
+ --v204-mist:#111214;--v204-rim:var(--border-strong);--v204-orbit:color-mix(in srgb,#ffad51 5%,transparent);--v204-ambient:color-mix(in srgb,#ff8000 9%,transparent);--v204-sheen:color-mix(in srgb,#faf6ef 4%,transparent);
  --collection-logo:url("/brand/racing-hd.webp");--collection-logo-filter:hue-rotate(42deg);
 }
 html[data-theme] .hh-theme-swatch-f1-mclaren,html[data-theme] .hh-theme-orb.hh-theme-swatch-f1-mclaren {background:linear-gradient(135deg,#111214 0 48%,#ff8700 48% 83%,#73dfd0 83%)}

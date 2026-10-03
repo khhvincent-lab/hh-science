@@ -1,0 +1,123 @@
+/* Racing collections: original Science Lab mark and team-inspired livery.
+   Palette research: 2026 W17 / RB22 / SF-26 / MCL40 launch liveries.
+   Decorative geometry never carries student data or status. */
+.f1-brand-mark{display:none}
+html[data-theme="f1-mercedes"]{
+ --race-name:"MERCEDES / SILVER ARROWS";--race-paint:#00d2b4;--race-secondary:#d9e1e5;--race-ink:#071311;
+ --race-livery:linear-gradient(115deg,#101517 0 48%,#00d2b4 48% 50%,#d7dfe2 50% 76%,#8b999f 100%);
+ --race-banner:linear-gradient(115deg,#111719 0 55%,#00d2b4 55% 57%,#cbd5da 57% 87%,#85959e 87%);
+ --race-header:linear-gradient(110deg,#101719 0 76%,#00d2b4 76% 79%,#cbd5da 79%);
+ --race-logo-bg:#cbd5da;--race-logo-ink:#091719;--race-logo-stripe:#00bca5;
+}
+html[data-theme="f1-redbull"]{
+ --race-name:"RED BULL / RACING BLUE";--race-paint:#1260dc;--race-secondary:#ffce00;--race-ink:#ffffff;
+ --race-livery:linear-gradient(115deg,#061530 0 45%,#1258c4 45% 68%,#ed1740 68% 81%,#ffce00 81% 86%,#092147 86%);
+ --race-banner:linear-gradient(115deg,#081932 0 58%,#135bd2 58% 78%,#ed1740 78% 91%,#ffce00 91%);
+ --race-header:linear-gradient(110deg,#0a1c40 0 77%,#165bdd 77% 89%,#ed1740 89% 95%,#ffce00 95%);
+ --race-logo-bg:#073b99;--race-logo-ink:#ffffff;--race-logo-stripe:#e81838;
+ --v2-glow:#1258c4;--v204-ambient:#1258c414;
+}
+html[data-theme="f1-ferrari"]{
+ --race-name:"FERRARI / ROSSO CORSA";--race-paint:#ed142a;--race-secondary:#ffe000;--race-ink:#ffffff;
+ --race-livery:linear-gradient(115deg,#b8081b 0 50%,#ed142a 50% 75%,#f5f5f3 75% 80%,#151518 80%);
+ --race-banner:linear-gradient(115deg,#970d1b 0 58%,#ed142a 58% 78%,#f5f5f3 78% 82%,#161619 82%);
+ --race-header:linear-gradient(110deg,#a2091b 0 78%,#ef182f 78% 87%,#f5f5f3 87% 90%,#151518 90%);
+ --race-logo-bg:#d30922;--race-logo-ink:#ffffff;--race-logo-stripe:#a00818;
+}
+html[data-theme="f1-mclaren"]{
+ --race-name:"McLAREN / PAPAYA RACING";--race-paint:#ff8000;--race-secondary:#58d9ce;--race-ink:#151515;
+ --race-livery:linear-gradient(115deg,#ff8000 0 65%,#17191c 65% 88%,#58d9ce 88% 90%,#30343a 90%);
+ --race-banner:linear-gradient(115deg,#15171a 0 53%,#ff8000 53% 83%,#17191c 83% 95%,#58d9ce 95%);
+ --race-header:linear-gradient(110deg,#17191c 0 72%,#ff8000 72% 96%,#58d9ce 96%);
+ --race-logo-bg:#ff8000;--race-logo-ink:#121619;--race-logo-stripe:#ed6900;
+}
+html[data-theme^="f1-"]{
+ --bg-soft:var(--bg);--surface-soft:color-mix(in srgb,var(--surface) 93%,#fff);--surface-muted:color-mix(in srgb,var(--surface) 85%,#fff);
+ --border:#ffffff24;--border-strong:#ffffff55;--v204-sheen:#ffffff06;--v204-orbit:transparent;
+ --student-canvas:linear-gradient(115deg,transparent 0 87%,color-mix(in srgb,var(--race-paint) 13%,transparent) 87% 88%,transparent 88%),var(--bg);
+}
+/* Keep the page neutral; concentrate the team's paint in structural panels. */
+html[data-theme^="f1-"] .student-page{background:var(--student-canvas)!important}
+html[data-theme^="f1-"] .student-page .student-top-glow{display:none}
+html[data-theme^="f1-"] .student-page .student-app-header{
+ background:var(--race-header)!important;border:1px solid #ffffff26!important;border-bottom:3px solid var(--race-paint)!important;border-radius:12px!important;
+ box-shadow:0 8px 24px #0004!important;backdrop-filter:none;
+}
+html[data-theme^="f1-"] .student-page .student-app-brand-zh{color:#fff!important}
+html[data-theme^="f1-"] .student-page .student-app-brand-en{color:#d5dce4!important}
+html[data-theme^="f1-"] .student-page .student-app-header-actions .hh-theme-toggle,
+html[data-theme^="f1-"] .student-page .student-menu-button{background:#10151def!important;border-color:#ffffff50!important;color:#fff!important}
+html[data-theme^="f1-"] .student-page .student-menu-button span{background:#fff!important}
+html[data-theme^="f1-"] .student-page .student-brand-intro{
+ position:relative;isolation:isolate;background:var(--race-livery);border-radius:12px;padding:22px 20px!important;margin:16px 0!important;overflow:hidden;
+ border:1px solid #ffffff28;box-shadow:inset 0 1px #ffffff26,0 8px 24px #0003;
+}
+html[data-theme^="f1-"] .student-page .student-brand-intro .hh-display{font-family:inherit;font-weight:850;letter-spacing:-.035em;font-size:clamp(26px,6vw,40px);color:var(--race-ink)!important;margin:8px 0!important}
+html[data-theme^="f1-"] .student-page .student-brand-intro .hh-eyebrow,
+html[data-theme^="f1-"] .student-page .student-brand-intro p{color:var(--race-ink)!important;max-width:68%;font-size:11px;font-weight:600}
+html[data-theme="f1-mercedes"] .student-brand-intro{--race-ink:#fff}
+html[data-theme^="f1-"] .student-page .student-brand-intro::after{
+ content:var(--race-name);display:block;position:relative;width:max-content;max-width:100%;margin-top:16px;padding:6px 10px;background:#090d14;color:#f8fbff;border-left:3px solid var(--race-secondary);font:800 9px/1.4 ui-monospace,monospace;letter-spacing:.07em;
+}
+html[data-theme^="f1-"] .student-page .student-welcome-card{background:var(--race-banner)!important;border:1px solid #ffffff30!important;border-radius:12px!important;box-shadow:0 8px 24px #0004!important}
+html[data-theme^="f1-"] .student-page .student-welcome-card::before,
+html[data-theme^="f1-"] .student-page .student-welcome-card::after{display:none}
+html[data-theme^="f1-"] .student-page .student-welcome-main{color:#fff;position:relative;z-index:1}
+html[data-theme^="f1-"] .student-page .student-welcome-label,
+html[data-theme^="f1-"] .student-page .student-welcome-main .student-muted{color:#f0f2f7!important}
+html[data-theme^="f1-"] .student-page .student-welcome-title{color:#fff!important;font-family:inherit}
+html[data-theme^="f1-"] .student-page .student-avatar{background:#080d19a8;border:1px solid #ffffff48;color:#fff}
+html[data-theme^="f1-"] .student-page .v206-quota-card{background:#0b111deF!important;border-color:#ffffff40!important;--v210-quota-bg:#0b111d;--v210-quota-label:#d5deeb;--v210-quota-muted:#c6d0df;--v210-quota-text:#fff;--v210-quota-fill:var(--race-secondary)}
+html[data-theme^="f1-"] .student-page .v206-quota-danger{--v210-quota-text:#ffacbc;--v210-quota-fill:#ffacbc;--v210-quota-label:#ffacbc}
+html[data-theme^="f1-"] .student-page .student-login-card,
+html[data-theme^="f1-"] .student-page .student-upload-card,
+html[data-theme^="f1-"] .student-page .student-config-card{background:var(--surface)!important;border-radius:12px!important;border-color:var(--border)!important;box-shadow:0 8px 24px #0003!important}
+html[data-theme^="f1-"] .student-page .student-login-intro{border-bottom:1px solid var(--border);padding-bottom:16px}
+html[data-theme^="f1-"] .student-page .student-feature-mark{border-radius:5px;transform:skew(-8deg);font-style:italic;background:var(--race-paint)!important;color:var(--race-ink)!important;font-weight:900}
+html[data-theme^="f1-"] .student-page .student-login-card .hh-button-primary,
+html[data-theme^="f1-"] .student-page .student-solve-button{border-radius:8px!important;box-shadow:inset 0 -3px #0003!important;font-weight:850}
+html[data-theme^="f1-"] .student-page .v2-student-bottom-nav{background:#10141bef!important;border-top:2px solid var(--race-paint)!important;border-radius:12px 12px 0 0!important}
+/* The brand becomes a crisp racing badge, retaining the chemistry flask. */
+html[data-theme^="f1-"] .adaptive-brand-logo{background:var(--race-logo-bg)!important;border-radius:18% 5% 18% 5%!important;border:1px solid #ffffff40!important;color:var(--race-logo-ink)!important;box-shadow:0 3px 10px #0004!important}
+html[data-theme^="f1-"] .adaptive-brand-logo::before{display:none!important}
+html[data-theme^="f1-"] .f1-brand-mark{display:block;width:100%;height:100%}
+.f1-badge-panel{fill:var(--race-logo-bg)}.f1-badge-stripe{fill:var(--race-logo-stripe)}.f1-badge-liquid{fill:var(--race-logo-ink)}.f1-badge-accent{fill:var(--race-secondary)}
+/* Teacher sign-in has the same paint split as the corresponding race car. */
+html[data-theme^="f1-"] .admin-login-page{background:linear-gradient(120deg,color-mix(in srgb,var(--race-paint) 13%,var(--bg)),var(--bg) 55%)!important}
+html[data-theme^="f1-"] .admin-login-brand{background:var(--race-livery)!important;border-radius:16px 0 0 16px;box-shadow:inset 0 -4px var(--race-paint)}
+html[data-theme^="f1-"] .admin-login-brand .admin-login-title,
+html[data-theme^="f1-"] .admin-login-brand p,
+html[data-theme^="f1-"] .admin-login-brand .hh-eyebrow,
+html[data-theme^="f1-"] .admin-login-brand .v2-login-theme{color:var(--race-ink)!important;position:relative}
+html[data-theme="f1-mercedes"] .admin-login-brand{--race-ink:#fff}
+html[data-theme^="f1-"] .admin-login-brand .admin-login-title{font-family:inherit;font-size:clamp(28px,3vw,38px)!important}
+html[data-theme^="f1-"] .admin-login-brand p{padding:12px;border-radius:6px;background:#0a101eeF;color:#e9eef7!important}
+html[data-theme^="f1-"] .admin-login-brand:after{content:var(--race-name);position:relative;right:auto;bottom:auto;width:max-content;max-width:100%;height:auto;border:0;border-left:3px solid var(--race-secondary);border-radius:0;padding:6px 9px;background:#0b1018;color:white;font:800 9px/1.5 ui-monospace,monospace;letter-spacing:.07em}
+html[data-theme^="f1-"] .admin-login-card{border-radius:17px!important}
+/* Five start lights and a technical grid make startup feel like the grid. */
+html[data-theme^="f1-"] .lab-startup{background:linear-gradient(120deg,var(--bg) 0 77%,var(--race-paint) 77% 78%,var(--bg) 78% 81%,var(--race-secondary) 81% 81.4%,var(--bg) 81.4%)!important}
+html[data-theme^="f1-"] .lab-startup-copy h1{font-family:inherit;font-weight:800;letter-spacing:.07em}
+html[data-theme^="f1-"] .lab-startup-copy::before{content:"";display:block;width:14px;height:14px;border-radius:50%;background:#f02a3b;box-shadow:24px 0 #f02a3b,48px 0 #f02a3b,72px 0 #f02a3b,96px 0 #f02a3b;margin:8px auto 18px;transform:translateX(-48px)}
+html[data-theme^="f1-"] .lab-startup-ready .lab-startup-copy::before{background:var(--race-paint);box-shadow:24px 0 var(--race-paint),48px 0 var(--race-paint),72px 0 var(--race-paint),96px 0 var(--race-paint)}
+html[data-theme^="f1-"] .lab-startup-outer{border-top-color:var(--race-secondary)!important}
+html[data-theme^="f1-"] .admin-access-card{border-top:3px solid var(--race-paint);border-radius:12px;background:var(--surface)}
+/* Selector swatches match the actual livery instead of generic diagonal colors. */
+html[data-theme] .hh-theme-swatch-f1-mercedes{background:linear-gradient(115deg,#13181a 0 45%,#00d2b4 45% 53%,#cbd5da 53%)!important}
+html[data-theme] .hh-theme-swatch-f1-redbull{background:linear-gradient(115deg,#104aa9 0 60%,#ed1740 60% 82%,#ffce00 82%)!important}
+html[data-theme] .hh-theme-swatch-f1-ferrari{background:linear-gradient(115deg,#ed142a 0 65%,#fff 65% 75%,#161619 75%)!important}
+html[data-theme] .hh-theme-swatch-f1-mclaren{background:linear-gradient(115deg,#ff8000 0 65%,#17191c 65% 90%,#58d9ce 90%)!important}
+@media(max-width:740px){
+ html[data-theme^="f1-"] .admin-login-brand{border-radius:16px 16px 0 0}
+ html[data-theme^="f1-"] .student-page .student-brand-intro .hh-display{max-width:72%}
+ html[data-theme^="f1-"] .student-page .student-brand-intro{padding:18px!important}
+}
+
+/* Solid control paint avoids washing Ferrari/red-bull reds into pastel gradients. */
+html[data-theme^="f1-"] .student-page .hh-button-primary,
+html[data-theme^="f1-"] .student-page .student-solve-button{background:var(--action)!important;color:var(--action-text)!important}
+html[data-theme="f1-mercedes"] .student-page .student-brand-intro p{background:#0c131bf2;color:#fff!important;padding:5px 8px;width:fit-content;max-width:100%;border-radius:3px}
+html[data-theme="f1-mercedes"] .admin-login-brand .admin-login-title{color:#fff!important;background:#101719ed;width:fit-content;padding:7px 12px;border-left:3px solid #00d2b4}
+html[data-theme="f1-mercedes"] .admin-login-brand .hh-eyebrow{color:#fff!important;background:#101719ed;padding:7px 9px;width:fit-content}
+html[data-theme="f1-mercedes"] .admin-login-brand .v2-login-theme>span{color:#fff;background:#101719ed;padding:6px}
+html[data-theme^="f1-"] .student-page .v2-student-bottom-nav button[aria-current="page"]{color:var(--race-secondary)!important;background:color-mix(in srgb,var(--race-secondary) 12%,#10141b)!important}
+html[data-theme^="f1-"] .student-page .student-upload-icon{color:var(--primary)!important}
