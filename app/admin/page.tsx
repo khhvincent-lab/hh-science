@@ -3993,7 +3993,7 @@ function SiteQuestionsSection({onCalibrate,initialFocus="all",canReview=false}:{
   const modeCosts=summarizeModeCosts(items);
   const unknownModeCount=items.filter(item=>!item.teachingMode).length;
   const pendingCount=items.filter(item=>item.answerMismatch).length;
-  const reviewLabel=(item:TeachingQuestionRow)=>item.review?.verdict==="invalid_question"?"題目有誤 · 已排除統計":item.review?.verdict==="ai_correct"?"已確認 AI 正確":item.review?.verdict==="ai_incorrect"?"已確認 AI 答錯":item.answerMismatch?(item.partialMatch?"部分答案相符，待覆核":"答案待核對"):item.issue?"需注意":!item.referenceAnswer?.trim()?"未納入統計":"已比對";
+  const reviewLabel=(item:TeachingQuestionRow)=>item.review?.verdict==="invalid_question"?"題目有誤 · 已排除統計":item.review?.verdict==="ai_correct"?"已確認 AI 正確":item.review?.verdict==="ai_incorrect"?"已確認 AI 答錯":item.answerMismatch?"答案待核對":item.issue?"需注意":item.partialMatch?"指定小題相符 · 未納入整題統計":!item.referenceAnswer?.trim()?"未納入統計":"已比對";
   const reviewTone=(item:TeachingQuestionRow)=>item.review?.verdict&&item.review.verdict!=="unreviewed"?item.review.verdict:item.answerMismatch?"pending":"neutral";
 
   async function saveAnswerReview(verdict:"ai_correct"|"ai_incorrect"|"invalid_question"|"unreviewed") {
@@ -4003,7 +4003,7 @@ function SiteQuestionsSection({onCalibrate,initialFocus="all",canReview=false}:{
       const response=await fetch("/api/admin/answer-review",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({solveHistoryId:selected.id,verdict,note:reviewNote})});
       const data=await response.json();
       if(!response.ok)throw new Error(data.error||"儲存覆核失敗。");
-      const needsReview=verdict==="unreviewed"&&!selected.automaticMatch&&Boolean(selected.referenceAnswer);
+      const needsReview=verdict==="unreviewed"&&!selected.automaticMatch&&!selected.partialMatch&&Boolean(selected.referenceAnswer);
       const updated={...selected,review:{...data.review,reviewerName:"總管理員"},answerMismatch:needsReview,issue:verdict==="ai_incorrect"||needsReview||(verdict==="unreviewed"&&selected.disputeStatus==="disputed")};
       setSelected(updated);
       setReviewMessage(verdict==="unreviewed"?"已撤回判定，恢復依答案比對結果統計。":verdict==="invalid_question"?"已排除這題，不計入正確率的分子與分母。":"已儲存覆核，正確率會依這項判定重新計算。");

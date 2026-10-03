@@ -276,7 +276,7 @@ function cleanReferenceFormat(text: string) {
     .replace(/\\[()[\]]/g, "")
     .replace(/\$/g, "")
     .replace(/−|–/g, "-")
-    .replace(/^第\s*\d+\s*題\s*[:：]?\s*/, "")
+    .replace(/^第\s*[一二三四五六七八九十百零〇兩\d]+\s*題\s*[:：]?\s*/, "")
     .trim();
 }
 
@@ -318,6 +318,12 @@ function selectedOptionValue(answer: string, options: string) {
 }
 
 export function referenceAnswersMatch(answer: string, reference: string, options = "") {
+  // Explicit labels must agree before removing presentation-only question prefixes.
+  const aParts = labeledAnswers(answer), rParts = labeledAnswers(reference);
+  if (aParts?.length === 1 && rParts?.length === 1 && aParts[0].label !== rParts[0].label) return false;
+  if (aParts?.length === 1 && rParts?.length === 1) {
+    return referenceAnswersMatch(aParts[0].value, rParts[0].value, options);
+  }
   const orderedAnswer = orderedChoices(answer), orderedReference = orderedChoices(reference);
   if (orderedAnswer || orderedReference) {
     const actual = orderedAnswer?.values || plainChoiceSequence(toHalfWidth(answer));
@@ -328,6 +334,8 @@ export function referenceAnswersMatch(answer: string, reference: string, options
   }
   answer = cleanReferenceFormat(answer);
   reference = cleanReferenceFormat(reference);
+  const aTrend = qualitativeTrend(answer), rTrend = qualitativeTrend(reference);
+  if (aTrend || rTrend) return Boolean(aTrend && rTrend && aTrend === rTrend);
   const selectedValue = selectedOptionValue(answer, options);
   if (selectedValue && referenceAnswersMatch(selectedValue, reference)) return true;
   const formula = (text: string) => text.replace(/[₀-₉]/g, char => String(char.charCodeAt(0) - 0x2080)).replace(/_\{(\d+)\}/g, "$1").replace(/_(\d+)/g, "$1").replace(/\s+/g, "");
@@ -343,7 +351,11 @@ export function referenceAnswersMatch(answer: string, reference: string, options
       .replace(/\\[()[\]]/g, "")
       .replace(/\$/g, "")
       .replace(/−|–/g, "-").trim();
-    const chunks = normalized.split(/[,，、;；\n]+/).map(part => part.trim());
+    const chunks = normalized
+      .replace(/攝氏\s*([+-]?\d+(?:\.\d+)?)(?:\s*度)?/g, "$1°C")
+      .replace(/度\s*[Cc]|℃/g, "°C")
+      .replace(/(°C|mmHg|kPa|MPa|Pa|mmol|mol|kg|mg|g|mL|L|公克|公斤|克|毫升|公升)\s+(?=[+-]?\d)/g, "$1;")
+      .split(/[,，、;；\n]+/).map(part => part.trim());
     if (!chunks.length || chunks.some(part => !part)) return null;
     const values = chunks.map((part, index) => {
       const label = part.match(/^\((\d+)\)\s*/);
@@ -351,7 +363,8 @@ export function referenceAnswersMatch(answer: string, reference: string, options
       const cleaned = part.replace(/^\(\d+\)\s*/, "");
       const match = cleaned.match(/^([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?)\s*(m\/s|kJ\/mol|J\/mol|mol|mmol|g|kg|mg|L|mL|m|cm|mm|s|min|h|K|°C|℃|Pa|kPa|MPa|atm|mmHg|J|kJ|cal|kcal|N|V|A|W|Hz|%|公克|克|公斤|莫耳|毫升|公升)?$/);
       if (!match || !Number.isFinite(Number(match[1]))) return null;
-      return { number: Number(match[1]), unit: match[2] || "" };
+      const aliases: Record<string, string> = { 公克: "g", 克: "g", 公斤: "kg", 莫耳: "mol", 毫升: "mL", 公升: "L" };
+      return { number: Number(match[1]), unit: aliases[match[2]] || match[2] || "" };
     });
     return values.every(value => value !== null) ? values : null;
   };
@@ -369,10 +382,60 @@ export function referenceAnswersMatch(answer: string, reference: string, options
 }
 
 
-/** A reference for only the first subquestion cannot validate the whole solution. */
+function questionNumber(value: string) {
+  if (/^\d+$/.test(value)) return Number(value);
+  const digits = "零一二三四五六七八九";
+  if (value === "十") return 10;
+  if (value.includes("十")) {
+    const [tens, ones] = value.split("十");
+    return (tens ? digits.indexOf(tens) : 1) * 10 + (ones ? digits.indexOf(ones) : 0);
+  }
+  return digits.indexOf(value);
+}
+
+/** Preserve question identity; never pick whichever entry happens to match. */
+function labeledAnswers(text: string) {
+  const source = toHalfWidth(text).trim();
+  const marker = /(?:^|[\s,;、，；])(?:\((\d+)\)|(\d+)\.(?!\d)|第\s*([一二三四五六七八九十\d]+)\s*題)\s*(?:是|為|:)?\s*/g;
+  const matches = [...source.matchAll(marker)];
+  if (!matches.length || source.slice(0, matches[0].index).trim()) return null;
+  const parts = matches.map((match, index) => ({
+    label: questionNumber(match[1] || match[2] || match[3]),
+    value: source.slice(match.index! + match[0].length, matches[index + 1]?.index ?? source.length).replace(/[\s,;、，；]+$/, ""),
+  }));
+  if (parts.some(part => part.label <= 0 || !part.value) || new Set(parts.map(part => part.label)).size !== parts.length) return null;
+  return parts;
+}
+
+/** Deliberately bounded synonym grammar: no negation, conditions or extra prose. */
+function qualitativeTrend(text: string) {
+  const source = toHalfWidth(text).replace(/\s+/g, "");
+  const match = source.match(/^(?:水溶液|溶液|水)?溫度(下降|降低|上升|升高)[,，;；、]?(?:水中)?(?:溶氧量|溶氧含量)(增加|上升|減少|下降)(?:\((增加|上升|減少|下降)\))?[。.]?$/);
+  if (!match) return null;
+  const direction = (word: string) => /^(下降|降低|減少)$/.test(word) ? "down" : "up";
+  if (match[3] && direction(match[2]) !== direction(match[3])) return null;
+  return `${direction(match[1])}:${direction(match[2])}`;
+}
+
+/** Known, agreeing subquestions do not certify the unreferenced remainder. */
 export function referencePartiallyMatches(answer: string, reference: string) {
-  const text = cleanReferenceFormat(answer);
-  if (!/^\(1\)/.test(text) || !/\(2\)/.test(text)) return false;
-  const first = text.replace(/^\(1\)\s*/, "").split(/\(2\)/)[0].split(/\(或/)[0].replace(/[;；\s]+$/, "");
-  return referenceAnswersMatch(first, reference);
+  let source = toHalfWidth(reference).trim();
+  const request = source.match(/(?:第)?([一二三四五六七八九十\d]+)題(?:目)?(?:看不懂|不懂|不會)[。！!]?$/);
+  const requestedLabel = request ? questionNumber(request[1]) : null;
+  if (request) source = source.slice(0, request.index).trim();
+  const actual = labeledAnswers(answer), expected = labeledAnswers(source);
+  if (actual && expected) {
+    if (actual.length === expected.length) return false;
+    const smaller = actual.length < expected.length ? actual : expected;
+    const larger = actual.length < expected.length ? expected : actual;
+    return smaller.every(part => {
+      const other = larger.find(candidate => candidate.label === part.label);
+      return Boolean(other && referenceAnswersMatch(part.value, other.value));
+    });
+  }
+  if (requestedLabel && expected && !actual) {
+    const target = expected.find(part => part.label === requestedLabel);
+    return Boolean(target && referenceAnswersMatch(answer, target.value));
+  }
+  return false;
 }

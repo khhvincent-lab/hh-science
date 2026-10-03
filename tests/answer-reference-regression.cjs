@@ -38,6 +38,22 @@ const cases = [
   ['DE', '第21題：DE', true],
   [String.raw`$\\mathrm{C_3H_8}$`, 'C3H8', true],
   ['C3H6', 'C3H8', false],
+  ['E', '第四題E', true],
+  ['第4題E', '第四題E', true],
+  ['第5題E', '第四題E', false],
+  ['第十二題 E', '第12題 E', true],
+  ['(1) 120 g；(2) 20°C；(3) 60 g；(4) 30 g', '120g 20度C 60g 30g', true],
+  ['(1) 120 g；(2) 20°C；(3) 60 g；(4) 30 g', '120g 20度C 30g 60g', false],
+  ['(1) 120 g；(2) 20°C；(3) 60 g；(4) 30 g', '120g 20度C 60g', false],
+  ['20°C', '20℃', true],
+  ['20°C', '攝氏20度', true],
+  ['20°C', '20K', false],
+  ['60 g', '60公斤', false],
+  ['60 g', '60公克', true],
+  ['水溶液溫度下降；溶氧量增加（上升）', '溫度下降 溶氧量上升', true],
+  ['水溶液溫度下降；溶氧量增加（上升）', '溫度下降 溶氧量下降', false],
+  ['溫度下降 溶氧量增加', '溫度不下降 溶氧量增加', false],
+  ['溫度下降 溶氧量增加（下降）', '溫度下降 溶氧量增加', false],
 ];
 for (const [answer, reference, expected, context] of cases) assert.equal(match(answer, reference, context), expected, `${answer} vs ${reference}`);
 const { answerReviewState: state } = compile('lib/accuracy-review.ts', id => id.includes('answer-normalization') ? normalization : { supabaseAdmin: {} });
@@ -48,4 +64,30 @@ assert.equal(state('(C)', '14', { verdict: 'invalid_question' }, options).counts
 assert.equal(state('(C)', '14', { verdict: 'unreviewed' }, options).needsReview, false);
 assert.equal(state('(1) 1384.4 kJ/mol（或 -1384.4）\n(2) 反應式', '1384.4kJ/mol').excluded, true);
 assert.equal(state('8 g', '').countsCorrect, false);
-console.log(`${cases.length + 7} reference and review regression checks passed`);
+const scoped = [
+  ['(1) (A)(B)(C)\n(2) 水溶液溫度下降；溶氧量增加（上升）', '第二題 溫度下降 溶氧量上升'],
+  ['(E)', '2.C 3.BC 4.AC 5.E 6.D五題目看不懂'],
+  ['第5題 E', '2.C 3.BC 4.AC 5.E 6.D'],
+];
+for (const [answer, reference] of scoped) {
+  assert.equal(state(answer, reference).partialMatch, true, `${answer} vs ${reference}`);
+  assert.equal(state(answer, reference).needsReview, false);
+  assert.equal(state(answer, reference).excluded, true);
+  assert.equal(state(answer, reference).countsCorrect, false);
+  assert.equal(state(answer, reference, { verdict: 'ai_correct' }).countsCorrect, true);
+  assert.equal(state(answer, reference, { verdict: 'ai_incorrect' }).countsCorrect, false);
+  assert.equal(state(answer, reference, { verdict: 'invalid_question' }).excluded, true);
+}
+const ambiguous = [
+  ['E', '2.C 3.BC 4.AC 5.E 6.D'],
+  ['E', '2.C 3.BC 4.AC 5.E 6.D四題目看不懂'],
+  ['E', '2.C 3.BC 4.AC 5.E 5.D五題目看不懂'],
+  ['(1) ABC\n(2) 溫度下降 溶氧量上升', '第三題 溫度下降 溶氧量上升'],
+  ['(1) ABC\n(2) 溫度下降 溶氧量上升', '第二題 溫度下降 溶氧量下降'],
+  ['第5題 A；第6題 B', '第5題 A；第6題 C；第7題 D'],
+];
+for (const [answer, reference] of ambiguous) {
+  assert.equal(state(answer, reference).needsReview, true, `${answer} vs ${reference}`);
+  assert.equal(state(answer, reference).countsCorrect, false);
+}
+console.log(`${cases.length + 7 + scoped.length * 7 + ambiguous.length * 2} reference and review regression checks passed`);

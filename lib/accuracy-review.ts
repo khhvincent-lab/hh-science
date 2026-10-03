@@ -33,7 +33,7 @@ export function answerReviewState(answer: string | null, reference: string | nul
   const hasReference = Boolean(reference?.trim());
   const automaticMatch = hasReference && referenceAnswersMatch(answer || "", reference || "", options || "");
   const partialMatch = hasReference && !automaticMatch && referencePartiallyMatches(answer || "", reference || "");
-  const needsReview = hasReference && !automaticMatch && (!review || review.verdict === "unreviewed");
+  const needsReview = hasReference && !automaticMatch && !partialMatch && (!review || review.verdict === "unreviewed");
   const excluded = needsReview || review?.verdict === "invalid_question" || (partialMatch && (!review || review.verdict === "unreviewed"));
   return {
     excluded,
